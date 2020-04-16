@@ -193,21 +193,8 @@ class BoxStack:
         self.size -= 1
         return old.data
 
-node_type.define(StackNode.class_type.instance_type)
 
-# todo: this is really fun. so much more to do before it's actually a thing though. here's a rough order
-#  - displaying images - done
-#  - camera - done
-#  - basic ray casting - done
-#  - BVH - done
-#  - loading models -done
-#  - performance work - good progress, need a TreeBox jitclass to really get there
-#  - multiple bounces, paths
-#  - automated tests
-#  - BRDFs, importance sampling
-#  - unidirectional path tracing
-#  - Bidirectional path tracing
-#  Can safely copy a lot of basic routines from rtv2 but I want to redesign a lot of the non-gpu code
+node_type.define(StackNode.class_type.instance_type)
 
 
 if __name__ == '__main__':

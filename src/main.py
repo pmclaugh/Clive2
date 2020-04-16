@@ -18,8 +18,21 @@ def render_something():
                phys_width=16., phys_height=9.)
     bvh = BoundingVolumeHierarchy(load_obj('../resources/teapot.obj'))
     print(datetime.now() - s, 'loading/compiling')
-    return capture(c, bvh)
+    return capture(c, bvh.root.box)
 
+# todo: this is really fun. so much more to do before it's actually a thing though. here's a rough order
+#  - displaying images - done
+#  - camera - done
+#  - basic ray casting - done
+#  - BVH - done
+#  - loading models -done
+#  - performance work - done (camera.py still needs work)
+#  - multiple bounces, paths
+#  - automated tests
+#  - BRDFs, importance sampling
+#  - unidirectional path tracing
+#  - Bidirectional path tracing
+#  Can safely copy a lot of basic routines from rtv2 but I want to redesign a lot of the non-gpu code
 
 if __name__ == '__main__':
     cv2.imshow('render', render_something())

@@ -1,7 +1,7 @@
 import numpy as np
 import numba
 from constants import *
-from primitives import unit, point, vec, Ray
+from primitives import unit, point, vec, Ray, Box
 from bvh import BoundingVolumeHierarchy
 from utils import timed
 
@@ -63,10 +63,10 @@ def make_rays(camera: Camera):
     return rays
 
 
-def capture(camera: Camera, scene: BoundingVolumeHierarchy):
+def capture(camera: Camera, root: Box):
     rays = make_rays(camera)
     for ray in rays:
-        result = scene.hit(scene.root.box, ray)
+        result = BoundingVolumeHierarchy.hit(root, ray)
         if result is not None:
             camera.image[ray.i][ray.j] = result.color * np.maximum(0.1, np.dot(result.n, UNIT_Y))
     return camera.image
