@@ -27,7 +27,10 @@ class TreeBox:
         members = numba.typed.List()
         if not self.children:
             [members.append(member) for member in self.members]
-        self.members = members
+            self.box.triangles = members
+        else:
+            self.box.left = self.children[0].box
+            self.box.right = self.children[1].box
 
     def add(self, triangle: Triangle):
         # useful if we know the bounds won't change, or don't want them to
@@ -138,7 +141,7 @@ class BoundingVolumeHierarchy:
                 if bvh_hit_inner(ray, box.box, least_t):
                     stack += box.children
             else:
-                hit, t = bvh_hit_leaf(ray, box.box, box.members, least_t)
+                hit, t = bvh_hit_leaf(ray, box.box, box.box.triangles, least_t)
                 if hit is not None and t < least_t:
                     least_hit = hit
                     least_t = t
