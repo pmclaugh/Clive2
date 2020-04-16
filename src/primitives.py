@@ -118,6 +118,8 @@ class Box:
         self.span = self.max - self.min
         self.bounds = np.stack((self.min, self.max))
 
+    def surface_area(self):
+        return 2 * (self.span[0] * self.span[1] + self.span[1] * self.span[2] + self.span[0] * self.span[2])
 
 @numba.jit(nogil=True, fastmath=True, cache=True)
 def ray_box_intersect(ray: Ray, box: Box):

@@ -3,7 +3,7 @@ import numpy as np
 from typing import List
 from load import load_obj
 import logging
-from constants import MIN3, MAX3, ZEROS, ONES
+from constants import MIN3, MAX3, TRAVERSAL_COST, INTERSECT_COST
 import numba
 from utils import timed
 
@@ -46,8 +46,8 @@ class TreeBox:
         return "{members} members, area {area}".format(members=len(self.members), area=np.product(self.box.span))
 
 
-@timed
 def AABB(triangles: List[Triangle]):
+    # < 0.001 seconds
     box = TreeBox(MAX3, MIN3)
     for triangle in triangles:
         box.extend(triangle)
@@ -80,14 +80,21 @@ class BoundingVolumeHierarchy:
             box.finalize()
 
     @staticmethod
-    @timed
     def divide_box(box: Box, axis: int, fraction: float):
+        # ~0.0001 seconds
         # return two boxes resulting from splitting input box along axis at fraction
         left_max = box.max.copy()
         left_max[axis] -= box.span[axis] * fraction
         right_min = box.min.copy()
         right_min[axis] += box.span[axis] * (1 - fraction)
         return TreeBox(box.min, left_max), TreeBox(right_min, box.max)
+
+    @staticmethod
+    def surface_area_heuristic(split):
+        l, r = split
+        l_sa = l.box.surface_area()
+        r_sa = r.box.surface_area()
+        return TRAVERSAL_COST + l_sa * len(l.members) * INTERSECT_COST + r_sa * len(r.members) * INTERSECT_COST
 
     @classmethod
     @timed
@@ -111,7 +118,7 @@ class BoundingVolumeHierarchy:
         # allow boxes to shrink
         splits = [(AABB(lbox.members), AABB(rbox.members)) for lbox, rbox in splits if lbox.members and rbox.members]
 
-        splits = sorted(splits, key=lambda s: np.product(s[0].box.span) + np.product(s[1].box.span))
+        splits = sorted(splits, key=lambda s: cls.surface_area_heuristic(s))
         if splits:
             left, right = splits[0]
             box_to_split.children = [left, right]

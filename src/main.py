@@ -16,7 +16,7 @@ def render_something():
     s = datetime.now()
     c = Camera(center=point(0, 1.5, -10), direction=point(0, 0, 1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
                phys_width=16., phys_height=9.)
-    bvh = BoundingVolumeHierarchy(load_obj('resources/teapot.obj'))
+    bvh = BoundingVolumeHierarchy(load_obj('../resources/teapot.obj'))
     print(datetime.now() - s, 'loading/compiling')
     return capture(c, bvh)
 

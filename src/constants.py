@@ -19,3 +19,8 @@ WHITE = np.array([255, 255, 255], dtype=np.uint8)
 RED = np.array([0, 0, 255], dtype=np.uint8)
 GREEN = np.array([0, 255, 0], dtype=np.uint8)
 BLUE = np.array([255, 0, 0], dtype=np.uint8)
+
+
+# BVH constants
+TRAVERSAL_COST = 1
+INTERSECT_COST = 2
