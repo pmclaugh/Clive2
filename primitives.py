@@ -28,13 +28,20 @@ def unit(v):
     ('origin', numba.float32[3]),
     ('direction', numba.float32[3]),
     ('inv_direction', numba.float32[3]),
-    ('sign', numba.uint8[3])])
+    ('sign', numba.uint8[3]),
+    ('color', numba.float32[3]),
+    ('i', numba.int32),
+    ('j', numba.int32),
+])
 class Ray:
     def __init__(self, origin, direction):
         self.origin = origin
         self.direction = direction
         self.inv_direction = 1 / direction
         self.sign = (self.inv_direction < 0).astype(np.uint8)
+        self.color = ZEROS
+        self.i = 0
+        self.j = 0
 
 
 @numba.jitclass([

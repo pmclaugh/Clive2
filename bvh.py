@@ -106,7 +106,6 @@ class BoundingVolumeHierarchy:
         right.parent = box_to_split
         return left, right
 
-    @timed
     def hit(self, ray: Ray):
         least_t = np.inf
         least_hit = None
@@ -123,7 +122,7 @@ class BoundingVolumeHierarchy:
                         if t is not None and t < least_t:
                             least_t = t
                             least_hit = triangle
-        return least_hit, least_t
+        return least_hit
 
 
 if __name__ == '__main__':

@@ -1,26 +1,24 @@
 import numpy as np
 import numba
-from scene import SimpleScene
 from constants import *
 from primitives import unit, point, vec, Ray
-from multiprocessing.dummy import Pool
-from datetime import datetime
 from bvh import BoundingVolumeHierarchy
+from utils import timed
 
-# @numba.jitclass([
-#     ('center', numba.float32[3]),
-#     ('direction', numba.float32[3]),
-#     ('phys_width', numba.float32),
-#     ('phys_height', numba.float32),
-#     ('focal_dist', numba.float32),
-#     ('focal_point', numba.float32[3]),
-#     ('pixel_width', numba.int32),
-#     ('pixel_height', numba.int32),
-#     ('dx', numba.float32[3]),
-#     ('dy', numba.float32[3]),
-#     ('origin', numba.float32[3]),
-#     ('image', numba.float32[:, :, :]),
-# ])
+@numba.jitclass([
+    ('center', numba.float32[3]),
+    ('direction', numba.float32[3]),
+    ('phys_width', numba.float32),
+    ('phys_height', numba.float32),
+    ('focal_dist', numba.float32),
+    ('focal_point', numba.float32[3]),
+    ('pixel_width', numba.int32),
+    ('pixel_height', numba.int32),
+    ('dx', numba.float32[3]),
+    ('dy', numba.float32[3]),
+    ('origin', numba.float32[3]),
+    ('image', numba.uint8[:, :, :]),
+])
 class Camera:
     def __init__(self, center=point(0, 0, 0), direction=vec(1, 0, 0), phys_width=1.0, phys_height=1.0,
                  pixel_width=1280, pixel_height=720):
@@ -47,37 +45,31 @@ class Camera:
 
         self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.uint8)
 
-        self.pool = Pool()
 
-    def pixel_grid(self):
-        x_range = np.arange(0, 1, 1 / self.pixel_width) * self.phys_width
-        y_range = np.arange(0, 1, 1 / self.pixel_height) * self.phys_height
-        pixel_origins = np.ones_like(self.image) * self.origin
-        # todo this is bad and slow
-        for i, y in enumerate(y_range):
-            for j, x in enumerate(x_range):
-                pixel_origins[i][j] += self.dy * y + self.dx * x
-        return pixel_origins
+@numba.jit(nogil=True)
+def make_rays(camera: Camera):
+    rays = []
+    dx_dp = camera.dx * camera.phys_width / camera.pixel_width
+    dy_dp = camera.dy * camera.phys_height / camera.pixel_height
+    for i in range(camera.pixel_height):
+        for j in range(camera.pixel_width):
+            origin = camera.origin + i * dy_dp + j * dx_dp
+            ray = Ray(origin, unit(camera.focal_point - origin))
+            ray.i = i
+            ray.j = j
+            rays.append(ray)
+    return rays
 
-    def capture(self, scene: BoundingVolumeHierarchy):
-        origins = self.pixel_grid()
-        directions = self.focal_point - origins
-        # todo this is bad and slow
-        for i in range(origins.shape[0]):
-            for j in range(origins.shape[1]):
-                ray = Ray(origins[i][j], directions[i][j])
-                hit, _ = scene.hit(ray)
-                if hit is not None:
-                    color = hit.color * np.maximum(0, np.dot(hit.n, UNIT_Y))
-                    self.image[i][j] = color
-        return self.image
 
-    @staticmethod
-    def hit_for_pixel(image, ray, scene, i, j):
-        hit, _ = scene.hit(ray)
-        if hit is not None:
-            image[i][j] = hit.color
+def capture(camera: Camera, scene: BoundingVolumeHierarchy):
+    rays = make_rays(camera)
+    for ray in rays:
+        result = scene.hit(ray)
+        if result is not None:
+            camera.image[ray.i][ray.j] = result.color
+    return camera.image
 
 
 if __name__ == '__main__':
-    Camera()
+    c = Camera()
+    make_rays(c)

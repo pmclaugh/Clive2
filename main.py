@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from camera import Camera
+from camera import Camera, capture
 from scene import dummy_scene
 from primitives import point
 from utils import timed
@@ -8,8 +8,8 @@ from datetime import datetime
 from bvh import BoundingVolumeHierarchy
 from load import load_obj
 
-WINDOW_WIDTH = 160
-WINDOW_HEIGHT = 90
+WINDOW_WIDTH = 640
+WINDOW_HEIGHT = 360
 
 @timed
 def render_something():
@@ -18,7 +18,7 @@ def render_something():
                phys_width=16., phys_height=9.)
     bvh = BoundingVolumeHierarchy(load_obj('resources/teapot.obj'))
     print(datetime.now() - s, 'loading/compiling')
-    return c.capture(bvh)
+    return capture(c, bvh)
 
 
 if __name__ == '__main__':
