@@ -146,7 +146,7 @@ def bvh_hit_inner(ray: Ray, box: Box, least_t: float):
     return hit and t_low <= least_t
 
 
-@numba.jit(nogil=True)
+@numba.jit(nogil=True, fastmath=True)
 def bvh_hit_leaf(ray: Ray, box: Box, triangles: List[Triangle], least_t):
     hit, t_low, t_high = ray_box_intersect(ray, box)
     if not hit:

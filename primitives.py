@@ -3,6 +3,7 @@ import numpy as np
 from constants import *
 from datetime import datetime
 from typing import List
+from utils import timed
 
 # sugar
 
@@ -68,7 +69,7 @@ class Triangle:
         self.color = color
 
 
-@numba.jit(nogil=True)
+@numba.jit(nogil=True, fastmath=True)
 def ray_triangle_intersect(ray: Ray, triangle: Triangle):
     h = np.cross(ray.direction, triangle.e2)
     a = np.dot(h, triangle.e1)
@@ -118,7 +119,7 @@ class Box:
         self.bounds = np.stack((self.min, self.max))
 
 
-@numba.jit(nogil=True)
+@numba.jit(nogil=True, fastmath=True)
 def ray_box_intersect(ray: Ray, box: Box):
     txmin = (box.bounds[ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
     txmax = (box.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
@@ -132,7 +133,7 @@ def ray_box_intersect(ray: Ray, box: Box):
 
     tzmin = (box.bounds[ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
     tzmax = (box.bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
-    
+
     if tmin > tzmax or tzmin > tmax:
         return False, 0., 0.
     tmin = max(tmin, tzmin)
@@ -143,18 +144,12 @@ def ray_box_intersect(ray: Ray, box: Box):
         return False, 0., 0.
 
 
-# 25M ray/box intersects/sec single threaded
-@numba.jit(nogil=True)
-def collide_test(box: Box, ray: Ray, n):
-    for _ in range(n):
-        box.collide(ray)
-
-
 # 17M ray/tri intersects/sec single threaded
-@numba.jit(nogil=True)
+@timed
+@numba.jit(nogil=True, parallel=True)
 def tri_collide_test(tri: Triangle, ray: Ray, n):
-    for _ in range(n):
-        tri.collide(ray)
+    for _ in numba.prange(n):
+        ray_triangle_intersect(ray, tri)
 
 # todo: this is really fun. so much more to do before it's actually a thing though. here's a rough order
 #  - displaying images - done
@@ -171,4 +166,5 @@ def tri_collide_test(tri: Triangle, ray: Ray, n):
 if __name__ == '__main__':
     r = Ray(ZEROS, UNIT_X)
     t = Triangle(ZEROS, UNIT_Y, UNIT_X)
-    ray_triangle_intersect(r, t)
+    tri_collide_test(t, r, 1)
+    tri_collide_test(t, r, 1000000)

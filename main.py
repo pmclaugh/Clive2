@@ -8,8 +8,8 @@ from datetime import datetime
 from bvh import BoundingVolumeHierarchy
 from load import load_obj
 
-WINDOW_WIDTH = 1280
-WINDOW_HEIGHT = 720
+WINDOW_WIDTH = 640
+WINDOW_HEIGHT = 360
 
 @timed
 def render_something():
