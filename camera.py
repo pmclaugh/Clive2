@@ -66,7 +66,7 @@ def capture(camera: Camera, scene: BoundingVolumeHierarchy):
     for ray in rays:
         result = scene.hit(ray)
         if result is not None:
-            camera.image[ray.i][ray.j] = result.color
+            camera.image[ray.i][ray.j] = result.color * np.maximum(0.1, np.dot(result.n, UNIT_Y))
     return camera.image
 
 

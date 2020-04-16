@@ -115,6 +115,7 @@ class Box:
     def extend(self, triangle: Triangle):
         self.min = np.minimum(triangle.mins, self.min)
         self.max = np.maximum(triangle.maxes, self.max)
+        self.span = self.max - self.min
         self.bounds = np.stack((self.min, self.max))
 
 

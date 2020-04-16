@@ -23,6 +23,12 @@ class TreeBox:
         self.box.extend(triangle)
         self.members.append(triangle)
 
+    def finalize(self):
+        members = numba.typed.List()
+        if not self.children:
+            [members.append(member) for member in self.members]
+        self.members = members
+
     def add(self, triangle: Triangle):
         # useful if we know the bounds won't change, or don't want them to
         self.members.append(triangle)
@@ -41,12 +47,10 @@ class TreeBox:
 
 
 def AABB(triangles: List[Triangle]):
-    minimum = MAX3
-    maximum = MIN3
+    box = TreeBox(MAX3, MIN3)
     for triangle in triangles:
-        minimum = np.minimum(triangle.mins, minimum)
-        maximum = np.maximum(triangle.maxes, maximum)
-    return TreeBox(minimum, maximum, members=list(triangles))
+        box.extend(triangle)
+    return box
 
 
 class BoundingVolumeHierarchy:
@@ -62,13 +66,15 @@ class BoundingVolumeHierarchy:
         stack: List[TreeBox] = [self.root]
         while stack:
             box = stack.pop()
-            if (box.members is not None and len(box.members) <= max_members) or len(stack) > max_depth:
+            if (len(box.members) <= max_members) or len(stack) > max_depth:
                 # leaf node
                 logger.info('leaf node: %s', box)
+                box.finalize()
                 continue
             l, r = self.split(box)
             stack.append(l)
             stack.append(r)
+            box.finalize()
 
     @staticmethod
     def divide_box(box: Box, axis: int, fraction: float):
@@ -112,17 +118,36 @@ class BoundingVolumeHierarchy:
         stack: List[TreeBox] = [self.root]
         while stack:
             box = stack.pop()
-            hit, t_low, t_high = box.collide(ray)
-            if hit and t_low <= least_t:
-                if box.children:
+            if box.children:
+                if bvh_hit_inner(ray, box.box, least_t):
                     stack += box.children
-                else:
-                    for triangle in box.members:
-                        t = ray_triangle_intersect(ray, triangle)
-                        if t is not None and t < least_t:
-                            least_t = t
-                            least_hit = triangle
+            else:
+                hit, t = bvh_hit_leaf(ray, box.box, box.members, least_t)
+                if hit is not None and t < least_t:
+                    least_hit = hit
+                    least_t = t
+
         return least_hit
+
+
+@numba.jit(nogil=True)
+def bvh_hit_inner(ray: Ray, box: Box, least_t: float):
+    hit, t_low, t_high = ray_box_intersect(ray, box)
+    return hit and t_low <= least_t
+
+
+@numba.jit(nogil=True)
+def bvh_hit_leaf(ray: Ray, box: Box, triangles: List[Triangle], least_t):
+    hit, t_low, t_high = ray_box_intersect(ray, box)
+    if not hit:
+        return None, least_t
+    least_hit = None
+    for triangle in triangles:
+        t = ray_triangle_intersect(ray, triangle)
+        if t is not None and t < least_t:
+            least_t = t
+            least_hit = triangle
+    return least_hit, least_t
 
 
 if __name__ == '__main__':
