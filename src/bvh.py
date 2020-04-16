@@ -134,14 +134,15 @@ class BoundingVolumeHierarchy:
     def hit(self, ray: Ray):
         least_t = np.inf
         least_hit = None
-        stack: List[TreeBox] = [self.root]
+        stack: List[Box] = [self.root.box]
         while stack:
             box = stack.pop()
-            if box.children:
-                if bvh_hit_inner(ray, box.box, least_t):
-                    stack += box.children
+            if box.left or box.right:
+                if bvh_hit_inner(ray, box, least_t):
+                    stack.append(box.left)
+                    stack.append(box.right)
             else:
-                hit, t = bvh_hit_leaf(ray, box.box, least_t)
+                hit, t = bvh_hit_leaf(ray, box, least_t)
                 if hit is not None and t < least_t:
                     least_hit = hit
                     least_t = t
