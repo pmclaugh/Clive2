@@ -48,6 +48,8 @@ class Camera:
 
 @numba.jit(nogil=True)
 def make_rays(camera: Camera):
+    # this is so painful. this is the fastest i've been able to make it,
+    # but it feels like there should be a much cleaner/faster way.
     rays = []
     dx_dp = camera.dx * camera.phys_width / camera.pixel_width
     dy_dp = camera.dy * camera.phys_height / camera.pixel_height
