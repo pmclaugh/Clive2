@@ -1,9 +1,11 @@
-from primitives import Ray, Box, Triangle
+from primitives import Ray, Box, Triangle, ray_box_intersect, ray_triangle_intersect
 import numpy as np
 from typing import List
 from load import load_obj
 import logging
 from constants import MIN3, MAX3, ZEROS, ONES
+import numba
+from utils import timed
 
 logger = logging.getLogger('rtv3-BVH')
 logger.addHandler(logging.StreamHandler())
@@ -26,7 +28,7 @@ class TreeBox:
         self.members.append(triangle)
 
     def collide(self, ray: Ray):
-        return self.box.collide(ray)
+        return ray_box_intersect(ray, self.box)
 
     def __contains__(self, triangle: Triangle):
         return self.box.contains(triangle.v0) or self.box.contains(triangle.v1) or self.box.contains(triangle.v2)
@@ -104,6 +106,7 @@ class BoundingVolumeHierarchy:
         right.parent = box_to_split
         return left, right
 
+    @timed
     def hit(self, ray: Ray):
         least_t = np.inf
         least_hit = None
@@ -115,11 +118,11 @@ class BoundingVolumeHierarchy:
                 if box.children:
                     stack += box.children
                 else:
-                    for member in box.members:
-                        t = member.collide(ray)
+                    for triangle in box.members:
+                        t = ray_triangle_intersect(ray, triangle)
                         if t is not None and t < least_t:
                             least_t = t
-                            least_hit = member
+                            least_hit = triangle
         return least_hit, least_t
 
 

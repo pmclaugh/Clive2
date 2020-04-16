@@ -41,6 +41,9 @@ class Ray:
     ('v0', numba.float32[3]),
     ('v1', numba.float32[3]),
     ('v2', numba.float32[3]),
+    ('e1', numba.float32[3]),
+    ('e2', numba.float32[3]),
+    ('n', numba.float32[3]),
     ('mins', numba.float32[3]),
     ('maxes', numba.float32[3]),
     ('color', numba.uint8[3]),
@@ -50,35 +53,38 @@ class Triangle:
         self.v0 = v0
         self.v1 = v1
         self.v2 = v2
+        self.e1 = v1 - v0
+        self.e2 = v2 - v0
+        self.n = unit(np.cross(self.e1, self.e2))
         self.mins = np.minimum(np.minimum(v0, v1), v2)
         self.maxes = np.maximum(np.maximum(v0, v1), v2)
         self.color = color
 
-    def collide(self, ray: Ray):
-        e1 = self.v1 - self.v0
-        e2 = self.v2 - self.v0
 
-        h = np.cross(ray.direction, e2)
-        a = np.dot(h, e1)
+@numba.jit(nogil=True)
+def ray_triangle_intersect(ray: Ray, triangle: Triangle):
 
-        if a < FLOAT_TOLERANCE:
-            return None
+    h = np.cross(ray.direction, triangle.e2)
+    a = np.dot(h, triangle.e1)
 
-        f = 1. / a
-        s = ray.origin - self.v0
-        u = f * np.dot(s, h)
-        if u < 0. or u > 1.:
-            return None
-        q = np.cross(s, e1)
-        v = f * np.dot(ray.direction, q)
-        if v < 0. or v > 1.:
-            return None
+    if a < FLOAT_TOLERANCE:
+        return None
 
-        t = f * np.dot(e2, q)
-        if t > 0:
-            return t
-        else:
-            return None
+    f = 1. / a
+    s = ray.origin - triangle.v0
+    u = f * np.dot(s, h)
+    if u < 0. or u > 1.:
+        return None
+    q = np.cross(s, triangle.e1)
+    v = f * np.dot(ray.direction, q)
+    if v < 0. or v > 1.:
+        return None
+
+    t = f * np.dot(triangle.e2, q)
+    if t > 0:
+        return t
+    else:
+        return None
 
 
 @numba.jitclass([
@@ -104,31 +110,29 @@ class Box:
         self.max = np.maximum(triangle.maxes, self.max)
         self.bounds = np.stack((self.min, self.max))
 
-    def collide(self, ray: Ray):
-        txmin = (self.bounds[ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
-        txmax = (self.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
-        tymin = (self.bounds[ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
-        tymax = (self.bounds[1 - ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
-        tzmin = (self.bounds[ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
-        tzmax = (self.bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
 
-        if txmin > tymax or tymin > txmax:
-            return False, 0., 0.
-        tmin = max(txmin, tymin)
-        tmax = min(txmax, tymax)
+@numba.jit(nogil=True)
+def ray_box_intersect(ray: Ray, box: Box, ):
+    txmin = (box.bounds[ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
+    txmax = (box.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
+    tymin = (box.bounds[ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
+    tymax = (box.bounds[1 - ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
+    tzmin = (box.bounds[ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
+    tzmax = (box.bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
 
-        if tmin > tzmax or tzmin > tmax:
-            return False, 0., 0.
-        tmin = max(tmin, tzmin)
-        tmax = min(tmax, tzmax)
-        if tmax > 0:
-            return True, tmin, tmax
-        else:
-            return False, 0., 0.
+    if txmin > tymax or tymin > txmax:
+        return False, 0., 0.
+    tmin = max(txmin, tymin)
+    tmax = min(txmax, tymax)
 
-    def simple_collide(self, ray: Ray):
-        hit, tmin, tmax = self.collide(ray)
-        return hit
+    if tmin > tzmax or tzmin > tmax:
+        return False, 0., 0.
+    tmin = max(tmin, tzmin)
+    tmax = min(tmax, tzmax)
+    if tmax > 0:
+        return True, tmin, tmax
+    else:
+        return False, 0., 0.
 
 
 # 25M ray/box intersects/sec single threaded
@@ -148,8 +152,8 @@ def tri_collide_test(tri: Triangle, ray: Ray, n):
 #  - displaying images - done
 #  - camera - done
 #  - basic ray casting - done
-#  - BVH
-#  - loading models
+#  - BVH - done
+#  - loading models -done
 #  - BRDFs, importance sampling
 #  - unidirectional path tracing
 #  - Bidirectional path tracing

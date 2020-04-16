@@ -45,7 +45,7 @@ class Camera:
 
         self.origin = (center - self.dx * phys_width / 2 - self.dy * phys_height / 2).astype(np.float32)
 
-        self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float32)
+        self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.uint8)
 
         self.pool = Pool()
 
@@ -60,7 +60,6 @@ class Camera:
         return pixel_origins
 
     def capture(self, scene: BoundingVolumeHierarchy):
-        s = datetime.now()
         origins = self.pixel_grid()
         directions = self.focal_point - origins
         # todo this is bad and slow
@@ -69,7 +68,8 @@ class Camera:
                 ray = Ray(origins[i][j], directions[i][j])
                 hit, _ = scene.hit(ray)
                 if hit is not None:
-                    self.image[i][j] = hit.color
+                    color = hit.color * np.maximum(0, np.dot(hit.n, UNIT_Y))
+                    self.image[i][j] = color
         return self.image
 
     @staticmethod
