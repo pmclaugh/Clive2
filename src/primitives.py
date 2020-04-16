@@ -156,6 +156,45 @@ def ray_box_intersect(ray: Ray, box: Box):
     else:
         return False, 0., 0.
 
+
+node_type = numba.deferred_type()
+
+
+@numba.jitclass([
+    ('next', numba.optional(node_type)),
+    ('data', box_type),
+])
+class StackNode:
+    def __init__(self, data):
+        self.data = data
+        self.next = None
+
+
+@numba.jitclass([
+    ('head', numba.optional(node_type)),
+    ('size', numba.uint32)
+])
+class BoxStack:
+    def __init__(self):
+        self.head = None
+        self.size = 0
+
+    def push(self, data):
+        node = StackNode(data)
+        node.next = self.head
+        self.head = node
+        self.size += 1
+
+    def pop(self):
+        old = self.head
+        if old is None:
+            return None
+        self.head = old.next
+        self.size -= 1
+        return old.data
+
+node_type.define(StackNode.class_type.instance_type)
+
 # todo: this is really fun. so much more to do before it's actually a thing though. here's a rough order
 #  - displaying images - done
 #  - camera - done
@@ -182,3 +221,10 @@ if __name__ == '__main__':
     members = numba.typed.List()
     members.append(tri)
     right.triangles = members
+
+    stack = BoxStack()
+    stack.push(box)
+    stack.push(left)
+    stack.push(right)
+    while stack.size > 0:
+        stack.pop()

@@ -1,4 +1,4 @@
-from primitives import Ray, Box, Triangle, ray_box_intersect, ray_triangle_intersect
+from primitives import Ray, Box, Triangle, ray_box_intersect, ray_triangle_intersect, BoxStack
 import numpy as np
 from typing import List
 from load import load_obj
@@ -131,16 +131,19 @@ class BoundingVolumeHierarchy:
             logger.info('splitting failed on box: %s', box_to_split)
             return None, None
 
-    def hit(self, ray: Ray):
+    @staticmethod
+    @numba.jit(nogil=True)
+    def hit(root: Box, ray: Ray):
         least_t = np.inf
         least_hit = None
-        stack: List[Box] = [self.root.box]
-        while stack:
+        stack = BoxStack()
+        stack.push(root)
+        while stack.size:
             box = stack.pop()
-            if box.left or box.right:
+            if box.left is not None or box.right is not None:
                 if bvh_hit_inner(ray, box, least_t):
-                    stack.append(box.left)
-                    stack.append(box.right)
+                    stack.push(box.left)
+                    stack.push(box.right)
             else:
                 hit, t = bvh_hit_leaf(ray, box, least_t)
                 if hit is not None and t < least_t:
@@ -171,5 +174,5 @@ def bvh_hit_leaf(ray: Ray, box: Box, least_t):
 
 
 if __name__ == '__main__':
-    teapot = load_obj('resources/teapot.obj')
+    teapot = load_obj('../resources/teapot.obj')
     BoundingVolumeHierarchy(teapot)
