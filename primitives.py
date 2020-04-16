@@ -124,13 +124,15 @@ def ray_box_intersect(ray: Ray, box: Box):
     txmax = (box.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
     tymin = (box.bounds[ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
     tymax = (box.bounds[1 - ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
-    tzmin = (box.bounds[ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
-    tzmax = (box.bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
+
     if txmin > tymax or tymin > txmax:
         return False, 0., 0.
     tmin = max(txmin, tymin)
     tmax = min(txmax, tymax)
 
+    tzmin = (box.bounds[ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
+    tzmax = (box.bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
+    
     if tmin > tzmax or tzmin > tmax:
         return False, 0., 0.
     tmin = max(tmin, tzmin)

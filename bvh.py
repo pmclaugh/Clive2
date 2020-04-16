@@ -46,6 +46,7 @@ class TreeBox:
         return "{members} members, area {area}".format(members=len(self.members), area=np.product(self.box.span))
 
 
+@timed
 def AABB(triangles: List[Triangle]):
     box = TreeBox(MAX3, MIN3)
     for triangle in triangles:
@@ -72,13 +73,14 @@ class BoundingVolumeHierarchy:
                 box.finalize()
                 continue
             l, r = self.split(box)
-            if l is not None:
-                stack.append(l)
             if r is not None:
                 stack.append(r)
+            if l is not None:
+                stack.append(l)
             box.finalize()
 
     @staticmethod
+    @timed
     def divide_box(box: Box, axis: int, fraction: float):
         # return two boxes resulting from splitting input box along axis at fraction
         left_max = box.max.copy()
@@ -88,6 +90,7 @@ class BoundingVolumeHierarchy:
         return TreeBox(box.min, left_max), TreeBox(right_min, box.max)
 
     @classmethod
+    @timed
     def split(cls, box_to_split: TreeBox, n=4):
         # simple rigid splitting method for now
         box = box_to_split.box

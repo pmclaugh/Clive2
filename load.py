@@ -2,6 +2,7 @@ import objloader
 import logging
 import numpy as np
 from primitives import point, Triangle
+from utils import timed
 
 logger = logging.getLogger('rtv3-loader')
 logger.addHandler(logging.StreamHandler())
