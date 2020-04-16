@@ -141,7 +141,7 @@ class BoundingVolumeHierarchy:
                 if bvh_hit_inner(ray, box.box, least_t):
                     stack += box.children
             else:
-                hit, t = bvh_hit_leaf(ray, box.box, box.box.triangles, least_t)
+                hit, t = bvh_hit_leaf(ray, box.box, least_t)
                 if hit is not None and t < least_t:
                     least_hit = hit
                     least_t = t
@@ -156,12 +156,12 @@ def bvh_hit_inner(ray: Ray, box: Box, least_t: float):
 
 
 @numba.jit(nogil=True, fastmath=True)
-def bvh_hit_leaf(ray: Ray, box: Box, triangles: List[Triangle], least_t):
+def bvh_hit_leaf(ray: Ray, box: Box, least_t):
     hit, t_low, t_high = ray_box_intersect(ray, box)
     if not hit:
         return None, least_t
     least_hit = None
-    for triangle in triangles:
+    for triangle in box.triangles:
         t = ray_triangle_intersect(ray, triangle)
         if t is not None and 0 < t < least_t:
             least_t = t
