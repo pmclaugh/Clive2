@@ -8,17 +8,17 @@ from utils import timed
 # sugar
 
 
-@numba.jit(nogil=True)
+@numba.jit(nogil=True, cache=True)
 def point(x, y, z):
     return np.array([x, y, z], dtype=np.float32)
 
 
-@numba.jit(nogil=True)
+@numba.jit(nogil=True, cache=True)
 def vec(x, y, z):
     return np.array([x, y, z], dtype=np.float32)
 
 
-@numba.jit(nogil=True)
+@numba.jit(nogil=True, cache=True)
 def unit(v):
     return v / np.linalg.norm(v)
 
@@ -69,7 +69,7 @@ class Triangle:
         self.color = color
 
 
-@numba.jit(nogil=True, fastmath=True)
+@numba.jit(nogil=True, fastmath=True, cache=True)
 def ray_triangle_intersect(ray: Ray, triangle: Triangle):
     h = np.cross(ray.direction, triangle.e2)
     a = np.dot(h, triangle.e1)
@@ -119,7 +119,7 @@ class Box:
         self.bounds = np.stack((self.min, self.max))
 
 
-@numba.jit(nogil=True, fastmath=True)
+@numba.jit(nogil=True, fastmath=True, cache=True)
 def ray_box_intersect(ray: Ray, box: Box):
     txmin = (box.bounds[ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
     txmax = (box.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
@@ -157,6 +157,8 @@ def tri_collide_test(tri: Triangle, ray: Ray, n):
 #  - basic ray casting - done
 #  - BVH - done
 #  - loading models -done
+#  - performance work - TreeBox jitclass
+#  - multiple bounces, paths
 #  - BRDFs, importance sampling
 #  - unidirectional path tracing
 #  - Bidirectional path tracing

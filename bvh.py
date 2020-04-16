@@ -140,13 +140,13 @@ class BoundingVolumeHierarchy:
         return least_hit
 
 
-@numba.jit(nogil=True, fastmath=True)
+@numba.jit(nogil=True, fastmath=True, cache=True)
 def bvh_hit_inner(ray: Ray, box: Box, least_t: float):
     hit, t_low, t_high = ray_box_intersect(ray, box)
     return hit and 0 < t_low <= least_t
 
 
-@numba.jit(nogil=True, fastmath=True)
+@numba.jit(nogil=True, fastmath=True, cache=True)
 def bvh_hit_leaf(ray: Ray, box: Box, triangles: List[Triangle], least_t):
     hit, t_low, t_high = ray_box_intersect(ray, box)
     if not hit:
