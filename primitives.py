@@ -38,52 +38,11 @@ class Ray:
 
 
 @numba.jitclass([
-    ('least_corner', numba.float32[3]),
-    ('most_corner', numba.float32[3]),
-    ('bounds', numba.float32[:, :]),
-    ('color', numba.uint8[3]),
-])
-class Box:
-    def __init__(self, least_corner, most_corner, color=WHITE):
-        self.least_corner = least_corner
-        self.most_corner = most_corner
-        self.bounds = np.stack((least_corner, most_corner))
-        self.color = color
-
-    def contains(self, point: numba.float32[3]):
-        return (point >= self.least_corner).all() and (point <= self.most_corner).all()
-
-    def collide(self, ray: Ray, t_limit=np.inf):
-        txmin = (self.bounds[ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
-        txmax = (self.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
-        tymin = (self.bounds[ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
-        tymax = (self.bounds[1 - ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
-        tzmin = (self.bounds[ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
-        tzmax = (self.bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
-
-        if txmin > tymax or tymin > txmax:
-            return False, 0., 0.
-        tmin = max(txmin, tymin)
-        tmax = min(txmax, tymax)
-
-        if tmin > tzmax or tzmin > tmax:
-            return False, 0., 0.
-        tmin = max(tmin, tzmin)
-        tmax = min(tmax, tzmax)
-        if t_limit > tmax > 0:
-            return True, tmin, tmax
-        else:
-            return False, 0., 0.
-
-    def simple_collide(self, ray: Ray):
-        hit, tmin, tmax = self.collide(ray)
-        return hit
-
-
-@numba.jitclass([
     ('v0', numba.float32[3]),
     ('v1', numba.float32[3]),
     ('v2', numba.float32[3]),
+    ('mins', numba.float32[3]),
+    ('maxes', numba.float32[3]),
     ('color', numba.uint8[3]),
 ])
 class Triangle:
@@ -91,6 +50,8 @@ class Triangle:
         self.v0 = v0
         self.v1 = v1
         self.v2 = v2
+        self.mins = np.minimum(np.minimum(v0, v1), v2)
+        self.maxes = np.maximum(np.maximum(v0, v1), v2)
         self.color = color
 
     def collide(self, ray: Ray, t_limit=np.inf):
@@ -120,6 +81,56 @@ class Triangle:
             return None
 
 
+@numba.jitclass([
+    ('min', numba.float32[3]),
+    ('max', numba.float32[3]),
+    ('bounds', numba.float32[:, :]),
+    ('span', numba.float32[3]),
+    ('color', numba.uint8[3]),
+])
+class Box:
+    def __init__(self, least_corner, most_corner, color=WHITE):
+        self.min = least_corner
+        self.max = most_corner
+        self.bounds = np.stack((least_corner, most_corner))
+        self.span = self.max - self.min
+        self.color = color
+
+    def contains(self, point: numba.float32[3]):
+        return (point >= self.min).all() and (point <= self.max).all()
+
+    def extend(self, triangle: Triangle):
+        self.min = np.minimum(triangle.mins, self.min)
+        self.max = np.maximum(triangle.maxes, self.max)
+        self.bounds = np.stack((self.min, self.max))
+
+    def collide(self, ray: Ray, t_limit=np.inf):
+        txmin = (self.bounds[ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
+        txmax = (self.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
+        tymin = (self.bounds[ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
+        tymax = (self.bounds[1 - ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
+        tzmin = (self.bounds[ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
+        tzmax = (self.bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
+
+        if txmin > tymax or tymin > txmax:
+            return False, 0., 0.
+        tmin = max(txmin, tymin)
+        tmax = min(txmax, tymax)
+
+        if tmin > tzmax or tzmin > tmax:
+            return False, 0., 0.
+        tmin = max(tmin, tzmin)
+        tmax = min(tmax, tzmax)
+        if t_limit > tmax > 0:
+            return True, tmin, tmax
+        else:
+            return False, 0., 0.
+
+    def simple_collide(self, ray: Ray):
+        hit, tmin, tmax = self.collide(ray)
+        return hit
+
+
 # 25M ray/box intersects/sec single threaded
 @numba.jit(nogil=True)
 def collide_test(box: Box, ray: Ray, n):
@@ -144,71 +155,6 @@ def tri_collide_test(tri: Triangle, ray: Ray, n):
 #  - Bidirectional path tracing
 #  Can safely copy a lot of basic routines from rtv2 but I want to redesign a lot of the non-gpu code
 
-
-class TreeBox:
-    def __init__(self, low_corner, high_corner, parent=None, children=None, members=None):
-        self.low = low_corner
-        self.high = high_corner
-        self.parent = parent
-        if children is not None:
-            self.children = children
-        else:
-            self.children = []
-        if members is not None:
-            self.members = members
-        else:
-            self.members = []
-        self.box = Box(low_corner, high_corner)
-
-    # @numba.jit(nogil=True)
-    def collide(self, ray: Ray, t_max=np.inf):
-        return self.box.collide(ray, t_limit=t_max)
-
-
-def AABB(triangles: List[Triangle]):
-    minimum = np.ones(3, dtype=np.float32) * np.inf
-    maximum = -1 * minimum
-    for triangle in triangles:
-        minimum = np.minimum(triangle.v0, triangle.v1, triangle.v2, minimum)
-        maximum = np.minimum(triangle.v0, triangle.v1, triangle.v2, minimum)
-    return TreeBox(minimum, maximum)
-
-
-class BoundingVolumeHierarchy:
-    def __init__(self, triangles):
-        self.root = None
-        self.triangles = triangles
-        self.build()
-
-    def build(self, max_members=2, max_depth=10):
-        self.root = AABB(self.triangles)
-        self.root.members = list(self.triangles)
-        stack = [self.root]
-        while stack:
-            node = stack.pop()
-            if len(node.members) <= max_members or len(stack) > max_depth:
-                # leaf node
-                continue
-            # find best split, do it
-            # put results on stack
-
-    def hit(self, ray: Ray):
-        least_t = np.inf
-        least_hit = None
-        stack = [self.root]
-        while stack:
-            node = stack.pop()
-            hit, t_low, t_high = node.collide(ray, t_limit=least_t)
-            if hit and t_low <= least_t:
-                if node.children:
-                    stack += node.children
-                else:
-                    for member in node.members:
-                        t = member.collide(ray)
-                        if t is not None and t < least_t:
-                            least_t = t
-                            least_hit = member
-        return least_hit, least_t
 
 
 if __name__ == '__main__':

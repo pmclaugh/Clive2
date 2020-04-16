@@ -5,6 +5,7 @@ from constants import *
 from primitives import unit, point, vec, Ray
 from multiprocessing.dummy import Pool
 from datetime import datetime
+from bvh import BoundingVolumeHierarchy
 
 # @numba.jitclass([
 #     ('center', numba.float32[3]),
@@ -50,8 +51,7 @@ class Camera:
 
     def pixel_grid(self):
         x_range = np.arange(0, 1, 1 / self.pixel_width) * self.phys_width
-        # camera is inherently upside down (like a pinhole camera), reverse that quietly here
-        y_range = np.arange(1, 0, -1 / self.pixel_height) * self.phys_height
+        y_range = np.arange(0, 1, 1 / self.pixel_height) * self.phys_height
         pixel_origins = np.ones_like(self.image) * self.origin
         # todo this is bad and slow
         for i, y in enumerate(y_range):
@@ -59,7 +59,7 @@ class Camera:
                 pixel_origins[i][j] += self.dy * y + self.dx * x
         return pixel_origins
 
-    def capture(self, scene: SimpleScene):
+    def capture(self, scene: BoundingVolumeHierarchy):
         s = datetime.now()
         origins = self.pixel_grid()
         directions = self.focal_point - origins
@@ -67,15 +67,14 @@ class Camera:
         for i in range(origins.shape[0]):
             for j in range(origins.shape[1]):
                 ray = Ray(origins[i][j], directions[i][j])
-                self.pool.apply_async(self.hit_for_pixel, [self.image, ray, scene, i, j])
-        print('setup took', datetime.now() - s)
-        self.pool.close()
-        self.pool.join()
+                hit, _ = scene.hit(ray)
+                if hit is not None:
+                    self.image[i][j] = hit.color
         return self.image
 
     @staticmethod
     def hit_for_pixel(image, ray, scene, i, j):
-        hit = scene.hit(ray)
+        hit, _ = scene.hit(ray)
         if hit is not None:
             image[i][j] = hit.color
 
