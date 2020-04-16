@@ -25,8 +25,8 @@ class TreeBox:
         # useful if we know the bounds won't change, or don't want them to
         self.members.append(triangle)
 
-    def collide(self, ray: Ray, t_limit=np.inf):
-        return self.box.collide(ray) #, t_limit=t_limit)
+    def collide(self, ray: Ray):
+        return self.box.collide(ray)
 
     def __contains__(self, triangle: Triangle):
         return self.box.contains(triangle.v0) or self.box.contains(triangle.v1) or self.box.contains(triangle.v2)
@@ -110,13 +110,13 @@ class BoundingVolumeHierarchy:
         stack: List[TreeBox] = [self.root]
         while stack:
             box = stack.pop()
-            hit, t_low, t_high = box.collide(ray, t_limit=least_t)
+            hit, t_low, t_high = box.collide(ray)
             if hit and t_low <= least_t:
                 if box.children:
                     stack += box.children
                 else:
                     for member in box.members:
-                        t = member.collide(ray) #, t_limit=least_t)
+                        t = member.collide(ray)
                         if t is not None and t < least_t:
                             least_t = t
                             least_hit = member

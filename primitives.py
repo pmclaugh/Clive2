@@ -54,7 +54,7 @@ class Triangle:
         self.maxes = np.maximum(np.maximum(v0, v1), v2)
         self.color = color
 
-    def collide(self, ray: Ray, t_limit=np.inf):
+    def collide(self, ray: Ray):
         e1 = self.v1 - self.v0
         e2 = self.v2 - self.v0
 
@@ -75,7 +75,7 @@ class Triangle:
             return None
 
         t = f * np.dot(e2, q)
-        if t_limit > t > 0:
+        if t > 0:
             return t
         else:
             return None
@@ -104,7 +104,7 @@ class Box:
         self.max = np.maximum(triangle.maxes, self.max)
         self.bounds = np.stack((self.min, self.max))
 
-    def collide(self, ray: Ray, t_limit=np.inf):
+    def collide(self, ray: Ray):
         txmin = (self.bounds[ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
         txmax = (self.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
         tymin = (self.bounds[ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
@@ -121,7 +121,7 @@ class Box:
             return False, 0., 0.
         tmin = max(tmin, tzmin)
         tmax = min(tmax, tzmax)
-        if t_limit > tmax > 0:
+        if tmax > 0:
             return True, tmin, tmax
         else:
             return False, 0., 0.
