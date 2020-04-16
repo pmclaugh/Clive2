@@ -93,13 +93,17 @@ def ray_triangle_intersect(ray: Ray, triangle: Triangle):
     else:
         return None
 
+box_type = numba.deferred_type()
+triangle_type = numba.deferred_type()
 
 @numba.jitclass([
     ('min', numba.float32[3::1]),
     ('max', numba.float32[3::1]),
     ('bounds', numba.float32[:, ::1]),
     ('span', numba.float32[3::1]),
-    ('color', numba.uint8[3::1]),
+    ('left', numba.optional(box_type)),
+    ('right', numba.optional(box_type)),
+    ('triangles', numba.optional(numba.types.ListType(Triangle.class_type.instance_type)))
 ])
 class Box:
     def __init__(self, least_corner, most_corner, color=WHITE):
@@ -107,7 +111,9 @@ class Box:
         self.max = most_corner
         self.bounds = np.stack((least_corner, most_corner))
         self.span = self.max - self.min
-        self.color = color
+        self.left = None
+        self.right = None
+        self.triangles = None
 
     def contains(self, point: numba.float32[3]):
         return (point >= self.min).all() and (point <= self.max).all()
@@ -120,6 +126,11 @@ class Box:
 
     def surface_area(self):
         return 2 * (self.span[0] * self.span[1] + self.span[1] * self.span[2] + self.span[0] * self.span[2])
+
+
+box_type.define(Box.class_type.instance_type)
+triangle_type.define(Triangle.class_type.instance_type)
+
 
 @numba.jit(nogil=True, fastmath=True)
 def ray_box_intersect(ray: Ray, box: Box):
@@ -161,5 +172,13 @@ def ray_box_intersect(ray: Ray, box: Box):
 
 
 if __name__ == '__main__':
-    r = Ray(ZEROS, UNIT_X)
-    t = Triangle(ZEROS, UNIT_Y, UNIT_X)
+    ray = Ray(ZEROS, UNIT_X)
+    tri = Triangle(ZEROS, UNIT_Y, UNIT_X)
+    box = Box(ZEROS, ONES)
+    left = Box(ZEROS, ONES / 2)
+    right = Box(ONES/2, ONES)
+    box.left = left
+    box.right = right
+    members = numba.typed.List()
+    members.append(tri)
+    right.triangles = members
