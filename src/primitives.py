@@ -8,17 +8,17 @@ from utils import timed
 # sugar
 
 
-@numba.jit(nogil=True, cache=True)
+@numba.jit(nogil=True)
 def point(x, y, z):
     return np.array([x, y, z], dtype=np.float32)
 
 
-@numba.jit(nogil=True, cache=True)
+@numba.jit(nogil=True)
 def vec(x, y, z):
     return np.array([x, y, z], dtype=np.float32)
 
 
-@numba.jit(nogil=True, cache=True)
+@numba.jit(nogil=True)
 def unit(v):
     return v / np.linalg.norm(v)
 
@@ -69,7 +69,7 @@ class Triangle:
         self.color = color
 
 
-@numba.jit(nogil=True, fastmath=True, cache=True)
+@numba.jit(nogil=True, fastmath=True)
 def ray_triangle_intersect(ray: Ray, triangle: Triangle):
     h = np.cross(ray.direction, triangle.e2)
     a = np.dot(h, triangle.e1)
@@ -121,7 +121,7 @@ class Box:
     def surface_area(self):
         return 2 * (self.span[0] * self.span[1] + self.span[1] * self.span[2] + self.span[0] * self.span[2])
 
-@numba.jit(nogil=True, fastmath=True, cache=True)
+@numba.jit(nogil=True, fastmath=True)
 def ray_box_intersect(ray: Ray, box: Box):
     txmin = (box.bounds[ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
     txmax = (box.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
