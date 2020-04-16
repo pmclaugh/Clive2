@@ -114,13 +114,12 @@ class BoundingVolumeHierarchy:
                     rbox.add(triangle)
                 else:
                     logger.error('Triangle %s in neither box')
-
-        # allow boxes to shrink
-        splits = [(AABB(lbox.members), AABB(rbox.members)) for lbox, rbox in splits if lbox.members and rbox.members]
-
+        splits = [(lbox, rbox) for lbox, rbox in splits if lbox.members and rbox.members]
         splits = sorted(splits, key=lambda s: cls.surface_area_heuristic(s))
+
         if splits:
-            left, right = splits[0]
+            split = splits[0]
+            left, right = AABB(split[0].members), AABB(split[1].members)
             box_to_split.children = [left, right]
             left.parent = box_to_split
             right.parent = box_to_split
@@ -147,13 +146,13 @@ class BoundingVolumeHierarchy:
         return least_hit
 
 
-@numba.jit(nogil=True, fastmath=True, cache=True)
+@numba.jit(nogil=True, fastmath=True)
 def bvh_hit_inner(ray: Ray, box: Box, least_t: float):
     hit, t_low, t_high = ray_box_intersect(ray, box)
     return hit and 0 < t_low <= least_t
 
 
-@numba.jit(nogil=True, fastmath=True, cache=True)
+@numba.jit(nogil=True, fastmath=True)
 def bvh_hit_leaf(ray: Ray, box: Box, triangles: List[Triangle], least_t):
     hit, t_low, t_high = ray_box_intersect(ray, box)
     if not hit:
