@@ -25,11 +25,11 @@ def unit(v):
 
 
 @numba.jitclass([
-    ('origin', numba.float32[3]),
-    ('direction', numba.float32[3]),
-    ('inv_direction', numba.float32[3]),
-    ('sign', numba.uint8[3]),
-    ('color', numba.float32[3]),
+    ('origin', numba.float32[3::1]),
+    ('direction', numba.float32[3::1]),
+    ('inv_direction', numba.float32[3::1]),
+    ('sign', numba.uint8[3::1]),
+    ('color', numba.float32[3::1]),
     ('i', numba.int32),
     ('j', numba.int32),
 ])
@@ -45,15 +45,15 @@ class Ray:
 
 
 @numba.jitclass([
-    ('v0', numba.float32[3]),
-    ('v1', numba.float32[3]),
-    ('v2', numba.float32[3]),
-    ('e1', numba.float32[3]),
-    ('e2', numba.float32[3]),
-    ('n', numba.float32[3]),
-    ('mins', numba.float32[3]),
-    ('maxes', numba.float32[3]),
-    ('color', numba.uint8[3]),
+    ('v0', numba.float32[3::1]),
+    ('v1', numba.float32[3::1]),
+    ('v2', numba.float32[3::1]),
+    ('e1', numba.float32[3::1]),
+    ('e2', numba.float32[3::1]),
+    ('n', numba.float32[3::1]),
+    ('mins', numba.float32[3::1]),
+    ('maxes', numba.float32[3::1]),
+    ('color', numba.uint8[3::1]),
 ])
 class Triangle:
     def __init__(self, v0, v1, v2, color=WHITE):
@@ -70,7 +70,6 @@ class Triangle:
 
 @numba.jit(nogil=True)
 def ray_triangle_intersect(ray: Ray, triangle: Triangle):
-
     h = np.cross(ray.direction, triangle.e2)
     a = np.dot(h, triangle.e1)
 
@@ -83,7 +82,7 @@ def ray_triangle_intersect(ray: Ray, triangle: Triangle):
     if u < 0. or u > 1.:
         return None
     q = np.cross(s, triangle.e1)
-    v = f * np.dot(ray.direction, q)
+    v = f * np.dot(q, ray.direction)
     if v < 0. or v > 1.:
         return None
 
@@ -95,11 +94,11 @@ def ray_triangle_intersect(ray: Ray, triangle: Triangle):
 
 
 @numba.jitclass([
-    ('min', numba.float32[3]),
-    ('max', numba.float32[3]),
-    ('bounds', numba.float32[:, :]),
-    ('span', numba.float32[3]),
-    ('color', numba.uint8[3]),
+    ('min', numba.float32[3::1]),
+    ('max', numba.float32[3::1]),
+    ('bounds', numba.float32[:, ::1]),
+    ('span', numba.float32[3::1]),
+    ('color', numba.uint8[3::1]),
 ])
 class Box:
     def __init__(self, least_corner, most_corner, color=WHITE):
@@ -168,14 +167,7 @@ def tri_collide_test(tri: Triangle, ray: Ray, n):
 #  Can safely copy a lot of basic routines from rtv2 but I want to redesign a lot of the non-gpu code
 
 
-
 if __name__ == '__main__':
-    a = point(2, 2, 2)
-    b = point(4, 4, 4)
-    box = Box(a, b)
-    tri = Triangle(point(1, 0, 0), point(1, 1, 0), point(1, 1, 1))
-    r = Ray(point(2, 2, 0), point(0, 0, 1))
-    tri_collide_test(tri, r, 1)
-    s = datetime.now()
-    tri_collide_test(tri, r, 100000)
-    print(datetime.now() - s)
+    r = Ray(ZEROS, UNIT_X)
+    t = Triangle(ZEROS, UNIT_Y, UNIT_X)
+    ray_triangle_intersect(r, t)
