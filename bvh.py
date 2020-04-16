@@ -59,7 +59,7 @@ class BoundingVolumeHierarchy:
         self.triangles = triangles
         self.build()
 
-    def build(self, max_members=16, max_depth=10):
+    def build(self, max_members=32, max_depth=15):
         self.root = AABB(self.triangles)
         self.root.members = list(self.triangles)
         logger.info('root bounding box is from %s to %s', self.root.box.min, self.root.box.max)
@@ -67,13 +67,15 @@ class BoundingVolumeHierarchy:
         while stack:
             box = stack.pop()
             if (len(box.members) <= max_members) or len(stack) > max_depth:
-                # leaf node
-                logger.info('leaf node: %s', box)
+                if len(stack) > max_depth and len(box.members) > max_members:
+                    logger.info('too deep! making a leaf with %d members', len(box.members))
                 box.finalize()
                 continue
             l, r = self.split(box)
-            stack.append(l)
-            stack.append(r)
+            if l is not None:
+                stack.append(l)
+            if r is not None:
+                stack.append(r)
             box.finalize()
 
     @staticmethod
@@ -106,11 +108,16 @@ class BoundingVolumeHierarchy:
         # allow boxes to shrink
         splits = [(AABB(lbox.members), AABB(rbox.members)) for lbox, rbox in splits if lbox.members and rbox.members]
 
-        left, right = sorted(splits, key=lambda s: np.product(s[0].box.span) + np.product(s[1].box.span))[0]
-        box_to_split.children = [left, right]
-        left.parent = box_to_split
-        right.parent = box_to_split
-        return left, right
+        splits = sorted(splits, key=lambda s: np.product(s[0].box.span) + np.product(s[1].box.span))
+        if splits:
+            left, right = splits[0]
+            box_to_split.children = [left, right]
+            left.parent = box_to_split
+            right.parent = box_to_split
+            return left, right
+        else:
+            logger.info('splitting failed on box: %s', box_to_split)
+            return None, None
 
     def hit(self, ray: Ray):
         least_t = np.inf
