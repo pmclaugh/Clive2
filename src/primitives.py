@@ -46,9 +46,10 @@ class Ray:
         self.j = 0
         self.bounces = 0
 
-    def update(self, t, new_direction):
-        self.origin = (self.origin + (t - COLLISION_OFFSET) * self.direction).astype(np.float32)
+    def update(self, t, new_direction, incident_normal):
+        self.origin = (self.origin + t * self.direction).astype(np.float32)
         self.direction = new_direction.astype(np.float32)
+        self.origin += incident_normal * COLLISION_OFFSET
         self.inv_direction = 1 / self.direction
         self.sign = (self.inv_direction < 0).astype(np.uint8)
         self.bounces += 1

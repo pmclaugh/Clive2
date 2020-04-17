@@ -4,6 +4,8 @@ from constants import *
 from primitives import unit, point, vec, Ray, Box
 from bvh import BoundingVolumeHierarchy, traverse_bvh
 from utils import timed
+from multiprocessing.dummy import Pool
+from functools import partial
 
 @numba.jitclass([
     ('center', numba.float32[3]),
@@ -53,7 +55,9 @@ class Camera:
     def make_ray(self, i, j):
         # was having difficulty making a good mass-ray-generation routine, settled on on-demand
         # speed is fine and it'll be good for future adaptive sampling stuff
-        origin = self.origin + self.dx_dp * (j + np.random.random()) + self.dy_dp * (i + np.random.random())
+        n1 = np.random.normal()
+        n2 = np.random.normal()
+        origin = self.origin + self.dx_dp * (j + n1) + self.dy_dp * (i + n2)
         ray = Ray(origin.astype(np.float32), unit(self.focal_point - origin).astype(np.float32))
         ray.i = i
         ray.j = j
@@ -61,18 +65,23 @@ class Camera:
 
 
 @numba.jit(nogil=True)
-def capture(camera: Camera, root: Box, samples=10):
-    for _ in range(samples):
-        for i in range(camera.pixel_height):
-            for j in range(camera.pixel_width):
-                ray = camera.make_ray(i, j)
-                camera.image[i][j] += sample(root, ray)
+def capture(camera: Camera, root: Box, sample_number):
+    for i in range(camera.pixel_height):
+        for j in range(camera.pixel_width):
+            ray = camera.make_ray(i, j)
+            camera.image[i][j] += sample(root, ray)
+
+
+def parallel_capture(camera: Camera, root: Box, samples=20):
+    pool = Pool()
+    pool.map(partial(capture, camera, root), range(samples))
 
 
 def tone_map(camera: Camera):
     tone_vector = point(0.0722, 0.7152, 0.2126)
     Lw = np.exp(np.sum(np.log(0.1 + np.sum(camera.image * tone_vector, axis=2))) / np.product(camera.image.shape))
-    result = np.minimum(1, camera.image * 0.64 / Lw)
+    result = camera.image * 0.64 / Lw
+    result = result / (result + 1)
     return (result * 255).astype(np.uint8)
 
 
@@ -118,7 +127,7 @@ def sample(root: Box, ray: Ray):
                 ray.color *= triangle.color
                 x, y, z = local_orthonormal_system(triangle.n)
                 new_dir = random_hemisphere_cosine_weighted(x, y, z)
-                ray.update(t, new_dir)
+                ray.update(t, new_dir, triangle.n)
         else:
             return BLACK # exited the scene
     return BLACK

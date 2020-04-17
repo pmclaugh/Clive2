@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from camera import Camera, capture, tone_map
+from camera import Camera, capture, parallel_capture, tone_map
 from scene import dummy_scene
 from primitives import point, Box
 from constants import ZEROS, ONES
@@ -16,13 +16,13 @@ WINDOW_HEIGHT = 200
 @timed
 def render_something():
     s = datetime.now()
-    c = Camera(center=point(0, 0, 6), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
+    c = Camera(center=point(0, 1, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
                phys_width=1., phys_height=1.)
     box = Box(point(-5, -1, -5), point(5, 9, 5))
     bvh = BoundingVolumeHierarchy(load_obj('../resources/teapot.obj') + triangles_for_box(box))
     print(datetime.now() - s, 'loading/compiling')
     try:
-        capture(c, bvh.root.box)
+        parallel_capture(c, bvh.root.box)
     except KeyboardInterrupt:
         pass
     return tone_map(c)
