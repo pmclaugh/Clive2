@@ -62,12 +62,11 @@ class Camera:
 
 @numba.jit(nogil=True)
 def capture(camera: Camera, root: Box, samples=10):
-    for n in range(samples):
+    for _ in range(samples):
         for i in range(camera.pixel_height):
             for j in range(camera.pixel_width):
                 ray = camera.make_ray(i, j)
                 camera.image[i][j] += sample(root, ray)
-    camera.image /= samples
 
 
 def tone_map(camera: Camera):
@@ -110,7 +109,7 @@ def dir_to_color(direction):
 
 @numba.jit(nogil=True)
 def sample(root: Box, ray: Ray):
-    while ray.bounces <= 5:
+    while ray.bounces <= 3:
         triangle, t = traverse_bvh(root, ray)
         if triangle is not None:
             if triangle.emitter:
@@ -123,6 +122,15 @@ def sample(root: Box, ray: Ray):
         else:
             return BLACK # exited the scene
     return BLACK
+
+
+@numba.jit(nogil=True)
+def simple_sample(root: Box, ray: Ray):
+    triangle, t = traverse_bvh(root, ray)
+    if triangle is not None:
+        return triangle.color
+    else:
+        return BLACK  # exited the scene
 
 
 if __name__ == '__main__':

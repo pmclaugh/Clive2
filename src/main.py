@@ -16,10 +16,10 @@ WINDOW_HEIGHT = 200
 @timed
 def render_something():
     s = datetime.now()
-    c = Camera(center=point(0, -3, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
+    c = Camera(center=point(0, 0, 6), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
                phys_width=1., phys_height=1.)
-    box = Box(ONES * -5, ONES * 5)
-    bvh = BoundingVolumeHierarchy(triangles_for_box(box))
+    box = Box(point(-5, -1, -5), point(5, 9, 5))
+    bvh = BoundingVolumeHierarchy(load_obj('../resources/teapot.obj') + triangles_for_box(box))
     print(datetime.now() - s, 'loading/compiling')
     try:
         capture(c, bvh.root.box)
@@ -38,7 +38,7 @@ def render_something():
 #  - jit OBJ loading and bvh construction, eliminate TreeBox class
 
 # todo: Known Bugs
-#  - Adding the teapot to the box scene causes all collision to fail
+#  - Adding the teapot to the box scene causes all collision to fail if camera is inside box
 
 
 if __name__ == '__main__':

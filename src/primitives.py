@@ -47,9 +47,8 @@ class Ray:
         self.bounces = 0
 
     def update(self, t, new_direction):
-        self.origin = (self.origin + t * self.direction).astype(np.float32)
+        self.origin = (self.origin + (t + COLLISION_OFFSET) * self.direction).astype(np.float32)
         self.direction = new_direction.astype(np.float32)
-        # self.origin = (self.origin + COLLISION_OFFSET * self.direction).astype(np.float32)
         self.inv_direction = 1 / self.direction
         self.sign = (self.inv_direction < 0).astype(np.uint8)
         self.bounces += 1
