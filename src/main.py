@@ -9,23 +9,29 @@ from datetime import datetime
 from bvh import BoundingVolumeHierarchy, triangles_for_box
 from load import load_obj
 
-WINDOW_WIDTH = 160
-WINDOW_HEIGHT = 90
+WINDOW_WIDTH = 640
+WINDOW_HEIGHT = 360
+SAMPLE_COUNT = 500
 
 @timed
 def render_something():
     s = datetime.now()
-    camera = Camera(center=point(0, 1, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
-               phys_width=1.7777, phys_height=1.)
+    camera = Camera(center=point(0, 2, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
+               phys_width=WINDOW_WIDTH/WINDOW_HEIGHT, phys_height=1.)
     box = Box(point(-5, -1, -5), point(5, 9, 5))
     bvh = BoundingVolumeHierarchy(load_obj('../resources/teapot.obj') + triangles_for_box(box))
     print(datetime.now() - s, 'loading/compiling')
-    parallel_capture(camera, bvh.root.box)
+    try:
+        parallel_pixel_capture(camera, bvh.root.box, samples=SAMPLE_COUNT)
+    except KeyboardInterrupt:
+        pass
     return tone_map(camera)
 
 
 if __name__ == '__main__':
-    cv2.imshow('render', render_something())
+    render = render_something()
+    cv2.imwrite('../renders/%s.jpg' % datetime.now(), render)
+    cv2.imshow('render', render)
     cv2.waitKey(0)
 
 # performance test 200x200 10 samples

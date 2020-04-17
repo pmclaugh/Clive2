@@ -77,8 +77,8 @@ def screen_sample(camera: Camera, root: Box, sample_number):
 @numba.jit(nogil=True)
 def pixel_multi_sample(camera: Camera, root: Box, samples, index):
     value = vec(0, 0, 0)
-    i = index / camera.pixel_height
-    j = index % camera.pixel_height
+    i = index / camera.pixel_width
+    j = index % camera.pixel_width
     for _ in range(samples):
         ray = camera.make_ray(i, j)
         value += sample(root, ray)
@@ -98,7 +98,7 @@ def parallel_capture(camera: Camera, root: Box, samples=10):
 def parallel_pixel_capture(camera: Camera, root: Box, samples=10):
     pool = Pool()
     pixels = np.array(pool.map(partial(pixel_multi_sample, camera, root, samples), range(camera.pixel_height * camera.pixel_width)))
-    image = pixels.reshape(camera.pixel_width, camera.pixel_height, 3)
+    image = pixels.reshape(camera.pixel_height, camera.pixel_width, 3)
     camera.image = image
 
 
