@@ -156,7 +156,7 @@ def traverse_bvh(root: Box, ray: Ray):
 @numba.jit(nogil=True, fastmath=True)
 def bvh_hit_inner(ray: Ray, box: Box, least_t: float):
     hit, t_low, t_high = ray_box_intersect(ray, box)
-    return hit and 0 < t_low <= least_t
+    return hit and t_low <= least_t
 
 
 @numba.jit(nogil=True, fastmath=True)

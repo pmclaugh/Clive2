@@ -47,7 +47,7 @@ class Ray:
         self.bounces = 0
 
     def update(self, t, new_direction):
-        self.origin = (self.origin + (t + COLLISION_OFFSET) * self.direction).astype(np.float32)
+        self.origin = (self.origin + (t - COLLISION_OFFSET) * self.direction).astype(np.float32)
         self.direction = new_direction.astype(np.float32)
         self.inv_direction = 1 / self.direction
         self.sign = (self.inv_direction < 0).astype(np.uint8)
@@ -212,20 +212,21 @@ node_type.define(StackNode.class_type.instance_type)
 
 
 if __name__ == '__main__':
-    ray = Ray(ZEROS, UNIT_X)
-    tri = Triangle(ZEROS, UNIT_Y, UNIT_X)
+    ray = Ray(ZEROS + 0.1 * UNIT_X + 0.1 * UNIT_Y, UNIT_X)
     box = Box(ZEROS, ONES)
-    left = Box(ZEROS, ONES / 2)
-    right = Box(ONES/2, ONES)
-    box.left = left
-    box.right = right
-    members = numba.typed.List()
-    members.append(tri)
-    right.triangles = members
-
-    stack = BoxStack()
-    stack.push(box)
-    stack.push(left)
-    stack.push(right)
-    while stack.size > 0:
-        stack.pop()
+    print(ray_box_intersect(ray, box))
+    # tri = Triangle(ZEROS, UNIT_Y, UNIT_X)
+    # left = Box(ZEROS, ONES / 2)
+    # right = Box(ONES/2, ONES)
+    # box.left = left
+    # box.right = right
+    # members = numba.typed.List()
+    # members.append(tri)
+    # right.triangles = members
+    #
+    # stack = BoxStack()
+    # stack.push(box)
+    # stack.push(left)
+    # stack.push(right)
+    # while stack.size > 0:
+    #     stack.pop()
