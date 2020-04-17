@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from camera import Camera, capture
+from camera import Camera, capture, tone_map
 from scene import dummy_scene
 from primitives import point, Box
 from constants import ZEROS, ONES
@@ -12,15 +12,20 @@ from load import load_obj
 WINDOW_WIDTH = 200
 WINDOW_HEIGHT = 200
 
+
 @timed
 def render_something():
     s = datetime.now()
-    c = Camera(center=point(0, 0, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
+    c = Camera(center=point(0, -3, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
                phys_width=1., phys_height=1.)
     box = Box(ONES * -5, ONES * 5)
     bvh = BoundingVolumeHierarchy(triangles_for_box(box))
     print(datetime.now() - s, 'loading/compiling')
-    return capture(c, bvh.root.box)
+    try:
+        capture(c, bvh.root.box)
+    except KeyboardInterrupt:
+        pass
+    return tone_map(c)
 
 # todo: Feature Schedule
 #  - multiple bounces, paths
@@ -31,6 +36,9 @@ def render_something():
 # todo: Tech Debt
 #  - Automated tests
 #  - jit OBJ loading and bvh construction, eliminate TreeBox class
+
+# todo: Known Bugs
+#  - Adding the teapot to the box scene causes all collision to fail
 
 
 if __name__ == '__main__':

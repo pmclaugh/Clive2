@@ -60,23 +60,21 @@ class Camera:
         return ray
 
 
+@numba.jit(nogil=True)
 def capture(camera: Camera, root: Box, samples=10):
     for n in range(samples):
         for i in range(camera.pixel_height):
             for j in range(camera.pixel_width):
                 ray = camera.make_ray(i, j)
                 camera.image[i][j] += sample(root, ray)
-        print('sample %d complete' % n)
     camera.image /= samples
-    return tone_map(camera)
 
 
 def tone_map(camera: Camera):
     tone_vector = point(0.0722, 0.7152, 0.2126)
     Lw = np.exp(np.sum(np.log(0.1 + np.sum(camera.image * tone_vector, axis=2))) / np.product(camera.image.shape))
-    result = camera.image * 0.64 / Lw
-    result = result / (result + 1)
-    return result
+    result = np.minimum(1, camera.image * 0.64 / Lw)
+    return (result * 255).astype(np.uint8)
 
 
 @numba.jit(nogil=True)
@@ -118,6 +116,7 @@ def sample(root: Box, ray: Ray):
             if triangle.emitter:
                 return ray.color * triangle.color
             else:
+                ray.color *= triangle.color
                 x, y, z = local_orthonormal_system(triangle.n)
                 new_dir = random_hemisphere_cosine_weighted(x, y, z)
                 ray.update(t, new_dir)
