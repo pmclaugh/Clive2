@@ -9,18 +9,19 @@ from datetime import datetime
 from bvh import BoundingVolumeHierarchy, triangles_for_box
 from load import load_obj
 
-WINDOW_WIDTH = 200
-WINDOW_HEIGHT = 200
+WINDOW_WIDTH = 160
+WINDOW_HEIGHT = 90
 
 @timed
 def render_something():
     s = datetime.now()
-    c = Camera(center=point(0, 1, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
-               phys_width=1., phys_height=1.)
+    camera = Camera(center=point(0, 1, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
+               phys_width=1.7777, phys_height=1.)
     box = Box(point(-5, -1, -5), point(5, 9, 5))
     bvh = BoundingVolumeHierarchy(load_obj('../resources/teapot.obj') + triangles_for_box(box))
     print(datetime.now() - s, 'loading/compiling')
-    parallel_capture(c, bvh.root.box)
+    parallel_capture(camera, bvh.root.box)
+    return tone_map(camera)
 
 
 if __name__ == '__main__':
