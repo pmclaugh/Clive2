@@ -37,14 +37,22 @@ def unit(v):
 ])
 class Ray:
     def __init__(self, origin, direction):
-        self.origin = origin
-        self.direction = direction
-        self.inv_direction = 1 / direction
+        self.origin = origin.copy()
+        self.direction = direction.copy()
+        self.inv_direction = 1 / self.direction
         self.sign = (self.inv_direction < 0).astype(np.uint8)
-        self.color = ONES
+        self.color = WHITE.copy()
         self.i = 0
         self.j = 0
         self.bounces = 0
+
+    def update(self, t, new_direction):
+        self.origin = (self.origin + t * self.direction).astype(np.float32)
+        self.direction = new_direction.astype(np.float32)
+        # self.origin = (self.origin + COLLISION_OFFSET * self.direction).astype(np.float32)
+        self.inv_direction = 1 / self.direction
+        self.sign = (self.inv_direction < 0).astype(np.uint8)
+        self.bounces += 1
 
 
 @numba.jitclass([
@@ -78,7 +86,7 @@ def ray_triangle_intersect(ray: Ray, triangle: Triangle):
     h = np.cross(ray.direction, triangle.e2)
     a = np.dot(h, triangle.e1)
 
-    if a < 0:
+    if a <= 0:
         return None
 
     f = 1. / a
@@ -95,7 +103,7 @@ def ray_triangle_intersect(ray: Ray, triangle: Triangle):
         return None
 
     t = f * np.dot(triangle.e2, q)
-    if t > 0:
+    if t > FLOAT_TOLERANCE:
         return t
     else:
         return None

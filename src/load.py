@@ -8,7 +8,7 @@ logger = logging.getLogger('rtv3-loader')
 logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
 
-
+@timed
 def load_obj(path):
     obj = objloader.Obj.open(path)
     logger.info('model %s has %d vertices and %d faces', path, len(obj.vert), len(obj.face)/3)

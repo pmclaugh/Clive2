@@ -9,13 +9,13 @@ from datetime import datetime
 from bvh import BoundingVolumeHierarchy, triangles_for_box
 from load import load_obj
 
-WINDOW_WIDTH = 400
-WINDOW_HEIGHT = 400
+WINDOW_WIDTH = 200
+WINDOW_HEIGHT = 200
 
 @timed
 def render_something():
     s = datetime.now()
-    c = Camera(center=point(0, 0, 10), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
+    c = Camera(center=point(0, 0, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
                phys_width=1., phys_height=1.)
     box = Box(ONES * -5, ONES * 5)
     bvh = BoundingVolumeHierarchy(triangles_for_box(box))

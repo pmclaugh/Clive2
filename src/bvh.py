@@ -184,7 +184,7 @@ def triangles_for_box(box: Box):
     right_bottom_front = box.max - box.span * UNIT_Y
     right_top_back = box.max - box.span * UNIT_Z
 
-    shrink = np.array([.25, .95, .25], dtype=np.float32)
+    shrink = np.array([.5, .95, .5], dtype=np.float32)
 
     tris = [
         # back wall

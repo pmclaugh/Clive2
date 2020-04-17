@@ -17,15 +17,16 @@ ONES = np.array([1, 1, 1], dtype=np.float32)
 BLACK = np.array([0., 0., 0.], dtype=np.float32)
 WHITE = np.array([1., 1., 1.], dtype=np.float32)
 GRAY = np.array([.5, .5, .5], dtype=np.float32)
-RED = np.array([0.1, 0.1, 1.], dtype=np.float32)
-GREEN = np.array([0.1, 1., 0.1], dtype=np.float32)
-BLUE = np.array([1., 0.1, 0.1], dtype=np.float32)
-CYAN = np.array([1., 1., 0.1], dtype=np.float32)
+RED = np.array([0.4, 0.4, 1.], dtype=np.float32)
+GREEN = np.array([0.4, 1., 0.4], dtype=np.float32)
+BLUE = np.array([1., 0.4, 0.4], dtype=np.float32)
+CYAN = np.array([1., 1., 0.4], dtype=np.float32)
 
 
 # BVH constants
 TRAVERSAL_COST = 1
 INTERSECT_COST = 2
 
-# Render constants
+# Tracing constants
 MAX_BOUNCES = 3
+COLLISION_OFFSET = 0.001
