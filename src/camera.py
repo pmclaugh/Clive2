@@ -65,16 +65,41 @@ class Camera:
 
 
 @numba.jit(nogil=True)
-def capture(camera: Camera, root: Box, sample_number):
+def screen_sample(camera: Camera, root: Box, sample_number):
+    image = camera.image * 0
     for i in range(camera.pixel_height):
         for j in range(camera.pixel_width):
             ray = camera.make_ray(i, j)
-            camera.image[i][j] += sample(root, ray)
+            image[i][j] = sample(root, ray)
+    return image
 
 
-def parallel_capture(camera: Camera, root: Box, samples=20):
+@numba.jit(nogil=True)
+def pixel_multi_sample(camera: Camera, root: Box, samples, index):
+    value = vec(0, 0, 0)
+    i = index / camera.pixel_height
+    j = index % camera.pixel_height
+    for _ in range(samples):
+        ray = camera.make_ray(i, j)
+        value += sample(root, ray)
+    return value
+
+
+def single_threaded_capture(camera: Camera, root: Box, samples=10):
+    for n in range(samples):
+        camera.image += screen_sample(camera, root, n)
+
+
+def parallel_capture(camera: Camera, root: Box, samples=10):
     pool = Pool()
-    pool.map(partial(capture, camera, root), range(samples))
+    camera.image = np.sum(pool.map(partial(screen_sample, camera, root), range(samples)), axis=0)
+
+
+def parallel_pixel_capture(camera: Camera, root: Box, samples=10):
+    pool = Pool()
+    pixels = np.array(pool.map(partial(pixel_multi_sample, camera, root, samples), range(camera.pixel_height * camera.pixel_width)))
+    image = pixels.reshape(camera.pixel_width, camera.pixel_height, 3)
+    camera.image = image
 
 
 def tone_map(camera: Camera):

@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from camera import Camera, capture, parallel_capture, tone_map
+from camera import Camera, screen_sample, parallel_capture, parallel_pixel_capture, single_threaded_capture, tone_map
 from scene import dummy_scene
 from primitives import point, Box
 from constants import ZEROS, ONES
@@ -26,6 +26,11 @@ def render_something():
     except KeyboardInterrupt:
         pass
     return tone_map(c)
+
+# performance test 200x200 10 samples
+# parallel_pixel_capture - 33.9686
+# parallel_capture - 33.8465
+# single_threaded_capture - 44.5569
 
 # todo: Feature Schedule
 #  - multiple bounces, paths
