@@ -33,6 +33,7 @@ def unit(v):
     ('color', numba.float32[3::1]),
     ('i', numba.int32),
     ('j', numba.int32),
+    ('bounces', numba.int32),
 ])
 class Ray:
     def __init__(self, origin, direction):
@@ -40,9 +41,10 @@ class Ray:
         self.direction = direction
         self.inv_direction = 1 / direction
         self.sign = (self.inv_direction < 0).astype(np.uint8)
-        self.color = ZEROS
+        self.color = ONES
         self.i = 0
         self.j = 0
+        self.bounces = 0
 
 
 @numba.jitclass([
@@ -54,10 +56,11 @@ class Ray:
     ('n', numba.float32[3::1]),
     ('mins', numba.float32[3::1]),
     ('maxes', numba.float32[3::1]),
-    ('color', numba.uint8[3::1]),
+    ('color', numba.float32[3::1]),
+    ('emitter', numba.boolean),
 ])
 class Triangle:
-    def __init__(self, v0, v1, v2, color=WHITE):
+    def __init__(self, v0, v1, v2, color=WHITE, emitter=False):
         self.v0 = v0
         self.v1 = v1
         self.v2 = v2
@@ -67,6 +70,7 @@ class Triangle:
         self.mins = np.minimum(np.minimum(v0, v1), v2)
         self.maxes = np.maximum(np.maximum(v0, v1), v2)
         self.color = color
+        self.emitter = emitter
 
 
 @numba.jit(nogil=True, fastmath=True)
@@ -85,6 +89,9 @@ def ray_triangle_intersect(ray: Ray, triangle: Triangle):
     q = np.cross(s, triangle.e1)
     v = f * np.dot(q, ray.direction)
     if v < 0. or v > 1.:
+        return None
+
+    if (1 - u - v) < 0. or (1 - u - v) > 1.:
         return None
 
     t = f * np.dot(triangle.e2, q)

@@ -2,7 +2,7 @@ import numpy as np
 import numba
 from constants import *
 from primitives import unit, point, vec, Ray, Box
-from bvh import BoundingVolumeHierarchy
+from bvh import BoundingVolumeHierarchy, traverse_bvh
 from utils import timed
 
 @numba.jitclass([
@@ -17,7 +17,7 @@ from utils import timed
     ('dx', numba.float32[3]),
     ('dy', numba.float32[3]),
     ('origin', numba.float32[3]),
-    ('image', numba.uint8[:, :, :]),
+    ('image', numba.float32[:, :, :]),
 ])
 class Camera:
     def __init__(self, center=point(0, 0, 0), direction=vec(1, 0, 0), phys_width=1.0, phys_height=1.0,
@@ -43,7 +43,7 @@ class Camera:
 
         self.origin = (center - self.dx * phys_width / 2 - self.dy * phys_height / 2).astype(np.float32)
 
-        self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.uint8)
+        self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float32)
 
 
 @numba.jit(nogil=True)
@@ -66,11 +66,22 @@ def make_rays(camera: Camera):
 def capture(camera: Camera, root: Box):
     rays = make_rays(camera)
     for ray in rays:
-        result = BoundingVolumeHierarchy.hit(root, ray)
-        if result is not None:
-            camera.image[ray.i][ray.j] = result.color * np.maximum(0.1, np.dot(result.n, UNIT_Y))
+        camera.image[ray.i][ray.j] = sample(root, ray)
     return camera.image
 
+
+@numba.jit(nogil=True)
+def sample(root: Box, ray: Ray):
+    while ray.bounces <= MAX_BOUNCES:
+        result = traverse_bvh(root, ray)
+        if result is not None:
+            return result.color
+        else:
+            return BLACK
+
+
+# todo: traverse_bvh must return t so sample can advance the path.
+#  need random on unit hemisphere, a box around the teapot, and a light source.
 
 if __name__ == '__main__':
     c = Camera()

@@ -3,7 +3,7 @@ import numpy as np
 from typing import List
 from load import load_obj
 import logging
-from constants import MIN3, MAX3, TRAVERSAL_COST, INTERSECT_COST
+from constants import *
 import numba
 from utils import timed
 
@@ -131,26 +131,26 @@ class BoundingVolumeHierarchy:
             logger.info('splitting failed on box: %s', box_to_split)
             return None, None
 
-    @staticmethod
-    @numba.jit(nogil=True)
-    def hit(root: Box, ray: Ray):
-        least_t = np.inf
-        least_hit = None
-        stack = BoxStack()
-        stack.push(root)
-        while stack.size:
-            box = stack.pop()
-            if box.left is not None or box.right is not None:
-                if bvh_hit_inner(ray, box, least_t):
-                    stack.push(box.left)
-                    stack.push(box.right)
-            else:
-                hit, t = bvh_hit_leaf(ray, box, least_t)
-                if hit is not None and t < least_t:
-                    least_hit = hit
-                    least_t = t
 
-        return least_hit
+@numba.jit(nogil=True)
+def traverse_bvh(root: Box, ray: Ray):
+    least_t = np.inf
+    least_hit = None
+    stack = BoxStack()
+    stack.push(root)
+    while stack.size:
+        box = stack.pop()
+        if box.left is not None or box.right is not None:
+            if bvh_hit_inner(ray, box, least_t):
+                stack.push(box.left)
+                stack.push(box.right)
+        else:
+            hit, t = bvh_hit_leaf(ray, box, least_t)
+            if hit is not None and t < least_t:
+                least_hit = hit
+                least_t = t
+
+    return least_hit, least_t
 
 
 @numba.jit(nogil=True, fastmath=True)
@@ -171,6 +171,45 @@ def bvh_hit_leaf(ray: Ray, box: Box, least_t):
             least_t = t
             least_hit = triangle
     return least_hit, least_t
+
+
+def triangles_for_box(box: Box):
+    left_bottom_back = box.min
+    right_bottom_back = box.min + box.span * UNIT_X
+    left_top_back = box.min + box.span * UNIT_Y
+    left_bottom_front = box.min + box.span * UNIT_Z
+
+    right_top_front = box.max
+    left_top_front = box.max - box.span * UNIT_X
+    right_bottom_front = box.max - box.span * UNIT_Y
+    right_top_back = box.max - box.span * UNIT_Z
+
+    shrink = np.array([.25, .95, .25], dtype=np.float32)
+
+    tris = [
+        # back wall
+        Triangle(left_bottom_back, right_bottom_back, right_top_back, color=RED),
+        Triangle(left_bottom_back, right_top_back, left_top_back, color=RED),
+        # left wall
+        Triangle(left_bottom_back, left_top_front, left_bottom_front, color=BLUE),
+        Triangle(left_bottom_back, left_top_back, left_top_front, color=BLUE),
+        # right wall
+        Triangle(right_bottom_back, right_bottom_front, right_top_front, color=GREEN),
+        Triangle(right_bottom_back, right_top_front, right_top_back, color=GREEN),
+        # front wall
+        Triangle(left_bottom_front, right_top_front, right_bottom_front, color=GRAY),
+        Triangle(left_bottom_front, left_top_front, right_top_front, color=GRAY),
+        # floor
+        Triangle(left_bottom_back, right_bottom_front, right_bottom_back, color=WHITE),
+        Triangle(left_bottom_back, left_bottom_front, right_bottom_front, color=WHITE),
+        # ceiling
+        Triangle(left_top_back, right_top_back, right_top_front, color=CYAN),
+        Triangle(left_top_back, right_top_front, left_top_front, color=CYAN),
+        # ceiling light # NB this assumes box is centered on the origin, at least wrt x and z
+        Triangle(left_top_back * shrink, right_top_back * shrink, right_top_front * shrink, color=WHITE, emitter=True),
+        Triangle(left_top_back * shrink, right_top_front * shrink, left_top_front * shrink, color=WHITE, emitter=True),
+    ]
+    return tris
 
 
 if __name__ == '__main__':

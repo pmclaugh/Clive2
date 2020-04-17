@@ -13,14 +13,19 @@ MIN3 = -1 * MAX3
 ZEROS = np.array([0, 0, 0], dtype=np.float32)
 ONES = np.array([1, 1, 1], dtype=np.float32)
 
-# cv2 color order!
-BLACK = np.array([0, 0, 0], dtype=np.uint8)
-WHITE = np.array([255, 255, 255], dtype=np.uint8)
-RED = np.array([0, 0, 255], dtype=np.uint8)
-GREEN = np.array([0, 255, 0], dtype=np.uint8)
-BLUE = np.array([255, 0, 0], dtype=np.uint8)
+# cv2 color order, colors defined [0, 1]
+BLACK = np.array([0., 0., 0.], dtype=np.float32)
+WHITE = np.array([1., 1., 1.], dtype=np.float32)
+GRAY = np.array([.5, .5, .5], dtype=np.float32)
+RED = np.array([0.1, 0.1, 1.], dtype=np.float32)
+GREEN = np.array([0.1, 1., 0.1], dtype=np.float32)
+BLUE = np.array([1., 0.1, 0.1], dtype=np.float32)
+CYAN = np.array([1., 1., 0.1], dtype=np.float32)
 
 
 # BVH constants
 TRAVERSAL_COST = 1
 INTERSECT_COST = 2
+
+# Render constants
+MAX_BOUNCES = 3
