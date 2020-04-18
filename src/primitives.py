@@ -1,9 +1,6 @@
 import numba
 import numpy as np
 from constants import *
-from datetime import datetime
-from typing import List
-from utils import timed
 
 # sugar
 
@@ -25,6 +22,10 @@ def unit(v):
 # fast primitives
 
 
+ray_type = numba.deferred_type()
+node_type = numba.deferred_type()
+box_type = numba.deferred_type()
+
 @numba.jitclass([
     ('origin', numba.float32[3::1]),
     ('direction', numba.float32[3::1]),
@@ -34,6 +35,9 @@ def unit(v):
     ('i', numba.int32),
     ('j', numba.int32),
     ('bounces', numba.int32),
+    ('p', numba.float32),
+    ('next', numba.optional(ray_type)),
+    ('prev', numba.optional(ray_type)),
 ])
 class Ray:
     def __init__(self, origin, direction):
@@ -45,6 +49,9 @@ class Ray:
         self.i = 0
         self.j = 0
         self.bounces = 0
+        self.p = 1
+        self.next = None
+        self.prev = None
 
     def update(self, t, new_direction, incident_normal):
         self.origin = (self.origin + t * self.direction).astype(np.float32)
@@ -61,7 +68,7 @@ class Ray:
     ('v2', numba.float32[3::1]),
     ('e1', numba.float32[3::1]),
     ('e2', numba.float32[3::1]),
-    ('n', numba.float32[3::1]),
+    ('normal', numba.float32[3::1]),
     ('mins', numba.float32[3::1]),
     ('maxes', numba.float32[3::1]),
     ('color', numba.float32[3::1]),
@@ -74,42 +81,20 @@ class Triangle:
         self.v2 = v2
         self.e1 = v1 - v0
         self.e2 = v2 - v0
-        self.n = unit(np.cross(self.e1, self.e2))
+        self.normal = unit(np.cross(self.e1, self.e2))
         self.mins = np.minimum(np.minimum(v0, v1), v2)
         self.maxes = np.maximum(np.maximum(v0, v1), v2)
         self.color = color
         self.emitter = emitter
 
+    def sample_surface(self):
+        r1 = np.random.random()
+        r2 = np.random.random()
+        u = 1 - np.sqrt(r1)
+        v = np.sqrt(r1) * (1 - r2)
+        w = r2 * np.sqrt(r1)
+        return self.v0 * u + self.v1 * v + self.v2 * w + COLLISION_OFFSET * self.normal
 
-@numba.jit(nogil=True, fastmath=True)
-def ray_triangle_intersect(ray: Ray, triangle: Triangle):
-    h = np.cross(ray.direction, triangle.e2)
-    a = np.dot(h, triangle.e1)
-
-    if a <= 0:
-        return None
-
-    f = 1. / a
-    s = ray.origin - triangle.v0
-    u = f * np.dot(s, h)
-    if u < 0. or u > 1.:
-        return None
-    q = np.cross(s, triangle.e1)
-    v = f * np.dot(q, ray.direction)
-    if v < 0. or v > 1.:
-        return None
-
-    if (1 - u - v) < 0. or (1 - u - v) > 1.:
-        return None
-
-    t = f * np.dot(triangle.e2, q)
-    if t > FLOAT_TOLERANCE:
-        return t
-    else:
-        return None
-
-box_type = numba.deferred_type()
-triangle_type = numba.deferred_type()
 
 @numba.jitclass([
     ('min', numba.float32[3::1]),
@@ -118,7 +103,8 @@ triangle_type = numba.deferred_type()
     ('span', numba.float32[3::1]),
     ('left', numba.optional(box_type)),
     ('right', numba.optional(box_type)),
-    ('triangles', numba.optional(numba.types.ListType(Triangle.class_type.instance_type)))
+    ('triangles', numba.optional(numba.types.ListType(Triangle.class_type.instance_type))),
+    ('lights', numba.optional(numba.types.ListType(Triangle.class_type.instance_type))),
 ])
 class Box:
     def __init__(self, least_corner, most_corner, color=WHITE):
@@ -129,6 +115,7 @@ class Box:
         self.left = None
         self.right = None
         self.triangles = None
+        self.lights = None
 
     def contains(self, point: numba.float32[3]):
         return (point >= self.min).all() and (point <= self.max).all()
@@ -143,43 +130,11 @@ class Box:
         return 2 * (self.span[0] * self.span[1] + self.span[1] * self.span[2] + self.span[0] * self.span[2])
 
 
-box_type.define(Box.class_type.instance_type)
-triangle_type.define(Triangle.class_type.instance_type)
-
-
-@numba.jit(nogil=True, fastmath=True)
-def ray_box_intersect(ray: Ray, box: Box):
-    txmin = (box.bounds[ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
-    txmax = (box.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
-    tymin = (box.bounds[ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
-    tymax = (box.bounds[1 - ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
-
-    if txmin > tymax or tymin > txmax:
-        return False, 0., 0.
-    tmin = max(txmin, tymin)
-    tmax = min(txmax, tymax)
-
-    tzmin = (box.bounds[ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
-    tzmax = (box.bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
-
-    if tmin > tzmax or tzmin > tmax:
-        return False, 0., 0.
-    tmin = max(tmin, tzmin)
-    tmax = min(tmax, tzmax)
-    if tmax > 0:
-        return True, tmin, tmax
-    else:
-        return False, 0., 0.
-
-
-node_type = numba.deferred_type()
-
-
 @numba.jitclass([
     ('next', numba.optional(node_type)),
     ('data', box_type),
 ])
-class StackNode:
+class BoxStackNode:
     def __init__(self, data):
         self.data = data
         self.next = None
@@ -195,7 +150,7 @@ class BoxStack:
         self.size = 0
 
     def push(self, data):
-        node = StackNode(data)
+        node = BoxStackNode(data)
         node.next = self.head
         self.head = node
         self.size += 1
@@ -209,25 +164,15 @@ class BoxStack:
         return old.data
 
 
-node_type.define(StackNode.class_type.instance_type)
+@numba.jitclass([
+    ('ray', Ray.class_type.instance_type),
+])
+class Path:
+    # path is a stack of rays and some methods on them
+    def __init__(self, ray):
+        self.ray = ray
 
 
-if __name__ == '__main__':
-    ray = Ray(ZEROS + 0.1 * UNIT_X + 0.1 * UNIT_Y, UNIT_X)
-    box = Box(ZEROS, ONES)
-    print(ray_box_intersect(ray, box))
-    # tri = Triangle(ZEROS, UNIT_Y, UNIT_X)
-    # left = Box(ZEROS, ONES / 2)
-    # right = Box(ONES/2, ONES)
-    # box.left = left
-    # box.right = right
-    # members = numba.typed.List()
-    # members.append(tri)
-    # right.triangles = members
-    #
-    # stack = BoxStack()
-    # stack.push(box)
-    # stack.push(left)
-    # stack.push(right)
-    # while stack.size > 0:
-    #     stack.pop()
+node_type.define(BoxStackNode.class_type.instance_type)
+box_type.define(Box.class_type.instance_type)
+ray_type.define(Ray.class_type.instance_type)

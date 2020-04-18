@@ -1,4 +1,4 @@
-from primitives import Ray, Box, Triangle, ray_box_intersect, ray_triangle_intersect, BoxStack
+from primitives import Box, Triangle
 import numpy as np
 from typing import List
 from load import load_obj
@@ -24,20 +24,23 @@ class TreeBox:
         self.members.append(triangle)
 
     def finalize(self):
-        members = numba.typed.List()
         if not self.children:
+            members = numba.typed.List()
             [members.append(member) for member in self.members]
             self.box.triangles = members
         else:
             self.box.left = self.children[0].box
             self.box.right = self.children[1].box
 
+        # root box holds list of emissive surfaces
+        if self.parent is None:
+            lights = numba.typed.List()
+            [lights.append(member) for member in self.members if member.emitter]
+            self.box.lights = lights
+
     def add(self, triangle: Triangle):
         # useful if we know the bounds won't change, or don't want them to
         self.members.append(triangle)
-
-    def collide(self, ray: Ray):
-        return ray_box_intersect(ray, self.box)
 
     def __contains__(self, triangle: Triangle):
         return self.box.contains(triangle.v0) or self.box.contains(triangle.v1) or self.box.contains(triangle.v2)
@@ -77,8 +80,12 @@ class BoundingVolumeHierarchy:
                 continue
             l, r = self.split(box)
             if r is not None:
+                box.children.append(r)
+                r.parent = box
                 stack.append(r)
             if l is not None:
+                box.children.append(l)
+                l.parent = box
                 stack.append(l)
             box.finalize()
 
@@ -123,54 +130,10 @@ class BoundingVolumeHierarchy:
         if splits:
             split = splits[0]
             left, right = AABB(split[0].members), AABB(split[1].members)
-            box_to_split.children = [left, right]
-            left.parent = box_to_split
-            right.parent = box_to_split
             return left, right
         else:
             logger.info('splitting failed on box: %s', box_to_split)
             return None, None
-
-
-@numba.jit(nogil=True)
-def traverse_bvh(root: Box, ray: Ray):
-    least_t = np.inf
-    least_hit = None
-    stack = BoxStack()
-    stack.push(root)
-    while stack.size:
-        box = stack.pop()
-        if box.left is not None or box.right is not None:
-            if bvh_hit_inner(ray, box, least_t):
-                stack.push(box.left)
-                stack.push(box.right)
-        else:
-            hit, t = bvh_hit_leaf(ray, box, least_t)
-            if hit is not None and t < least_t:
-                least_hit = hit
-                least_t = t
-
-    return least_hit, least_t
-
-
-@numba.jit(nogil=True, fastmath=True)
-def bvh_hit_inner(ray: Ray, box: Box, least_t: float):
-    hit, t_low, t_high = ray_box_intersect(ray, box)
-    return hit and t_low <= least_t
-
-
-@numba.jit(nogil=True, fastmath=True)
-def bvh_hit_leaf(ray: Ray, box: Box, least_t):
-    hit, t_low, t_high = ray_box_intersect(ray, box)
-    if not hit:
-        return None, least_t
-    least_hit = None
-    for triangle in box.triangles:
-        t = ray_triangle_intersect(ray, triangle)
-        if t is not None and 0 < t < least_t:
-            least_t = t
-            least_hit = triangle
-    return least_hit, least_t
 
 
 def triangles_for_box(box: Box):

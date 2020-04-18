@@ -1,11 +1,8 @@
 import numpy as np
 import numba
 from constants import *
-from primitives import unit, point, vec, Ray, Box
-from bvh import BoundingVolumeHierarchy, traverse_bvh
-from utils import timed
-from multiprocessing.dummy import Pool
-from functools import partial
+from primitives import unit, point, vec, Ray
+
 
 @numba.jitclass([
     ('center', numba.float32[3]),
@@ -55,8 +52,10 @@ class Camera:
     def make_ray(self, i, j):
         # was having difficulty making a good mass-ray-generation routine, settled on on-demand
         # speed is fine and it'll be good for future adaptive sampling stuff
-        n1 = np.random.normal()
-        n2 = np.random.normal()
+        n1 = np.random.random()
+        n2 = np.random.random()
+        # todo: uniform sampling here is a little iffy, does it result in oversampling the pixel edges?
+        #  is this where those moire patterns come from?
         origin = self.origin + self.dx_dp * (j + n1) + self.dy_dp * (i + n2)
         ray = Ray(origin.astype(np.float32), unit(self.focal_point - origin).astype(np.float32))
         ray.i = i
@@ -64,108 +63,12 @@ class Camera:
         return ray
 
 
-@numba.jit(nogil=True)
-def screen_sample(camera: Camera, root: Box, sample_number):
-    image = camera.image * 0
-    for i in range(camera.pixel_height):
-        for j in range(camera.pixel_width):
-            ray = camera.make_ray(i, j)
-            image[i][j] = sample(root, ray)
-    return image
-
-
-@numba.jit(nogil=True)
-def pixel_multi_sample(camera: Camera, root: Box, samples, index):
-    value = vec(0, 0, 0)
-    i = index / camera.pixel_width
-    j = index % camera.pixel_width
-    for _ in range(samples):
-        ray = camera.make_ray(i, j)
-        value += sample(root, ray)
-    return value
-
-
-def single_threaded_capture(camera: Camera, root: Box, samples=10):
-    for n in range(samples):
-        camera.image += screen_sample(camera, root, n)
-
-
-def parallel_capture(camera: Camera, root: Box, samples=10):
-    pool = Pool()
-    camera.image = np.sum(pool.map(partial(screen_sample, camera, root), range(samples)), axis=0)
-
-
-def parallel_pixel_capture(camera: Camera, root: Box, samples=10):
-    pool = Pool()
-    pixels = np.array(pool.map(partial(pixel_multi_sample, camera, root, samples), range(camera.pixel_height * camera.pixel_width)))
-    image = pixels.reshape(camera.pixel_height, camera.pixel_width, 3)
-    camera.image = image
-
-
-def tone_map(camera: Camera):
+def tone_map(camera):
     tone_vector = point(0.0722, 0.7152, 0.2126)
     Lw = np.exp(np.sum(np.log(0.1 + np.sum(camera.image * tone_vector, axis=2))) / np.product(camera.image.shape))
     result = camera.image * 0.64 / Lw
     result = result / (result + 1)
     return (result * 255).astype(np.uint8)
-
-
-@numba.jit(nogil=True)
-def local_orthonormal_system(z):
-    if np.abs(z[0]) > np.abs(z[1]):
-        axis = UNIT_Y
-    else:
-        axis = UNIT_X
-    x = np.cross(axis, z)
-    y = np.cross(z, x)
-    return x, y, z
-
-
-@numba.jit(nogil=True)
-def random_hemisphere_cosine_weighted(x_axis, y_axis, z_axis):
-    u1 = np.random.random()
-    u2 = np.random.random()
-    r = np.sqrt(u1)
-    theta = 2 * np.pi * u2
-    x = r * np.cos(theta)
-    y = r * np.sin(theta)
-    return x * x_axis + y * y_axis + z_axis * np.sqrt(np.maximum(0., 1. - u1))
-
-
-def specular_reflection(direction, normal):
-    return 2 * np.dot(direction, normal) * normal - direction
-
-
-@numba.jit(nogil=True)
-def dir_to_color(direction):
-    return (.5 + unit(direction) / 2).astype(np.float32)
-
-
-@numba.jit(nogil=True)
-def sample(root: Box, ray: Ray):
-    while ray.bounces <= 3:
-        triangle, t = traverse_bvh(root, ray)
-        if triangle is not None:
-            if triangle.emitter:
-                return ray.color * triangle.color
-            else:
-                ray.color *= triangle.color
-                x, y, z = local_orthonormal_system(triangle.n)
-                new_dir = random_hemisphere_cosine_weighted(x, y, z)
-                ray.update(t, new_dir, triangle.n)
-        else:
-            return BLACK # exited the scene
-    return BLACK
-
-
-@numba.jit(nogil=True)
-def simple_sample(root: Box, ray: Ray):
-    triangle, t = traverse_bvh(root, ray)
-    if triangle is not None:
-        return triangle.color
-    else:
-        return BLACK  # exited the scene
-
 
 if __name__ == '__main__':
     c = Camera()

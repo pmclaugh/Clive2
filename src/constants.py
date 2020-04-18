@@ -1,4 +1,5 @@
 import numpy as np
+import enum
 
 H_FOV = 90
 
@@ -30,3 +31,9 @@ INTERSECT_COST = 2
 # Tracing constants
 MAX_BOUNCES = 3
 COLLISION_OFFSET = 0.001
+
+
+# Bidirectional constants
+class Direction(enum.Enum):
+    FROM_CAMERA = 1
+    FROM_EMITTER = 2
