@@ -118,7 +118,7 @@ def bvh_hit_leaf(ray: Ray, box: Box, least_t):
     return least_hit, least_t
 
 
-# @numba.jit(nogil=True)
+@numba.jit(nogil=True)
 def generate_path(root: Box, ray: Ray, direction, max_bounces=4, rr_chance=0.1, stop_for_light=False):
     path = Path(ray, direction)
     while path.ray.bounces < max_bounces or np.random.random() < rr_chance:
