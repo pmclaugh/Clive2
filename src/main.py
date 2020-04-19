@@ -15,7 +15,7 @@ SAMPLE_COUNT = 400
 
 
 if __name__ == '__main__':
-    camera = Camera(center=point(0, 2, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
+    camera = Camera(center=point(0, 7, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
                     pixel_width=WINDOW_WIDTH, phys_width=WINDOW_WIDTH / WINDOW_HEIGHT, phys_height=1.)
     # + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value)
     bvh = BoundingVolumeHierarchy(

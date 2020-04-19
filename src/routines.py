@@ -125,7 +125,7 @@ def generate_path(root: Box, ray: Ray, direction, max_bounces=4, rr_chance=0.1, 
         hit = extend_path(path, root)
         if not hit:
             break
-        if path.ray.bounces >= max_bounces:
+        if path.ray.prev.bounces >= max_bounces:
             path.ray.p *= rr_chance
         if stop_for_light and path.hit_light:
             return path
