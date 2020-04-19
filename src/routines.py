@@ -118,13 +118,15 @@ def bvh_hit_leaf(ray: Ray, box: Box, least_t):
     return least_hit, least_t
 
 
-# @numba.jit(nogil=True)
-def generate_path(root: Box, ray: Ray, max_bounces=4, rr_chance=0.1):
+@numba.jit(nogil=True)
+def generate_path(root: Box, ray: Ray, max_bounces=4, rr_chance=0.1, stop_for_light=False):
     path = Path(ray)
-    while path.ray.bounces < max_bounces: # or np.random.random() < rr_chance:
-        extend_path(path, root)
+    while path.ray.bounces < max_bounces or np.random.random() < rr_chance:
+        hit_light = extend_path(path, root)
         if path.ray.bounces >= max_bounces:
             path.ray.p *= rr_chance
+        if stop_for_light and path.hit_light:
+            return path
     return path
 
 
@@ -147,6 +149,8 @@ def extend_path(path: Path, root: Box):
         path.ray.next = new_ray
         new_ray.prev = path.ray
         path.ray = new_ray
+        if triangle.emitter:
+            path.hit_light = True
 
 
 @numba.jit(nogil=True)
@@ -177,9 +181,16 @@ def specular_reflection(direction, normal):
     return 2 * np.dot(direction, normal) * normal - direction
 
 
-@numba.jit(nogil=True)
-def dir_to_color(direction):
-    return (.5 + unit(direction) / 2).astype(np.float32)
+def sample_BRDF(material, incident_direction, incident_normal, path_direction):
+    x, y, z = local_orthonormal_system(incident_normal)
+    if material == Material.DIFFUSE:
+        return random_hemisphere_cosine_weighted(x, y, z)
+    elif material == Material.SPECULAR:
+        return specular_reflection(incident_direction, incident_normal)
+
+
+def evaluate_BRDF(material, incident_direction, incident_normal, exitant_direction, path_direction):
+    pass
 
 
 @numba.jit(nogil=True)

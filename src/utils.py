@@ -1,5 +1,8 @@
 from datetime import datetime
 import logging
+import numba
+from primitives import unit
+import numpy as np
 
 logger = logging.getLogger('rtv3')
 logger.addHandler(logging.StreamHandler())
@@ -13,3 +16,8 @@ def timed(func):
         logger.info("%s - %.4f", func.__name__, (datetime.now() - s).total_seconds())
         return ret
     return decorated
+
+
+@numba.jit(nogil=True)
+def dir_to_color(direction):
+    return (.5 + unit(direction) / 2).astype(np.float32)

@@ -37,3 +37,10 @@ COLLISION_OFFSET = 0.001
 class Direction(enum.Enum):
     FROM_CAMERA = 1
     FROM_EMITTER = 2
+
+
+# Material constants
+class Material(enum.Enum):
+    DIFFUSE = 1
+    SPECULAR = 2
+    GLOSSY = 3

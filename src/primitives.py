@@ -166,11 +166,13 @@ class BoxStack:
 
 @numba.jitclass([
     ('ray', Ray.class_type.instance_type),
+    ('hit_light', numba.boolean),
 ])
 class Path:
-    # path is a stack of rays and some methods on them
+    # path is a stack of rays and (will have) some methods on them
     def __init__(self, ray):
         self.ray = ray
+        self.hit_light = False
 
 
 node_type.define(BoxStackNode.class_type.instance_type)
