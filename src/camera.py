@@ -57,7 +57,7 @@ class Camera:
         # todo: uniform sampling here is a little iffy, does it result in oversampling the pixel edges?
         #  is this where those moire patterns come from?
         origin = self.origin + self.dx_dp * (j + n1) + self.dy_dp * (i + n2)
-        ray = Ray(origin.astype(np.float64), unit(self.focal_point - origin).astype(np.float64))
+        ray = Ray(origin, unit(self.focal_point - origin))
         ray.i = i
         ray.j = j
         return ray
