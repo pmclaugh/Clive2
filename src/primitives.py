@@ -35,14 +35,14 @@ box_type = numba.deferred_type()
     ('i', numba.int32),
     ('j', numba.int32),
     ('bounces', numba.int32),
-    ('pc', numba.float64),
-    ('pl', numba.float64),
-    ('next', numba.optional(ray_type)),
+    ('p', numba.float64),
     ('prev', numba.optional(ray_type)),
     ('normal', numba.float64[3::1]),
+    ('material', numba.int64),
 ])
 class Ray:
     def __init__(self, origin, direction):
+        # todo: I don't think any of these copies are necessary and i'd like to try removing them when otherwise stable
         self.origin = origin.copy()
         self.direction = direction.copy()
         self.inv_direction = 1 / self.direction
@@ -51,11 +51,10 @@ class Ray:
         self.i = 0
         self.j = 0
         self.bounces = 0
-        self.pc = 1
-        self.pl = 1
-        self.next = None
+        self.p = 1
         self.prev = None
         self.normal = self.direction
+        self.material = Material.SPECULAR.value
 
 
 @numba.jitclass([
@@ -173,13 +172,6 @@ class Path:
         self.ray = ray
         self.hit_light = False
         self.direction = direction
-
-    def free(self):
-        # i think the doubly linked list is making numba not garbage collect these. turn into singly linked to free
-        ray = self.ray
-        while ray is not None:
-            ray.next = None
-            ray = ray.prev
 
 
 node_type.define(BoxStackNode.class_type.instance_type)

@@ -126,10 +126,7 @@ def generate_path(root: Box, ray: Ray, direction, max_bounces=4, rr_chance=0.1, 
         if not hit:
             break
         if path.ray.prev.bounces >= max_bounces:
-            if direction == Direction.FROM_CAMERA.value:
-                path.ray.pc *= rr_chance
-            else:
-                path.ray.pl *= rr_chance
+            path.ray.p *= rr_chance # todo double check this
         if stop_for_light and path.hit_light:
             return path
     return path
@@ -143,25 +140,43 @@ def extend_path(path: Path, root: Box):
         new_origin = path.ray.origin + path.ray.direction * t + triangle.normal * COLLISION_OFFSET
         new_direction = BRDF_sample(triangle.material, path.ray.direction, triangle.normal, path.direction)
         new_ray = Ray(new_origin, new_direction)
-
-        # transfer ray attributes and shade
-        brdf = BRDF_function(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
-        new_ray.color = path.ray.color * triangle.color * brdf
-        if path.direction == Direction.FROM_CAMERA.value:
-            new_ray.pc = path.ray.pc * BRDF_pdf(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
-        else:
-            new_ray.pl = path.ray.pl * BRDF_pdf(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
-        new_ray.bounces = path.ray.bounces + 1
-
-        # store new ray
-        path.ray.next = new_ray
-        new_ray.prev = path.ray
-        path.ray = new_ray
+        new_ray.normal = triangle.normal
+        new_ray.material = triangle.material
+        new_ray.color = path.ray.color * triangle.color
         if triangle.emitter:
             path.hit_light = True
+
+        path_push(path, new_ray)
         return True
     else:
         return False
+
+# the direction of the ray at the front of the path is purely speculative
+
+
+@numba.jit(nogil=True)
+def path_push(path: Path, ray: Ray):
+    # update stuff
+    ray.color *= BRDF_function(ray.material, path.ray.direction, ray.normal, ray.direction, path.direction)
+    if path.ray.prev is not None:
+        ray.p = path.ray.p * BRDF_pdf(path.ray.material, path.ray.prev.direction, path.ray.normal, path.ray.direction, path.direction)
+    else:
+        ray.p = path.ray.p
+    ray.bounces = path.ray.bounces + 1
+
+    # store new ray
+    ray.prev = path.ray
+    path.ray = ray
+
+
+@numba.jit(nogil=True)
+def path_pop(path: Path):
+    ray = path.ray
+    if path.ray.prev is not None:
+        ray.color /= path.ray.prev.color
+    path.ray = path.ray.prev
+    ray.prev = None
+    return ray
 
 
 @numba.jit(nogil=True)
