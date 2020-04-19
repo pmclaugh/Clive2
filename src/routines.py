@@ -199,7 +199,7 @@ def specular_reflection(direction, normal):
 
 @numba.jit(nogil=True)
 def BRDF_sample(material, incident_direction, incident_normal, path_direction):
-    # returns a direction
+    # returns a new direction
     x, y, z = local_orthonormal_system(incident_normal)
     if material == Material.DIFFUSE.value:
         if path_direction == Direction.FROM_CAMERA.value:
@@ -229,7 +229,7 @@ def BRDF_pdf(material, incident_direction, incident_normal, exitant_direction, p
     # returns probability density of choosing exitant direction
     if material == Material.DIFFUSE.value:
         if path_direction == Direction.FROM_CAMERA.value:
-            return np.dot(exitant_direction, incident_normal)
+            return np.dot(exitant_direction, incident_normal) / np.pi
         else:
             return 1 / (2 * np.pi)
     elif material == Material.SPECULAR.value:
