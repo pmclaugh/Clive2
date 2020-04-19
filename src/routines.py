@@ -66,7 +66,7 @@ def visibility_test(root: Box, ray_a: Ray, ray_b: Ray):
     stack.push(root)
     while stack.size:
         box = stack.pop()
-        if box.left is not None or box.right is not None:
+        if box.left is not None and box.right is not None:
             if bvh_hit_inner(test_ray, box, least_t):
                 stack.push(box.left)
                 stack.push(box.right)
@@ -85,7 +85,7 @@ def traverse_bvh(root: Box, ray: Ray):
     stack.push(root)
     while stack.size:
         box = stack.pop()
-        if box.left is not None or box.right is not None:
+        if box.left is not None and box.right is not None:
             if bvh_hit_inner(ray, box, least_t):
                 stack.push(box.left)
                 stack.push(box.right)
@@ -121,8 +121,10 @@ def bvh_hit_leaf(ray: Ray, box: Box, least_t):
 @numba.jit(nogil=True)
 def generate_path(root: Box, ray: Ray, direction, max_bounces=4, rr_chance=0.1, stop_for_light=False):
     path = Path(ray, direction)
-    while path.ray.bounces < max_bounces or np.random.random() < rr_chance:
-        extend_path(path, root)
+    while path.ray.bounces < max_bounces: # or np.random.random() < rr_chance:
+        hit = extend_path(path, root)
+        if not hit:
+            break
         if path.ray.bounces >= max_bounces:
             path.ray.p *= rr_chance
         if stop_for_light and path.hit_light:
@@ -155,6 +157,9 @@ def extend_path(path: Path, root: Box):
         path.ray = new_ray
         if triangle.emitter:
             path.hit_light = True
+        return True
+    else:
+        return False
 
 
 @numba.jit(nogil=True)

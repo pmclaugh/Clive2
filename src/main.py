@@ -9,9 +9,9 @@ from bidirectional import bidirectional_screen_sample
 from unidirectional import unidirectional_screen_sample
 from constants import Material
 
-WINDOW_WIDTH = 200
-WINDOW_HEIGHT = 200
-SAMPLE_COUNT = 15
+WINDOW_WIDTH = 300
+WINDOW_HEIGHT = 300
+SAMPLE_COUNT = 20
 
 
 if __name__ == '__main__':
@@ -24,7 +24,7 @@ if __name__ == '__main__':
     for n in range(SAMPLE_COUNT):
         unidirectional_screen_sample(camera, bvh.root.box, 1)
         print('sample', n, 'done')
-        cv2.imshow('render', tone_map(camera).copy())
+        cv2.imshow('render', tone_map(camera))
         cv2.waitKey(1)
     print('done')
     cv2.imwrite('../renders/%s.jpg' % datetime.now(), tone_map(camera))
