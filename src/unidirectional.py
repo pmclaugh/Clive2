@@ -5,7 +5,7 @@ from constants import *
 import numba
 
 
-@numba.jit(nogil=True)
+# @numba.jit(nogil=True)
 def unidirectional_screen_sample(camera: Camera, root: Box, samples=5):
     image = camera.image * 0
     for _ in range(samples):

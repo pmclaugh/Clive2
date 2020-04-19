@@ -118,7 +118,7 @@ def bvh_hit_leaf(ray: Ray, box: Box, least_t):
     return least_hit, least_t
 
 
-@numba.jit(nogil=True)
+# @numba.jit(nogil=True)
 def generate_path(root: Box, ray: Ray, direction, max_bounces=4, rr_chance=0.1, stop_for_light=False):
     path = Path(ray, direction)
     while path.ray.bounces < max_bounces or np.random.random() < rr_chance:
@@ -136,13 +136,12 @@ def extend_path(path: Path, root: Box):
     if triangle is not None:
         # generate new ray
         new_origin = (path.ray.origin + path.ray.direction * t + triangle.normal * COLLISION_OFFSET).astype(np.float32)
-        new_direction = sample_BRDF(triangle.material, path.ray.direction, triangle.normal, path.direction)
+        new_direction = BRDF_sample(triangle.material, path.ray.direction, triangle.normal, path.direction)
         new_ray = Ray(new_origin, new_direction)
 
         # transfer ray attributes and shade
-        cos_theta = evaluate_BRDF(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
-        new_ray.color = (path.ray.color * triangle.color * cos_theta).astype(np.float32)
-        new_ray.p = path.ray.p * cos_theta
+        new_ray.color = path.ray.color * triangle.color * BRDF_function(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
+        new_ray.p = path.ray.p * BRDF_pdf(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
         new_ray.bounces = path.ray.bounces + 1
 
         # store new ray
@@ -189,11 +188,13 @@ def random_hemisphere_uniform_weighted(x_axis, y_axis, z_axis):
 
 @numba.jit(nogil=True)
 def specular_reflection(direction, normal):
+    # the equation expects direction to point away, so reverse it
     return (2 * np.dot(-1 * direction, normal) * normal + direction).astype(np.float32)
 
 
 @numba.jit(nogil=True)
-def sample_BRDF(material, incident_direction, incident_normal, path_direction):
+def BRDF_sample(material, incident_direction, incident_normal, path_direction):
+    # returns a direction
     x, y, z = local_orthonormal_system(incident_normal)
     if material == Material.DIFFUSE.value:
         if path_direction == Direction.FROM_CAMERA.value:
@@ -207,16 +208,29 @@ def sample_BRDF(material, incident_direction, incident_normal, path_direction):
 
 
 @numba.jit(nogil=True)
-def evaluate_BRDF(material, incident_direction, incident_normal, exitant_direction, path_direction):
+def BRDF_function(material, incident_direction, incident_normal, exitant_direction, path_direction):
+    # returns albedo mask of this bounce
     if material == Material.DIFFUSE.value:
         if path_direction == Direction.FROM_CAMERA.value:
-            return 1 / np.pi
+            return np.dot(exitant_direction, incident_normal) / np.pi
         else:
-            return np.dot(-1 * incident_direction, incident_normal)
-    elif material == Material.SPECULAR.value:
-        return 1
+            return np.dot(-1 * incident_direction, incident_normal) / np.pi
     else:
-        return 0
+        return 1
+
+
+@numba.jit(nogil=True)
+def BRDF_pdf(material, incident_direction, incident_normal, exitant_direction, path_direction):
+    # returns probability density of choosing exitant direction
+    if material == Material.DIFFUSE.value:
+        if path_direction == Direction.FROM_CAMERA.value:
+            return np.dot(exitant_direction, incident_normal) / np.pi
+        else:
+            return 1 / (2 * np.pi)
+    elif material == Material.SPECULAR.value:
+        return 1.
+    else:
+        return 0.
 
 
 @numba.jit(nogil=True)

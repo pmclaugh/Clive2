@@ -9,9 +9,9 @@ from bidirectional import bidirectional_screen_sample
 from unidirectional import unidirectional_screen_sample
 from constants import Material
 
-WINDOW_WIDTH = 200
-WINDOW_HEIGHT = 200
-SAMPLE_COUNT = 30
+WINDOW_WIDTH = 150
+WINDOW_HEIGHT = 150
+SAMPLE_COUNT = 10
 
 
 @timed
@@ -20,7 +20,8 @@ def render_something():
     camera = Camera(center=point(0, 2, 7), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
                     pixel_width=WINDOW_WIDTH, phys_width=WINDOW_WIDTH/WINDOW_HEIGHT, phys_height=1.)
     box = Box(point(-10, -3, -10), point(10, 17, 10))
-    bvh = BoundingVolumeHierarchy(triangles_for_box(box) + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value))
+    # + load_obj('../resources/teapot.obj', mater+ load_obj('../resources/teapot.obj', material=Material.SPECULAR.value)ial=Material.SPECULAR.value)
+    bvh = BoundingVolumeHierarchy(triangles_for_box(box))
     print(datetime.now() - s, 'loading/compiling')
     try:
         unidirectional_screen_sample(camera, bvh.root.box, SAMPLE_COUNT)
