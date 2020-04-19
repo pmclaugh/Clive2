@@ -38,6 +38,7 @@ box_type = numba.deferred_type()
     ('p', numba.float64),
     ('next', numba.optional(ray_type)),
     ('prev', numba.optional(ray_type)),
+    ('normal', numba.float64[3::1]),
 ])
 class Ray:
     def __init__(self, origin, direction):
@@ -52,14 +53,7 @@ class Ray:
         self.p = 1
         self.next = None
         self.prev = None
-
-    def update(self, t, new_direction, incident_normal):
-        self.origin = self.origin + t * self.direction
-        self.direction = new_direction
-        self.origin += incident_normal * COLLISION_OFFSET
-        self.inv_direction = 1 / self.direction
-        self.sign = (self.inv_direction < 0).astype(np.uint8)
-        self.bounces += 1
+        self.normal = self.direction
 
 
 @numba.jitclass([

@@ -142,13 +142,8 @@ def extend_path(path: Path, root: Box):
         new_ray = Ray(new_origin, new_direction)
 
         # transfer ray attributes and shade
-        if triangle.material == Material.DIFFUSE.value:
-            # this is a speedup for unidirectional but cannot persist in bidirectional
-            new_ray.color = path.ray.color * triangle.color / np.pi
-            new_ray.p = path.ray.p
-        else:
-            new_ray.color = path.ray.color * triangle.color * BRDF_function(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
-            new_ray.p = path.ray.p * BRDF_pdf(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
+        new_ray.color = path.ray.color * triangle.color * BRDF_function(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
+        new_ray.p = path.ray.p * BRDF_pdf(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
         new_ray.bounces = path.ray.bounces + 1
 
         # store new ray
@@ -234,13 +229,27 @@ def BRDF_pdf(material, incident_direction, incident_normal, exitant_direction, p
     # returns probability density of choosing exitant direction
     if material == Material.DIFFUSE.value:
         if path_direction == Direction.FROM_CAMERA.value:
-            return np.dot(exitant_direction, incident_normal) / np.pi
+            return np.dot(exitant_direction, incident_normal)
         else:
             return 1 / (2 * np.pi)
     elif material == Material.SPECULAR.value:
         return 1.
     else:
         return 0.
+
+
+@numba.jit(nogil=True)
+def geometry_term(a: Ray, b: Ray):
+    # quantifies the probability of connecting two specific vertices.
+    # used when joining paths in bidirectional
+    delta = b.origin - a.origin
+    t = np.linalg.norm(delta)
+    direction = delta / t
+
+    camera_cos = np.dot(a.normal, direction)
+    light_cos = np.dot(b.normal, -1 * direction)
+
+    return np.abs(camera_cos * light_cos) / (t * t)
 
 
 @numba.jit(nogil=True)

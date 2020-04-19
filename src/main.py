@@ -9,27 +9,29 @@ from bidirectional import bidirectional_screen_sample
 from unidirectional import unidirectional_screen_sample
 from constants import Material
 
-WINDOW_WIDTH = 500
-WINDOW_HEIGHT = 500
-SAMPLE_COUNT = 200
+WINDOW_WIDTH = 320
+WINDOW_HEIGHT = 180
+SAMPLE_COUNT = 400
 
 
 if __name__ == '__main__':
-    camera = Camera(center=point(0, 2, 5), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
+    camera = Camera(center=point(0, 2, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
                     pixel_width=WINDOW_WIDTH, phys_width=WINDOW_WIDTH / WINDOW_HEIGHT, phys_height=1.)
     # + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value)
     bvh = BoundingVolumeHierarchy(
         triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))) + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value))
 
-    for n in range(SAMPLE_COUNT):
-        unidirectional_screen_sample(camera, bvh.root.box, 1)
-        print('sample', n, 'done')
-        cv2.imshow('render', tone_map(camera))
-        cv2.waitKey(1)
-    print('done')
+    try:
+        for n in range(SAMPLE_COUNT):
+            unidirectional_screen_sample(camera, bvh.root.box, 1)
+            print('sample', n, 'done')
+            cv2.imshow('render', tone_map(camera))
+            cv2.waitKey(1)
+    except KeyboardInterrupt:
+        print('stopped early')
+    else:
+        print('done')
     cv2.imwrite('../renders/%s.jpg' % datetime.now(), tone_map(camera))
-    cv2.imshow('render', tone_map(camera))
-    cv2.waitKey(0)
 
 
 # performance test unidirectional 200x200 10 samples
@@ -38,7 +40,9 @@ if __name__ == '__main__':
 # single_threaded_capture - 44.5569
 
 # todo: Feature Schedule
-#  - Bidirectional is functionally in place but needs all the probability details implemented
+#  - Bidirectional is functionally in place but needs all the probability details implemented (still a lot of work)
+#  - normal smoothing
+#  - textures
 
 # todo: Tech Debt
 #  - Automated tests

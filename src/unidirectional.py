@@ -1,6 +1,6 @@
 from camera import Camera
 from primitives import Box, Path
-from routines import generate_light_ray, generate_path, visibility_test
+from routines import generate_path
 from constants import *
 import numba
 from utils import timed
