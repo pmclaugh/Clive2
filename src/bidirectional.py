@@ -21,12 +21,7 @@ def bidirectional_screen_sample(camera: Camera, root: Box, samples=5):
 def bidirectional_sample(root: Box, camera_path: Path, light_path: Path):
     # barebones just making sure all the collision and path gen works
     camera_ray = camera_path.ray
-    accumulated = BLACK.copy()
     while camera_ray is not None:
         light_ray = light_path.ray
         while light_ray is not None:
-            if visibility_test(root, light_ray, camera_ray):
-                accumulated += camera_path.ray.color * light_path.ray.color
-            light_ray = light_ray.prev
-        camera_ray = camera_ray.prev
-    return accumulated / (camera_path.ray.bounces * light_path.ray.bounces)
+            pass

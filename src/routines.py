@@ -126,7 +126,10 @@ def generate_path(root: Box, ray: Ray, direction, max_bounces=4, rr_chance=0.1, 
         if not hit:
             break
         if path.ray.prev.bounces >= max_bounces:
-            path.ray.p *= rr_chance
+            if direction == Direction.FROM_CAMERA.value:
+                path.ray.pc *= rr_chance
+            else:
+                path.ray.pl *= rr_chance
         if stop_for_light and path.hit_light:
             return path
     return path
@@ -144,7 +147,10 @@ def extend_path(path: Path, root: Box):
         # transfer ray attributes and shade
         brdf = BRDF_function(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
         new_ray.color = path.ray.color * triangle.color * brdf
-        new_ray.p = path.ray.p * BRDF_pdf(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
+        if path.direction == Direction.FROM_CAMERA.value:
+            new_ray.pc = path.ray.pc * BRDF_pdf(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
+        else:
+            new_ray.pl = path.ray.pl * BRDF_pdf(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
         new_ray.bounces = path.ray.bounces + 1
 
         # store new ray

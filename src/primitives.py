@@ -35,7 +35,8 @@ box_type = numba.deferred_type()
     ('i', numba.int32),
     ('j', numba.int32),
     ('bounces', numba.int32),
-    ('p', numba.float64),
+    ('pc', numba.float64),
+    ('pl', numba.float64),
     ('next', numba.optional(ray_type)),
     ('prev', numba.optional(ray_type)),
     ('normal', numba.float64[3::1]),
@@ -50,7 +51,8 @@ class Ray:
         self.i = 0
         self.j = 0
         self.bounces = 0
-        self.p = 1
+        self.pc = 1
+        self.pl = 1
         self.next = None
         self.prev = None
         self.normal = self.direction

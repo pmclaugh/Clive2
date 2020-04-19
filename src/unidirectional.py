@@ -23,4 +23,4 @@ def unidirectional_sample(camera_path: Path):
     if not camera_path.hit_light:
         return BLACK
     else:
-        return camera_path.ray.color / camera_path.ray.p
+        return camera_path.ray.color / camera_path.ray.pc
