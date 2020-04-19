@@ -70,5 +70,6 @@ def tone_map(camera):
     result = result / (result + 1)
     return (result * 255).astype(np.uint8)
 
+
 if __name__ == '__main__':
     c = Camera()

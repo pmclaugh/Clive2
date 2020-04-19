@@ -7,19 +7,20 @@ from bvh import BoundingVolumeHierarchy, triangles_for_box
 from load import load_obj
 from bidirectional import bidirectional_screen_sample
 from unidirectional import unidirectional_screen_sample
+from constants import Material
 
 WINDOW_WIDTH = 200
 WINDOW_HEIGHT = 200
-SAMPLE_COUNT = 5
+SAMPLE_COUNT = 30
 
 
 @timed
 def render_something():
     s = datetime.now()
-    camera = Camera(center=point(0, 2, 7), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT, pixel_width=WINDOW_WIDTH,
-               phys_width=WINDOW_WIDTH/WINDOW_HEIGHT, phys_height=1.)
+    camera = Camera(center=point(0, 2, 7), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
+                    pixel_width=WINDOW_WIDTH, phys_width=WINDOW_WIDTH/WINDOW_HEIGHT, phys_height=1.)
     box = Box(point(-10, -3, -10), point(10, 17, 10))
-    bvh = BoundingVolumeHierarchy(triangles_for_box(box))
+    bvh = BoundingVolumeHierarchy(triangles_for_box(box) + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value))
     print(datetime.now() - s, 'loading/compiling')
     try:
         unidirectional_screen_sample(camera, bvh.root.box, SAMPLE_COUNT)

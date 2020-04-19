@@ -136,7 +136,7 @@ class BoundingVolumeHierarchy:
             return None, None
 
 
-def triangles_for_box(box: Box):
+def triangles_for_box(box: Box, material=Material.DIFFUSE.value):
     left_bottom_back = box.min
     right_bottom_back = box.min + box.span * UNIT_X
     left_top_back = box.min + box.span * UNIT_Y
@@ -151,23 +151,23 @@ def triangles_for_box(box: Box):
 
     tris = [
         # back wall
-        Triangle(left_bottom_back, right_bottom_back, right_top_back, color=RED),
-        Triangle(left_bottom_back, right_top_back, left_top_back, color=RED),
+        Triangle(left_bottom_back, right_bottom_back, right_top_back, color=RED, material=material),
+        Triangle(left_bottom_back, right_top_back, left_top_back, color=RED, material=material),
         # left wall
-        Triangle(left_bottom_back, left_top_front, left_bottom_front, color=BLUE),
-        Triangle(left_bottom_back, left_top_back, left_top_front, color=BLUE),
+        Triangle(left_bottom_back, left_top_front, left_bottom_front, color=BLUE, material=material),
+        Triangle(left_bottom_back, left_top_back, left_top_front, color=BLUE, material=material),
         # right wall
-        Triangle(right_bottom_back, right_bottom_front, right_top_front, color=GREEN),
-        Triangle(right_bottom_back, right_top_front, right_top_back, color=GREEN),
+        Triangle(right_bottom_back, right_bottom_front, right_top_front, color=GREEN, material=material),
+        Triangle(right_bottom_back, right_top_front, right_top_back, color=GREEN, material=material),
         # front wall
-        Triangle(left_bottom_front, right_top_front, right_bottom_front, color=GRAY),
-        Triangle(left_bottom_front, left_top_front, right_top_front, color=GRAY),
+        Triangle(left_bottom_front, right_top_front, right_bottom_front, color=GRAY, material=material),
+        Triangle(left_bottom_front, left_top_front, right_top_front, color=GRAY, material=material),
         # floor
-        Triangle(left_bottom_back, right_bottom_front, right_bottom_back, color=WHITE),
-        Triangle(left_bottom_back, left_bottom_front, right_bottom_front, color=WHITE),
+        Triangle(left_bottom_back, right_bottom_front, right_bottom_back, color=WHITE, material=material),
+        Triangle(left_bottom_back, left_bottom_front, right_bottom_front, color=WHITE, material=material),
         # ceiling
-        Triangle(left_top_back, right_top_back, right_top_front, color=CYAN),
-        Triangle(left_top_back, right_top_front, left_top_front, color=CYAN),
+        Triangle(left_top_back, right_top_back, right_top_front, color=CYAN, material=material),
+        Triangle(left_top_back, right_top_front, left_top_front, color=CYAN, material=material),
         # ceiling light # NB this assumes box is centered on the origin, at least wrt x and z
         Triangle(left_top_back * shrink, right_top_back * shrink, right_top_front * shrink, color=WHITE, emitter=True),
         Triangle(left_top_back * shrink, right_top_front * shrink, left_top_front * shrink, color=WHITE, emitter=True),

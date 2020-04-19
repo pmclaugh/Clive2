@@ -73,9 +73,10 @@ class Ray:
     ('maxes', numba.float32[3::1]),
     ('color', numba.float32[3::1]),
     ('emitter', numba.boolean),
+    ('material', numba.int64)
 ])
 class Triangle:
-    def __init__(self, v0, v1, v2, color=WHITE, emitter=False):
+    def __init__(self, v0, v1, v2, color=WHITE, emitter=False, material=Material.DIFFUSE.value):
         self.v0 = v0
         self.v1 = v1
         self.v2 = v2
@@ -86,6 +87,7 @@ class Triangle:
         self.maxes = np.maximum(np.maximum(v0, v1), v2)
         self.color = color
         self.emitter = emitter
+        self.material = material
 
     def sample_surface(self):
         r1 = np.random.random()
@@ -167,14 +169,26 @@ class BoxStack:
 @numba.jitclass([
     ('ray', Ray.class_type.instance_type),
     ('hit_light', numba.boolean),
+    ('direction', numba.int64),
 ])
 class Path:
     # path is a stack of rays and (will have) some methods on them
-    def __init__(self, ray):
+    def __init__(self, ray, direction):
         self.ray = ray
         self.hit_light = False
+        self.direction = direction
 
 
 node_type.define(BoxStackNode.class_type.instance_type)
 box_type.define(Box.class_type.instance_type)
 ray_type.define(Ray.class_type.instance_type)
+
+
+@numba.jit(nogil=True)
+def jit_path_build(ray: Ray):
+    return Path(ray, Direction.FROM_CAMERA.value)
+
+
+if __name__ == '__main__':
+    r = Ray(ZEROS, UNIT_Z)
+    jit_path_build(r)

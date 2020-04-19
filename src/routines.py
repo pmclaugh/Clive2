@@ -119,10 +119,10 @@ def bvh_hit_leaf(ray: Ray, box: Box, least_t):
 
 
 @numba.jit(nogil=True)
-def generate_path(root: Box, ray: Ray, max_bounces=4, rr_chance=0.1, stop_for_light=False):
-    path = Path(ray)
+def generate_path(root: Box, ray: Ray, direction, max_bounces=4, rr_chance=0.1, stop_for_light=False):
+    path = Path(ray, direction)
     while path.ray.bounces < max_bounces or np.random.random() < rr_chance:
-        hit_light = extend_path(path, root)
+        extend_path(path, root)
         if path.ray.bounces >= max_bounces:
             path.ray.p *= rr_chance
         if stop_for_light and path.hit_light:
@@ -136,13 +136,13 @@ def extend_path(path: Path, root: Box):
     if triangle is not None:
         # generate new ray
         new_origin = (path.ray.origin + path.ray.direction * t + triangle.normal * COLLISION_OFFSET).astype(np.float32)
-        x, y, z = local_orthonormal_system(triangle.normal)
-        new_direction = random_hemisphere_cosine_weighted(x, y, z).astype(np.float32)
+        new_direction = sample_BRDF(triangle.material, path.ray.direction, triangle.normal, path.direction)
         new_ray = Ray(new_origin, new_direction)
 
         # transfer ray attributes and shade
-        new_ray.color = path.ray.color * triangle.color
-        new_ray.p = path.ray.p # revisit this obviously
+        cos_theta = evaluate_BRDF(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
+        new_ray.color = (path.ray.color * triangle.color * cos_theta).astype(np.float32)
+        new_ray.p = path.ray.p * cos_theta
         new_ray.bounces = path.ray.bounces + 1
 
         # store new ray
@@ -173,24 +173,50 @@ def random_hemisphere_cosine_weighted(x_axis, y_axis, z_axis):
     theta = 2 * np.pi * u2
     x = r * np.cos(theta)
     y = r * np.sin(theta)
-    return x * x_axis + y * y_axis + z_axis * np.sqrt(np.maximum(0., 1. - u1))
+    return (x * x_axis + y * y_axis + z_axis * np.sqrt(np.maximum(0., 1. - u1))).astype(np.float32)
+
+
+@numba.jit(nogil=True)
+def random_hemisphere_uniform_weighted(x_axis, y_axis, z_axis):
+    u1 = np.random.random()
+    u2 = np.random.random()
+    r = np.sqrt(1 - u1 * u1)
+    theta = 2 * np.pi * u2
+    x = r * np.cos(theta)
+    y = r * np.sin(theta)
+    return (x_axis * x + y_axis * y + z_axis * u1).astype(np.float32)
 
 
 @numba.jit(nogil=True)
 def specular_reflection(direction, normal):
-    return 2 * np.dot(direction, normal) * normal - direction
+    return (2 * np.dot(-1 * direction, normal) * normal + direction).astype(np.float32)
 
 
+@numba.jit(nogil=True)
 def sample_BRDF(material, incident_direction, incident_normal, path_direction):
     x, y, z = local_orthonormal_system(incident_normal)
-    if material == Material.DIFFUSE:
-        return random_hemisphere_cosine_weighted(x, y, z)
-    elif material == Material.SPECULAR:
+    if material == Material.DIFFUSE.value:
+        if path_direction == Direction.FROM_CAMERA.value:
+            return random_hemisphere_cosine_weighted(x, y, z)
+        else:
+            return random_hemisphere_uniform_weighted(x, y, z)
+    elif material == Material.SPECULAR.value:
         return specular_reflection(incident_direction, incident_normal)
+    else:
+        return incident_normal
 
 
+@numba.jit(nogil=True)
 def evaluate_BRDF(material, incident_direction, incident_normal, exitant_direction, path_direction):
-    pass
+    if material == Material.DIFFUSE.value:
+        if path_direction == Direction.FROM_CAMERA.value:
+            return 1 / np.pi
+        else:
+            return np.dot(-1 * incident_direction, incident_normal)
+    elif material == Material.SPECULAR.value:
+        return 1
+    else:
+        return 0
 
 
 @numba.jit(nogil=True)
@@ -204,4 +230,4 @@ def generate_light_ray(box: Box):
 
 
 if __name__ == '__main__':
-    pass
+    print(specular_reflection(-1 * UNIT_Z, UNIT_Z))
