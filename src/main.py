@@ -8,30 +8,10 @@ from load import load_obj
 from bidirectional import bidirectional_screen_sample
 from unidirectional import unidirectional_screen_sample
 from constants import Material
-import threading
 
 WINDOW_WIDTH = 200
 WINDOW_HEIGHT = 200
 SAMPLE_COUNT = 15
-
-
-class RenderThread(threading.Thread):
-    def __init__(self, camera, scene):
-        threading.Thread.__init__(self)
-        self.camera = camera
-        self.scene = scene
-        self.done_event = threading.Event()
-
-    def run(self) -> None:
-        try:
-            for n in range(SAMPLE_COUNT):
-                sample = unidirectional_screen_sample(self.camera, self.scene, 1)
-                camera.image += sample
-                camera.samples += 1
-                print('sample', n, 'done')
-        except KeyboardInterrupt:
-            pass
-        self.done_event.set()
 
 
 if __name__ == '__main__':
@@ -42,16 +22,11 @@ if __name__ == '__main__':
         triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))))
 
     for n in range(SAMPLE_COUNT):
-        sample = unidirectional_screen_sample(camera, bvh.root.box, 1)
-        camera.image += sample
-        camera.samples += 1
+        unidirectional_screen_sample(camera, bvh.root.box, 1)
         print('sample', n, 'done')
-
-    # renderer = RenderThread(camera, bvh.root.box)
-    # renderer.start()
-    # while not renderer.done_event.isSet():
-    #     cv2.imshow('render', tone_map(camera))
-    #     cv2.waitKey(100)
+        cv2.imshow('render', tone_map(camera))
+        cv2.waitKey(1)
+    print('done')
     cv2.imwrite('../renders/%s.jpg' % datetime.now(), tone_map(camera))
     cv2.imshow('render', tone_map(camera))
     cv2.waitKey(0)
