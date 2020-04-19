@@ -19,6 +19,7 @@ from primitives import unit, point, vec, Ray
     ('dy_dp', numba.float64[3]),
     ('origin', numba.float64[3]),
     ('image', numba.float64[:, :, :]),
+    ('samples', numba.int64),
 ])
 class Camera:
     def __init__(self, center=point(0, 0, 0), direction=vec(1, 0, 0), phys_width=1.0, phys_height=1.0,
@@ -31,6 +32,7 @@ class Camera:
         self.focal_point = self.center + self.focal_dist * direction
         self.pixel_width = pixel_width
         self.pixel_height = pixel_height
+        self.samples = 0
 
         if abs(self.direction[0]) < FLOAT_TOLERANCE:
             self.dx = UNIT_X if direction[2] > 0 else UNIT_X * -1
@@ -45,7 +47,7 @@ class Camera:
         self.dx_dp = self.dx * self.phys_width / self.pixel_width
         self.dy_dp = self.dy * self.phys_height / self.pixel_height
 
-        self.origin = (center - self.dx * phys_width / 2 - self.dy * phys_height / 2).astype(np.float64)
+        self.origin = center - self.dx * phys_width / 2 - self.dy * phys_height / 2
 
         self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float64)
 
@@ -54,8 +56,6 @@ class Camera:
         # speed is fine and it'll be good for future adaptive sampling stuff
         n1 = np.random.random()
         n2 = np.random.random()
-        # todo: uniform sampling here is a little iffy, does it result in oversampling the pixel edges?
-        #  is this where those moire patterns come from?
         origin = self.origin + self.dx_dp * (j + n1) + self.dy_dp * (i + n2)
         ray = Ray(origin, unit(self.focal_point - origin))
         ray.i = i
@@ -64,8 +64,10 @@ class Camera:
 
 
 def tone_map(camera):
+    if camera.samples == 0:
+        return camera.image.astype(np.uint8)
     tone_vector = point(0.0722, 0.7152, 0.2126)
-    Lw = np.exp(np.sum(np.log(0.1 + np.sum(camera.image * tone_vector, axis=2))) / np.product(camera.image.shape))
+    Lw = np.exp(np.sum(np.log(0.1 + np.sum(camera.image / camera.samples * tone_vector, axis=2))) / np.product(camera.image.shape))
     result = camera.image * 0.64 / Lw
     result = result / (result + 1)
     return (result * 255).astype(np.uint8)

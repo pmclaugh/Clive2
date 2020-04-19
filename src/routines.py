@@ -140,8 +140,13 @@ def extend_path(path: Path, root: Box):
         new_ray = Ray(new_origin, new_direction)
 
         # transfer ray attributes and shade
-        new_ray.color = path.ray.color * triangle.color * BRDF_function(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
-        new_ray.p = path.ray.p * BRDF_pdf(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
+        if triangle.material == Material.DIFFUSE.value:
+            # this is a speedup for unidirectional and cannot persist in bidirectional
+            new_ray.color = path.ray.color * triangle.color
+            new_ray.p = path.ray.p
+        else:
+            new_ray.color = path.ray.color * triangle.color * BRDF_function(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
+            new_ray.p = path.ray.p * BRDF_pdf(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
         new_ray.bounces = path.ray.bounces + 1
 
         # store new ray

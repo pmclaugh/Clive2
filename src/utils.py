@@ -20,4 +20,4 @@ def timed(func):
 
 @numba.jit(nogil=True)
 def dir_to_color(direction):
-    return (.5 + unit(direction) / 2).astype(np.float32)
+    return .5 + unit(direction) / 2
