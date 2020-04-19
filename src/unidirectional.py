@@ -14,6 +14,7 @@ def unidirectional_screen_sample(camera: Camera, root: Box, samples=5):
             for j in range(camera.pixel_width):
                 camera_path = generate_path(root, camera.make_ray(i, j), Direction.FROM_CAMERA.value, stop_for_light=True)
                 camera.image[i][j] += unidirectional_sample(camera_path)
+                camera_path.free()
     camera.samples += samples
 
 

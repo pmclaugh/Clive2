@@ -9,13 +9,13 @@ from bidirectional import bidirectional_screen_sample
 from unidirectional import unidirectional_screen_sample
 from constants import Material
 
-WINDOW_WIDTH = 300
-WINDOW_HEIGHT = 300
-SAMPLE_COUNT = 20
+WINDOW_WIDTH = 500
+WINDOW_HEIGHT = 500
+SAMPLE_COUNT = 200
 
 
 if __name__ == '__main__':
-    camera = Camera(center=point(0, 2, 7), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
+    camera = Camera(center=point(0, 2, 5), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
                     pixel_width=WINDOW_WIDTH, phys_width=WINDOW_WIDTH / WINDOW_HEIGHT, phys_height=1.)
     # + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value)
     bvh = BoundingVolumeHierarchy(

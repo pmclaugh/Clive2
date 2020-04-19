@@ -178,6 +178,13 @@ class Path:
         self.hit_light = False
         self.direction = direction
 
+    def free(self):
+        # i think the doubly linked list is making numba not garbage collect these. turn into singly linked to free
+        ray = self.ray
+        while ray is not None:
+            ray.next = None
+            ray = ray.prev
+
 
 node_type.define(BoxStackNode.class_type.instance_type)
 box_type.define(Box.class_type.instance_type)
