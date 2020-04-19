@@ -142,7 +142,8 @@ def extend_path(path: Path, root: Box):
         new_ray = Ray(new_origin, new_direction)
 
         # transfer ray attributes and shade
-        new_ray.color = path.ray.color * triangle.color * BRDF_function(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
+        brdf = BRDF_function(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
+        new_ray.color = path.ray.color * triangle.color * brdf
         new_ray.p = path.ray.p * BRDF_pdf(triangle.material, path.ray.direction, triangle.normal, new_direction, path.direction)
         new_ray.bounces = path.ray.bounces + 1
 

@@ -67,10 +67,10 @@ def tone_map(camera):
     if camera.samples == 0:
         return camera.image.astype(np.uint8)
     tone_vector = point(0.0722, 0.7152, 0.2126)
-    Lw = np.exp(np.sum(np.log(0.1 + np.sum(camera.image / camera.samples * tone_vector, axis=2))) / np.product(camera.image.shape))
-    result = camera.image * 0.64 / Lw
-    result = result / (result + 1)
-    return (result * 255).astype(np.uint8)
+    averages = camera.image / camera.samples
+    Lw = np.exp(np.sum(np.log(0.1 + np.sum(averages * tone_vector, axis=2))) / np.product(camera.image.shape))
+    result = averages * 0.64 / Lw
+    return result
 
 
 if __name__ == '__main__':
