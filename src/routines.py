@@ -141,7 +141,7 @@ def extend_path(path: Path, root: Box):
 
         # transfer ray attributes and shade
         if triangle.material == Material.DIFFUSE.value:
-            # this is a speedup for unidirectional and cannot persist in bidirectional
+            # this is a speedup for unidirectional but cannot persist in bidirectional
             new_ray.color = path.ray.color * triangle.color / np.pi
             new_ray.p = path.ray.p
         else:
