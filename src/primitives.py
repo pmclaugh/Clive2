@@ -7,12 +7,12 @@ from constants import *
 
 @numba.jit(nogil=True)
 def point(x, y, z):
-    return np.array([x, y, z], dtype=np.float32)
+    return np.array([x, y, z], dtype=np.float64)
 
 
 @numba.jit(nogil=True)
 def vec(x, y, z):
-    return np.array([x, y, z], dtype=np.float32)
+    return np.array([x, y, z], dtype=np.float64)
 
 
 @numba.jit(nogil=True)
@@ -27,15 +27,15 @@ node_type = numba.deferred_type()
 box_type = numba.deferred_type()
 
 @numba.jitclass([
-    ('origin', numba.float32[3::1]),
-    ('direction', numba.float32[3::1]),
-    ('inv_direction', numba.float32[3::1]),
+    ('origin', numba.float64[3::1]),
+    ('direction', numba.float64[3::1]),
+    ('inv_direction', numba.float64[3::1]),
     ('sign', numba.uint8[3::1]),
-    ('color', numba.float32[3::1]),
+    ('color', numba.float64[3::1]),
     ('i', numba.int32),
     ('j', numba.int32),
     ('bounces', numba.int32),
-    ('p', numba.float32),
+    ('p', numba.float64),
     ('next', numba.optional(ray_type)),
     ('prev', numba.optional(ray_type)),
 ])
@@ -54,8 +54,8 @@ class Ray:
         self.prev = None
 
     def update(self, t, new_direction, incident_normal):
-        self.origin = (self.origin + t * self.direction).astype(np.float32)
-        self.direction = new_direction.astype(np.float32)
+        self.origin = (self.origin + t * self.direction).astype(np.float64)
+        self.direction = new_direction.astype(np.float64)
         self.origin += incident_normal * COLLISION_OFFSET
         self.inv_direction = 1 / self.direction
         self.sign = (self.inv_direction < 0).astype(np.uint8)
@@ -63,15 +63,15 @@ class Ray:
 
 
 @numba.jitclass([
-    ('v0', numba.float32[3::1]),
-    ('v1', numba.float32[3::1]),
-    ('v2', numba.float32[3::1]),
-    ('e1', numba.float32[3::1]),
-    ('e2', numba.float32[3::1]),
-    ('normal', numba.float32[3::1]),
-    ('mins', numba.float32[3::1]),
-    ('maxes', numba.float32[3::1]),
-    ('color', numba.float32[3::1]),
+    ('v0', numba.float64[3::1]),
+    ('v1', numba.float64[3::1]),
+    ('v2', numba.float64[3::1]),
+    ('e1', numba.float64[3::1]),
+    ('e2', numba.float64[3::1]),
+    ('normal', numba.float64[3::1]),
+    ('mins', numba.float64[3::1]),
+    ('maxes', numba.float64[3::1]),
+    ('color', numba.float64[3::1]),
     ('emitter', numba.boolean),
     ('material', numba.int64)
 ])
@@ -99,10 +99,10 @@ class Triangle:
 
 
 @numba.jitclass([
-    ('min', numba.float32[3::1]),
-    ('max', numba.float32[3::1]),
-    ('bounds', numba.float32[:, ::1]),
-    ('span', numba.float32[3::1]),
+    ('min', numba.float64[3::1]),
+    ('max', numba.float64[3::1]),
+    ('bounds', numba.float64[:, ::1]),
+    ('span', numba.float64[3::1]),
     ('left', numba.optional(box_type)),
     ('right', numba.optional(box_type)),
     ('triangles', numba.optional(numba.types.ListType(Triangle.class_type.instance_type))),
@@ -119,7 +119,7 @@ class Box:
         self.triangles = None
         self.lights = None
 
-    def contains(self, point: numba.float32[3]):
+    def contains(self, point: numba.float64[3]):
         return (point >= self.min).all() and (point <= self.max).all()
 
     def extend(self, triangle: Triangle):

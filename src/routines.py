@@ -135,7 +135,7 @@ def extend_path(path: Path, root: Box):
     triangle, t = traverse_bvh(root, path.ray)
     if triangle is not None:
         # generate new ray
-        new_origin = (path.ray.origin + path.ray.direction * t + triangle.normal * COLLISION_OFFSET).astype(np.float32)
+        new_origin = (path.ray.origin + path.ray.direction * t + triangle.normal * COLLISION_OFFSET).astype(np.float64)
         new_direction = BRDF_sample(triangle.material, path.ray.direction, triangle.normal, path.direction)
         new_ray = Ray(new_origin, new_direction)
 
@@ -172,7 +172,7 @@ def random_hemisphere_cosine_weighted(x_axis, y_axis, z_axis):
     theta = 2 * np.pi * u2
     x = r * np.cos(theta)
     y = r * np.sin(theta)
-    return (x * x_axis + y * y_axis + z_axis * np.sqrt(np.maximum(0., 1. - u1))).astype(np.float32)
+    return (x * x_axis + y * y_axis + z_axis * np.sqrt(np.maximum(0., 1. - u1))).astype(np.float64)
 
 
 @numba.jit(nogil=True)
@@ -183,13 +183,13 @@ def random_hemisphere_uniform_weighted(x_axis, y_axis, z_axis):
     theta = 2 * np.pi * u2
     x = r * np.cos(theta)
     y = r * np.sin(theta)
-    return (x_axis * x + y_axis * y + z_axis * u1).astype(np.float32)
+    return (x_axis * x + y_axis * y + z_axis * u1).astype(np.float64)
 
 
 @numba.jit(nogil=True)
 def specular_reflection(direction, normal):
     # the equation expects direction to point away, so reverse it
-    return (2 * np.dot(-1 * direction, normal) * normal + direction).astype(np.float32)
+    return (2 * np.dot(-1 * direction, normal) * normal + direction).astype(np.float64)
 
 
 @numba.jit(nogil=True)
@@ -237,9 +237,9 @@ def BRDF_pdf(material, incident_direction, incident_normal, exitant_direction, p
 def generate_light_ray(box: Box):
     light_index = np.random.randint(0, len(box.lights))
     light = box.lights[light_index]
-    light_origin = light.sample_surface().astype(np.float32)
+    light_origin = light.sample_surface().astype(np.float64)
     x, y, z = local_orthonormal_system(light.normal)
-    light_direction = random_hemisphere_cosine_weighted(x, y, z).astype(np.float32)
+    light_direction = random_hemisphere_cosine_weighted(x, y, z).astype(np.float64)
     return Ray(light_origin, light_direction)
 
 

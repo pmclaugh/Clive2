@@ -5,20 +5,20 @@ from primitives import unit, point, vec, Ray
 
 
 @numba.jitclass([
-    ('center', numba.float32[3]),
-    ('direction', numba.float32[3]),
-    ('phys_width', numba.float32),
-    ('phys_height', numba.float32),
-    ('focal_dist', numba.float32),
-    ('focal_point', numba.float32[3]),
+    ('center', numba.float64[3]),
+    ('direction', numba.float64[3]),
+    ('phys_width', numba.float64),
+    ('phys_height', numba.float64),
+    ('focal_dist', numba.float64),
+    ('focal_point', numba.float64[3]),
     ('pixel_width', numba.int32),
     ('pixel_height', numba.int32),
-    ('dx', numba.float32[3]),
-    ('dy', numba.float32[3]),
-    ('dx_dp', numba.float32[3]),
-    ('dy_dp', numba.float32[3]),
-    ('origin', numba.float32[3]),
-    ('image', numba.float32[:, :, :]),
+    ('dx', numba.float64[3]),
+    ('dy', numba.float64[3]),
+    ('dx_dp', numba.float64[3]),
+    ('dy_dp', numba.float64[3]),
+    ('origin', numba.float64[3]),
+    ('image', numba.float64[:, :, :]),
 ])
 class Camera:
     def __init__(self, center=point(0, 0, 0), direction=vec(1, 0, 0), phys_width=1.0, phys_height=1.0,
@@ -45,9 +45,9 @@ class Camera:
         self.dx_dp = self.dx * self.phys_width / self.pixel_width
         self.dy_dp = self.dy * self.phys_height / self.pixel_height
 
-        self.origin = (center - self.dx * phys_width / 2 - self.dy * phys_height / 2).astype(np.float32)
+        self.origin = (center - self.dx * phys_width / 2 - self.dy * phys_height / 2).astype(np.float64)
 
-        self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float32)
+        self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float64)
 
     def make_ray(self, i, j):
         # was having difficulty making a good mass-ray-generation routine, settled on on-demand
@@ -57,7 +57,7 @@ class Camera:
         # todo: uniform sampling here is a little iffy, does it result in oversampling the pixel edges?
         #  is this where those moire patterns come from?
         origin = self.origin + self.dx_dp * (j + n1) + self.dy_dp * (i + n2)
-        ray = Ray(origin.astype(np.float32), unit(self.focal_point - origin).astype(np.float32))
+        ray = Ray(origin.astype(np.float64), unit(self.focal_point - origin).astype(np.float64))
         ray.i = i
         ray.j = j
         return ray
