@@ -19,12 +19,12 @@ if __name__ == '__main__':
                     pixel_width=WINDOW_WIDTH, phys_width=WINDOW_WIDTH / WINDOW_HEIGHT, phys_height=1.)
     # + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value)
     bvh = BoundingVolumeHierarchy(
-        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))))
+        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))) + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value))
 
     for n in range(SAMPLE_COUNT):
         unidirectional_screen_sample(camera, bvh.root.box, 1)
         print('sample', n, 'done')
-        cv2.imshow('render', tone_map(camera))
+        cv2.imshow('render', tone_map(camera).copy())
         cv2.waitKey(1)
     print('done')
     cv2.imwrite('../renders/%s.jpg' % datetime.now(), tone_map(camera))
