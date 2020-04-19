@@ -37,8 +37,9 @@ class RenderThread(threading.Thread):
 if __name__ == '__main__':
     camera = Camera(center=point(0, 2, 7), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
                     pixel_width=WINDOW_WIDTH, phys_width=WINDOW_WIDTH / WINDOW_HEIGHT, phys_height=1.)
+    # + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value)
     bvh = BoundingVolumeHierarchy(
-        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))) + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value))
+        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))))
 
     renderer = RenderThread(camera, bvh.root.box)
     renderer.start()
