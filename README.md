@@ -8,7 +8,7 @@ Working:
 - collision acceleration with simple spatial-split BVH
 - path generation
 - importance sampling
-- combining bidirectional paths (except types (1,1) and (2,1) which are planned but NYI)
+- combining bidirectional paths (except types (0,n), (n,0), and (n,1) which are planned but NYI)
 - diffuse surfaces
 - specular surfaces
 
