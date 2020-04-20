@@ -20,15 +20,17 @@ def bidirectional_screen_sample(camera: Camera, root: Box, samples=5):
 
 @numba.jit(nogil=True)
 def sum_probabilities(s, t):
-    # given real sample X(s,t), calculate sum of p(X(s,t)) for all possible values of s, t
+    # given real sample X(s,t), calculate sum of p(X(s,t)) for all used values of s, t
     sigma_p = s.ray.p * t.ray.p * geometry_term(s.ray, t.ray)
-    # NB these are actually len - 1, which would actually be s - 2 or t - 2 since veach counts from 1
     s_len = s.ray.bounces
-    t_len = t.ray.bounces
+    t_len = t.ray.bounces - 1
     # push all s onto t, tally p
     for _ in range(s_len):
         path_push(t, path_pop(s))
-        sigma_p += t.ray.p * s.ray.p * geometry_term(s.ray, t.ray)
+        if s.ray is not None:
+            sigma_p += t.ray.p * s.ray.p * geometry_term(s.ray, t.ray)
+        else:
+            sigma_p += t.ray.p
     # restore original state
     for _ in range(s_len):
         path_push(s, path_pop(t))
@@ -37,6 +39,10 @@ def sum_probabilities(s, t):
     for _ in range(t_len):
         path_push(s, path_pop(t))
         sigma_p += t.ray.p * s.ray.p * geometry_term(s.ray, t.ray)
+        if t.ray is not None:
+            sigma_p += t.ray.p * s.ray.p * geometry_term(s.ray, t.ray)
+        else:
+            sigma_p += s.ray.p
     # restore original state
     for _ in range(t_len):
         path_push(t, path_pop(s))
@@ -58,14 +64,14 @@ def bidirectional_sample(root: Box, camera_path: Path, light_path: Path):
     result = point(0, 0, 0)
     samples = 0
     while camera_path.ray.prev is not None:
-        while light_path.ray.prev is not None:
+        while light_path.ray is not None:
             # Sample for this s, t
             # dot the normals to skip pointless visibility checks
             # NB this needs adjustment when transmissive materials are introduced
             dir_l_to_c = unit(camera_path.ray.origin - light_path.ray.origin)
             if np.dot(camera_path.ray.normal, -1 * dir_l_to_c) > 0 and np.dot(light_path.ray.normal, dir_l_to_c) > 0:
                 if visibility_test(root, camera_path.ray, light_path.ray):
-                    p = sum_probabilities(camera_path, light_path)
+                    p = sum_probabilities(light_path, camera_path)
                     if camera_path.ray.prev is None:
                         # iirc this one's a weird one. skipping for now.
                         camera_join_f = 0

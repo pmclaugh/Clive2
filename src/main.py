@@ -9,8 +9,8 @@ from bidirectional import bidirectional_screen_sample
 from unidirectional import unidirectional_screen_sample
 from constants import Material
 
-WINDOW_WIDTH = 320
-WINDOW_HEIGHT = 180
+WINDOW_WIDTH = 160
+WINDOW_HEIGHT = 90
 SAMPLE_COUNT = 100
 
 
