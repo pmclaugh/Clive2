@@ -17,6 +17,15 @@ Known bugs:
 - Sample 0 does not display correctly
 - Some light paths end up with negative values in ray.color, bug is presumably in the BRDF routines
 - Bidirectional images appear dark and kind of washed-out compared to unidirectional (possibly related to above)
+- Bidirectional cannot currently handle specular surfaces
+
+Planned features:
+- textures
+- bump mapping
+- normal smoothing
+- transmissive materials
+- glossy materials
+- Metropolis light transport
 
 Camera-only tracing, ~200 samples per pixel:
 
