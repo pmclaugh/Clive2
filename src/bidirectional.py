@@ -38,7 +38,6 @@ def sum_probabilities(s, t):
     # push all t onto s, tally p
     for _ in range(t_len):
         path_push(s, path_pop(t))
-        sigma_p += t.ray.p * s.ray.p * geometry_term(s.ray, t.ray)
         if t.ray is not None:
             sigma_p += t.ray.p * s.ray.p * geometry_term(s.ray, t.ray)
         else:
