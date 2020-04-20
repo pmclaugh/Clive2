@@ -37,6 +37,7 @@ class TreeBox:
             lights = numba.typed.List()
             [lights.append(member) for member in self.members if member.emitter]
             self.box.lights = lights
+            self.box.light_SA = sum(light.surface_area for light in lights)
 
     def add(self, triangle: Triangle):
         # useful if we know the bounds won't change, or don't want them to

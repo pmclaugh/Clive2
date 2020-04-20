@@ -70,7 +70,8 @@ class Ray:
     ('maxes', numba.float64[3::1]),
     ('color', numba.float64[3::1]),
     ('emitter', numba.boolean),
-    ('material', numba.int64)
+    ('material', numba.int64),
+    ('surface_area', numba.float64)
 ])
 class Triangle:
     def __init__(self, v0, v1, v2, color=WHITE, emitter=False, material=Material.DIFFUSE.value):
@@ -82,9 +83,14 @@ class Triangle:
         self.normal = unit(np.cross(self.e1, self.e2))
         self.mins = np.minimum(np.minimum(v0, v1), v2)
         self.maxes = np.maximum(np.maximum(v0, v1), v2)
-        self.color = color
+        self.color = color.copy()
         self.emitter = emitter
         self.material = material
+        e1_mag = np.linalg.norm(self.e1)
+        e2_mag = np.linalg.norm(self.e2)
+        cos_theta = np.dot(self.e1 / e1_mag, self.e2 / e2_mag)
+        sin_theta = np.sqrt(1 - cos_theta * cos_theta)
+        self.surface_area = np.abs(.5 * np.dot(self.e1, self.e2) * sin_theta)
 
     def sample_surface(self):
         r1 = np.random.random()
@@ -93,6 +99,7 @@ class Triangle:
         v = np.sqrt(r1) * (1 - r2)
         w = r2 * np.sqrt(r1)
         return self.v0 * u + self.v1 * v + self.v2 * w + COLLISION_OFFSET * self.normal
+
 
 
 @numba.jitclass([
@@ -104,6 +111,7 @@ class Triangle:
     ('right', numba.optional(box_type)),
     ('triangles', numba.optional(numba.types.ListType(Triangle.class_type.instance_type))),
     ('lights', numba.optional(numba.types.ListType(Triangle.class_type.instance_type))),
+    ('light_SA', numba.float64),
 ])
 class Box:
     def __init__(self, least_corner, most_corner, color=WHITE):
@@ -115,6 +123,7 @@ class Box:
         self.right = None
         self.triangles = None
         self.lights = None
+        self.light_SA = 0
 
     def contains(self, point: numba.float64[3]):
         return (point >= self.min).all() and (point <= self.max).all()

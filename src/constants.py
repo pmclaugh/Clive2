@@ -18,10 +18,10 @@ ONES = np.array([1, 1, 1], dtype=np.float64)
 BLACK = np.array([0., 0., 0.], dtype=np.float64)
 WHITE = np.array([1., 1., 1.], dtype=np.float64)
 GRAY = np.array([.5, .5, .5], dtype=np.float64)
-RED = np.array([0.4, 0.4, 1.], dtype=np.float64)
-GREEN = np.array([0.4, 1., 0.4], dtype=np.float64)
-BLUE = np.array([1., 0.4, 0.4], dtype=np.float64)
-CYAN = np.array([1., 1., 0.4], dtype=np.float64)
+RED = np.array([0.3, 0.3, 1.], dtype=np.float64)
+GREEN = np.array([0.3, 1., 0.3], dtype=np.float64)
+BLUE = np.array([1., 0.3, 0.3], dtype=np.float64)
+CYAN = np.array([1., 1., 0.3], dtype=np.float64)
 
 
 # BVH constants
@@ -37,6 +37,7 @@ COLLISION_OFFSET = 0.001
 class Direction(enum.Enum):
     FROM_CAMERA = 1
     FROM_EMITTER = 2
+    STORAGE = 3
 
 
 # Material constants

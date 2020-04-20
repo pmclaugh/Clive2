@@ -11,7 +11,7 @@ from constants import Material
 
 WINDOW_WIDTH = 160
 WINDOW_HEIGHT = 90
-SAMPLE_COUNT = 100
+SAMPLE_COUNT = 10
 
 
 if __name__ == '__main__':
@@ -19,9 +19,10 @@ if __name__ == '__main__':
                     pixel_width=WINDOW_WIDTH, phys_width=WINDOW_WIDTH / WINDOW_HEIGHT, phys_height=1.)
     # + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value)
     bvh = BoundingVolumeHierarchy(
-        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))) )#+ load_obj('../resources/teapot.obj', material=Material.DIFFUSE.value))
+        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10)))  )#+ load_obj('../resources/teapot.obj', material=Material.DIFFUSE.value))
 
     try:
+        cv2.imshow('render', tone_map(camera))
         for n in range(SAMPLE_COUNT):
             bidirectional_screen_sample(camera, bvh.root.box, 1)
             print('sample', n, 'done')
@@ -42,7 +43,6 @@ if __name__ == '__main__':
 # todo: Feature Schedule
 #  - Bidirectional largely implemented, just need to understand the 1/N 1/Nk stuff and correct geometry term issues
 #  - I made a lot of changes. i should revert to unidirectional and make sure everything still works at a basic level
-
 #  - normal smoothing
 #  - textures
 
@@ -52,3 +52,7 @@ if __name__ == '__main__':
 
 # todo: Known Bugs
 #  - sample 0 does not display properly
+#  - light paths are getting negative color somehow
+#    - not calling the brdf right, it's inconsistent, leading to negative numbers
+#    - need to unify all brdf stuff around i and o both pointing away
+#    - issue is not the brdfs, but that rays are hitting triangles on their back side (the ceiling light)

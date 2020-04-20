@@ -7,6 +7,8 @@ from utils import timed
 
 @numba.jit(nogil=True, fastmath=True)
 def ray_triangle_intersect(ray: Ray, triangle: Triangle):
+    if np.dot(ray.direction, triangle.normal) >= 0:
+        return None
     h = np.cross(ray.direction, triangle.e2)
     a = np.dot(h, triangle.e1)
 
@@ -139,7 +141,7 @@ def extend_path(path: Path, root: Box):
     if triangle is not None:
         # generate new ray
         new_origin = path.ray.origin + path.ray.direction * t + triangle.normal * COLLISION_OFFSET
-        new_direction = BRDF_sample(triangle.material, path.ray.direction, triangle.normal, path.direction)
+        new_direction = BRDF_sample(triangle.material, -1 * path.ray.direction, triangle.normal, path.direction)
         new_ray = Ray(new_origin, new_direction)
         new_ray.normal = triangle.normal
         new_ray.material = triangle.material
@@ -148,36 +150,55 @@ def extend_path(path: Path, root: Box):
             path.hit_light = True
 
         path_push(path, new_ray)
+        # if path_health_check(path):
         return True
     else:
         return False
 
 
+def path_health_check(path: Path):
+    ray = path.ray
+    after = None
+    try:
+        while ray is not None:
+            if after is not None:
+                # ray should point toward after
+                assert np.equal(ray.direction, unit(after.origin - ray.origin)).all()
+                # ray direction should point with ray.normal
+                assert np.dot(ray.direction, ray.normal) > 0
+                # ray direction should point against after.normal
+                assert np.dot(ray.direction, after.normal) < 0
+            after = ray
+            ray = ray.prev
+    except AssertionError:
+        return False
+    else:
+        return True
+
+
 @numba.jit(nogil=True)
 def path_push(path: Path, ray: Ray):
     # update stuff appropriately
-    if path.ray is None:
-        # pushing onto empty stack, nothing really matters here
-        ray.bounces = 0
-        if path.direction == Direction.FROM_CAMERA.value:
-            ray.p = 1
-            ray.color = WHITE
-        else:
-            ray.p = 1 / (2 * np.pi)
-            ray.color = ray.local_color
+    if path.direction == Direction.STORAGE.value:
+        # don't change anything, this is just a stack. this reduces wasted calculation and preserves first-vertex values
+        pass
+    elif path.ray is None:
+        # this shouldn't come up
+        pass
     else:
-        # G = geometry_term(path.ray, ray)
+        G = geometry_term(path.ray, ray)
+        path.ray.direction = unit(ray.origin - path.ray.origin)
         if path.ray.prev is None:
             # pushing onto stack of 1, just propagate p and color (?)
             ray.color = path.ray.color
             ray.p = path.ray.p
         else:
             # pushing onto stack of 2 or more, do some work
-            ray.color = path.ray.local_color * path.ray.color * BRDF_function(path.ray.material, path.ray.prev.direction, path.ray.normal, path.ray.direction,
+            brdf = BRDF_function(path.ray.material, -1 * path.ray.prev.direction, path.ray.normal, path.ray.direction,
                                        path.direction)
-            ray.p = path.ray.p * BRDF_pdf(path.ray.material, path.ray.prev.direction, path.ray.normal, path.ray.direction,
+            ray.color = path.ray.local_color * path.ray.color * brdf
+            ray.p = path.ray.p * BRDF_pdf(path.ray.material, -1 * path.ray.prev.direction, path.ray.normal, path.ray.direction,
                                           path.direction)
-        path.ray.direction = unit(ray.origin - path.ray.origin)
         ray.bounces = path.ray.bounces + 1
 
     # store new ray
@@ -230,12 +251,12 @@ def random_hemisphere_uniform_weighted(x_axis, y_axis, z_axis):
 
 @numba.jit(nogil=True)
 def specular_reflection(direction, normal):
-    # the equation expects direction to point away, so reverse it
-    return 2 * np.dot(-1 * direction, normal) * normal + direction
+    return 2 * np.dot(direction, normal) * normal + direction
 
 
 @numba.jit(nogil=True)
 def BRDF_sample(material, incident_direction, incident_normal, path_direction):
+    # in all BRDF routines, all directions must point away from the point being sampled
     # returns a new direction
     x, y, z = local_orthonormal_system(incident_normal)
     if material == Material.DIFFUSE.value:
@@ -251,18 +272,20 @@ def BRDF_sample(material, incident_direction, incident_normal, path_direction):
 
 @numba.jit(nogil=True)
 def BRDF_function(material, incident_direction, incident_normal, exitant_direction, path_direction):
+    # in all BRDF routines, all directions must point away from the point being sampled
     # returns albedo mask of this bounce
     if material == Material.DIFFUSE.value:
         if path_direction == Direction.FROM_CAMERA.value:
             return np.dot(exitant_direction, incident_normal) / np.pi
         else:
-            return np.dot(-1 * incident_direction, incident_normal) / np.pi
+            return np.dot(incident_direction, incident_normal) / np.pi
     else:
         return 1
 
 
 @numba.jit(nogil=True)
 def BRDF_pdf(material, incident_direction, incident_normal, exitant_direction, path_direction):
+    # in all BRDF routines, all directions must point away from the point being sampled
     # returns probability density of choosing exitant direction
     if material == Material.DIFFUSE.value:
         if path_direction == Direction.FROM_CAMERA.value:
@@ -298,9 +321,18 @@ def generate_light_ray(box: Box):
     light_direction = random_hemisphere_cosine_weighted(x, y, z)
     ray = Ray(light_origin, light_direction)
     ray.color = light.color
-    ray.p = 1 / (2 * np.pi)
+    ray.local_color = light.color
+    ray.normal = light.normal
+    ray.p = np.dot(light_direction, light.normal) / np.pi
     return ray
 
 
 if __name__ == '__main__':
-    print(specular_reflection(-1 * UNIT_Z, UNIT_Z))
+    while True:
+        x, y, z, = UNIT_X, UNIT_Y, UNIT_Z
+        rand_in = random_hemisphere_uniform_weighted(x,y,z)
+        print(np.linalg.norm(rand_in))
+        # rand_out = random_hemisphere_cosine_weighted(x,y,z)
+        # brdf = BRDF_function(Material.DIFFUSE.value, rand_in, UNIT_Z, rand_out, path_direction=Direction.FROM_EMITTER.value)
+        # assert brdf >= 0
+        # print('chill')

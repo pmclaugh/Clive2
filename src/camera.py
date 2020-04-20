@@ -74,7 +74,7 @@ def tone_map(camera):
     per_pixel_lts = np.sum(log_tone_sums) / np.product(camera.image.shape[:2])
     Lw = np.exp(per_pixel_lts)
     result = averages * 2. / Lw
-    return result / (result + 1)
+    return (255 * result / (result + 1)).astype(np.uint8)
 
 
 if __name__ == '__main__':
