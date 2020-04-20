@@ -187,7 +187,6 @@ def jit_path_build(ray: Ray):
     Path(None, Direction.FROM_CAMERA.value)
 
 
-
 if __name__ == '__main__':
     r = Ray(ZEROS, UNIT_Z)
     jit_path_build(r)

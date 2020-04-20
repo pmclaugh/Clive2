@@ -1,6 +1,6 @@
 from camera import Camera
 from primitives import Box, Path, unit, point
-from routines import generate_light_ray, generate_path, visibility_test, path_pop, path_push, BRDF_function, BRDF_pdf
+from routines import generate_light_ray, generate_path, visibility_test, path_pop, path_push, BRDF_function, BRDF_pdf, geometry_term
 from constants import *
 import numba
 from utils import timed
@@ -21,14 +21,14 @@ def bidirectional_screen_sample(camera: Camera, root: Box, samples=5):
 @numba.jit(nogil=True)
 def sum_probabilities(s, t):
     # given real sample X(s,t), calculate sum of p(X(s,t)) for all possible values of s, t
-    sigma_p = s.ray.p * t.ray.p
-    # NB these are actually len - 1, which would actually be s or t - 2 since veach counts from 1
+    sigma_p = s.ray.p * t.ray.p * geometry_term(s.ray, t.ray)
+    # NB these are actually len - 1, which would actually be s - 2 or t - 2 since veach counts from 1
     s_len = s.ray.bounces
     t_len = t.ray.bounces
     # push all s onto t, tally p
     for _ in range(s_len):
         path_push(t, path_pop(s))
-        sigma_p += t.ray.p * s.ray.p
+        sigma_p += t.ray.p * s.ray.p * geometry_term(s.ray, t.ray)
     # restore original state
     for _ in range(s_len):
         path_push(s, path_pop(t))
@@ -36,12 +36,18 @@ def sum_probabilities(s, t):
     # push all t onto s, tally p
     for _ in range(t_len):
         path_push(s, path_pop(t))
-        sigma_p += t.ray.p * s.ray.p
+        sigma_p += t.ray.p * s.ray.p * geometry_term(s.ray, t.ray)
     # restore original state
     for _ in range(t_len):
         path_push(t, path_pop(s))
 
     return sigma_p
+
+
+# todo: getting really close here. need to propagate G through paths, handle properly in sum_probability
+#  then need to understand the 1/N and 1/Nk stuff and we're done i think
+
+# how are sampling techniques grouped? path length? s or t?
 
 
 @numba.jit(nogil=True)
@@ -50,6 +56,7 @@ def bidirectional_sample(root: Box, camera_path: Path, light_path: Path):
     camera_stack = Path(None, Direction.FROM_CAMERA.value)
     light_stack = Path(None, Direction.FROM_EMITTER.value)
     result = point(0, 0, 0)
+    samples = 0
     while camera_path.ray.prev is not None:
         while light_path.ray.prev is not None:
             # Sample for this s, t
@@ -61,8 +68,9 @@ def bidirectional_sample(root: Box, camera_path: Path, light_path: Path):
                     p = sum_probabilities(camera_path, light_path)
                     light_join_f = BRDF_function(light_path.ray.material, light_path.ray.prev.direction, light_path.ray.normal, dir_l_to_c, light_path.direction)
                     camera_join_f = BRDF_function(camera_path.ray.material, camera_path.ray.prev.direction, camera_path.ray.normal, -1 * dir_l_to_c, camera_path.direction)
-                    f = camera_path.ray.color * light_path.ray.color * light_join_f * camera_join_f
+                    f = camera_path.ray.color * light_path.ray.color * light_join_f * camera_join_f * geometry_term(light_path.ray, camera_path.ray)
                     result += np.maximum(0, f / p)
+            samples += 1
 
             # iterate s down
             z = path_pop(light_path)
@@ -77,4 +85,4 @@ def bidirectional_sample(root: Box, camera_path: Path, light_path: Path):
             z = path_pop(light_stack)
             path_push(light_path, z)
 
-    return result
+    return result / samples

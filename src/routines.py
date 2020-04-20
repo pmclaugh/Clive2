@@ -152,8 +152,6 @@ def extend_path(path: Path, root: Box):
     else:
         return False
 
-# the direction of the ray at the front of the path is purely speculative
-
 
 @numba.jit(nogil=True)
 def path_push(path: Path, ray: Ray):
@@ -163,6 +161,7 @@ def path_push(path: Path, ray: Ray):
         ray.bounces = 0
         pass
     else:
+        # G = geometry_term(path.ray, ray)
         if path.ray.prev is None:
             # pushing onto stack of 1, just propagate p and color (?)
             ray.color = path.ray.color
@@ -183,6 +182,7 @@ def path_push(path: Path, ray: Ray):
 
 @numba.jit(nogil=True)
 def path_pop(path: Path):
+    # path_push directly overrides all important fields, so pop is just a straight pop
     ray = path.ray
     path.ray = path.ray.prev
     ray.prev = None
@@ -291,7 +291,10 @@ def generate_light_ray(box: Box):
     light_origin = light.sample_surface()
     x, y, z = local_orthonormal_system(light.normal)
     light_direction = random_hemisphere_cosine_weighted(x, y, z)
-    return Ray(light_origin, light_direction)
+    ray = Ray(light_origin, light_direction)
+    ray.color = light.color
+    ray.p = 1 / (2 * np.pi)
+    return ray
 
 
 if __name__ == '__main__':

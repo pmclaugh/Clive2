@@ -11,15 +11,15 @@ from constants import Material
 
 WINDOW_WIDTH = 320
 WINDOW_HEIGHT = 180
-SAMPLE_COUNT = 400
+SAMPLE_COUNT = 100
 
 
 if __name__ == '__main__':
-    camera = Camera(center=point(0, 7, 4), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
+    camera = Camera(center=point(0, 2, 5), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
                     pixel_width=WINDOW_WIDTH, phys_width=WINDOW_WIDTH / WINDOW_HEIGHT, phys_height=1.)
     # + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value)
     bvh = BoundingVolumeHierarchy(
-        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))))
+        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))) + load_obj('../resources/teapot.obj', material=Material.DIFFUSE.value))
 
     try:
         for n in range(SAMPLE_COUNT):
@@ -40,8 +40,8 @@ if __name__ == '__main__':
 # single_threaded_capture - 44.5569
 
 # todo: Feature Schedule
-#  - Bidirectional is functionally in place but needs all the probability details implemented (still a lot of work)
-#    - equal amt of samples from each technique
+#  - Bidirectional largely implemented, just need to understand the 1/N 1/Nk stuff and correct geometry term issues
+#  - I made a lot of changes. i should revert to unidirectional and make sure everything still works at a basic level
 
 #  - normal smoothing
 #  - textures
@@ -51,3 +51,4 @@ if __name__ == '__main__':
 #  - jit OBJ loading and bvh construction, eliminate TreeBox class
 
 # todo: Known Bugs
+#  - sample 0 does not display properly
