@@ -1,5 +1,5 @@
 # Clive2
-Bidirectional Path Tracing implemented in Python, relying heavily on Numba for performance. This is a work in progress and may be unstable, incorrect, etc. especailly as I'm just getting started with it. In the future I will try to keep uncertain code out of master, but currently there is only master.
+Bidirectional Path Tracing implemented in Python, relying heavily on Numba for performance. This is a work in progress and may be unstable, incorrect, etc. especailly as I'm just getting started with it. In the future I will try to keep uncertain code out of master, but currently there is only master. Performance is, well, poor. But for single-threaded, cpu-only, it's actually pretty decent. Multithreading was implemented for unidirectional, then removed during development of bidirectional. it will be reinstated soon. Eventually, I hope to use this as a reference renderer when implementing a GPU and/or cloud renderer.
 
 Working:
 - loading obj files
@@ -25,7 +25,12 @@ Planned features:
 - normal smoothing
 - transmissive materials
 - glossy materials
+
+Optimistic possible features:
 - Metropolis light transport
+- GPU suport
+- Cloud rendering
+
 
 Camera-only tracing, ~200 samples per pixel:
 
