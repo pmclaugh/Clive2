@@ -66,19 +66,32 @@ def bidirectional_sample(root: Box, camera_path: Path, light_path: Path):
             if np.dot(camera_path.ray.normal, -1 * dir_l_to_c) > 0 and np.dot(light_path.ray.normal, dir_l_to_c) > 0:
                 if visibility_test(root, camera_path.ray, light_path.ray):
                     p = sum_probabilities(camera_path, light_path)
-                    light_join_f = BRDF_function(light_path.ray.material, light_path.ray.prev.direction, light_path.ray.normal, dir_l_to_c, light_path.direction)
-                    camera_join_f = BRDF_function(camera_path.ray.material, camera_path.ray.prev.direction, camera_path.ray.normal, -1 * dir_l_to_c, camera_path.direction)
+                    if camera_path.ray.prev is None:
+                        # iirc this one's a weird one. skipping for now.
+                        camera_join_f = 0
+                    else:
+                        camera_join_f = BRDF_function(camera_path.ray.material, camera_path.ray.prev.direction,
+                                                      camera_path.ray.normal, -1 * dir_l_to_c, camera_path.direction)
+                    if light_path.ray.prev is None:
+                        light_join_f = np.dot(light_path.ray.normal, dir_l_to_c)
+                    else:
+                        light_join_f = BRDF_function(light_path.ray.material, light_path.ray.prev.direction,
+                                                     light_path.ray.normal, dir_l_to_c, light_path.direction)
+
                     f = camera_path.ray.color * light_path.ray.color * light_join_f * camera_join_f * geometry_term(light_path.ray, camera_path.ray)
+                    # todo test if this is still necessary, fix underlying bug
                     result += np.maximum(0, f / p)
             samples += 1
 
-            # iterate s down
-            z = path_pop(light_path)
-            path_push(light_stack, z)
+            # iterate s down, but don't exhaust
+            if light_path.ray is not None:
+                z = path_pop(light_path)
+                path_push(light_stack, z)
 
-        # iterate t down
-        z = path_pop(camera_path)
-        path_push(camera_stack, z)
+        # iterate t down, but don't exhaust
+        if camera_path.ray is not None:
+            z = path_pop(camera_path)
+            path_push(camera_stack, z)
 
         # reset s
         while light_stack.ray is not None:

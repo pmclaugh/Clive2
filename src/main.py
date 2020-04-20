@@ -19,7 +19,7 @@ if __name__ == '__main__':
                     pixel_width=WINDOW_WIDTH, phys_width=WINDOW_WIDTH / WINDOW_HEIGHT, phys_height=1.)
     # + load_obj('../resources/teapot.obj', material=Material.SPECULAR.value)
     bvh = BoundingVolumeHierarchy(
-        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))) + load_obj('../resources/teapot.obj', material=Material.DIFFUSE.value))
+        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))) )#+ load_obj('../resources/teapot.obj', material=Material.DIFFUSE.value))
 
     try:
         for n in range(SAMPLE_COUNT):

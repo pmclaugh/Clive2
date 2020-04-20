@@ -159,7 +159,12 @@ def path_push(path: Path, ray: Ray):
     if path.ray is None:
         # pushing onto empty stack, nothing really matters here
         ray.bounces = 0
-        pass
+        if path.direction == Direction.FROM_CAMERA.value:
+            ray.p = 1
+            ray.color = WHITE
+        else:
+            ray.p = 1 / (2 * np.pi)
+            ray.color = ray.local_color
     else:
         # G = geometry_term(path.ray, ray)
         if path.ray.prev is None:
