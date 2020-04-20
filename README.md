@@ -5,6 +5,7 @@ Working:
 - loading obj files
 - ray casting
 - collision
+- collision acceleration with simple spatial-split BVH
 - path generation
 - importance sampling
 - combining bidirectional paths
