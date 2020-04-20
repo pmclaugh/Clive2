@@ -1,5 +1,5 @@
 # Clive2
-Bidirectional Path Tracing implemented in python with numba
+Bidirectional Path Tracing implemented in python with numba. This is a work in progress and may be unstable, incorrect, etc. especailly as I'm just getting started with it. In the future I will try to keep uncertain code out of master, but currently there is only master.
 
 Camera-only tracing, ~200 samples per pixel:
 
