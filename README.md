@@ -8,6 +8,8 @@ Working:
 - path generation
 - importance sampling
 - combining bidirectional paths
+- diffuse surfaces
+- specular surfaces
 
 Possibly not working:
 - multiple importance sampling
