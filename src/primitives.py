@@ -32,6 +32,7 @@ box_type = numba.deferred_type()
     ('inv_direction', numba.float64[3::1]),
     ('sign', numba.uint8[3::1]),
     ('color', numba.float64[3::1]),
+    ('local_color', numba.float64[3::1]),
     ('i', numba.int32),
     ('j', numba.int32),
     ('bounces', numba.int32),
@@ -48,6 +49,7 @@ class Ray:
         self.inv_direction = 1 / self.direction
         self.sign = (self.inv_direction < 0).astype(np.uint8)
         self.color = WHITE.copy()
+        self.local_color = WHITE.copy()
         self.i = 0
         self.j = 0
         self.bounces = 0
@@ -162,13 +164,13 @@ class BoxStack:
 
 
 @numba.jitclass([
-    ('ray', Ray.class_type.instance_type),
+    ('ray', numba.optional(Ray.class_type.instance_type)),
     ('hit_light', numba.boolean),
     ('direction', numba.int64),
 ])
 class Path:
-    # path is a stack of rays and (will have) some methods on them
-    def __init__(self, ray, direction):
+    # path is a stack of rays. methods on paths are currently in routines.py
+    def __init__(self, ray, direction=Direction.FROM_CAMERA.value):
         self.ray = ray
         self.hit_light = False
         self.direction = direction
@@ -181,7 +183,9 @@ ray_type.define(Ray.class_type.instance_type)
 
 @numba.jit(nogil=True)
 def jit_path_build(ray: Ray):
-    return Path(ray, Direction.FROM_CAMERA.value)
+    Path(ray, Direction.FROM_CAMERA.value)
+    Path(None, Direction.FROM_CAMERA.value)
+
 
 
 if __name__ == '__main__':

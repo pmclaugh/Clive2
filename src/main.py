@@ -23,7 +23,7 @@ if __name__ == '__main__':
 
     try:
         for n in range(SAMPLE_COUNT):
-            unidirectional_screen_sample(camera, bvh.root.box, 1)
+            bidirectional_screen_sample(camera, bvh.root.box, 1)
             print('sample', n, 'done')
             cv2.imshow('render', tone_map(camera))
             cv2.waitKey(1)
@@ -41,6 +41,8 @@ if __name__ == '__main__':
 
 # todo: Feature Schedule
 #  - Bidirectional is functionally in place but needs all the probability details implemented (still a lot of work)
+#    - equal amt of samples from each technique
+
 #  - normal smoothing
 #  - textures
 

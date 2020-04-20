@@ -2,6 +2,7 @@ import numba
 import numpy as np
 from constants import *
 from primitives import Ray, Path, Triangle, Box, BoxStack, unit
+from utils import timed
 
 
 @numba.jit(nogil=True, fastmath=True)
@@ -142,7 +143,7 @@ def extend_path(path: Path, root: Box):
         new_ray = Ray(new_origin, new_direction)
         new_ray.normal = triangle.normal
         new_ray.material = triangle.material
-        new_ray.color = path.ray.color * triangle.color
+        new_ray.local_color = triangle.color
         if triangle.emitter:
             path.hit_light = True
 
@@ -156,13 +157,24 @@ def extend_path(path: Path, root: Box):
 
 @numba.jit(nogil=True)
 def path_push(path: Path, ray: Ray):
-    # update stuff
-    ray.color *= BRDF_function(ray.material, path.ray.direction, ray.normal, ray.direction, path.direction)
-    if path.ray.prev is not None:
-        ray.p = path.ray.p * BRDF_pdf(path.ray.material, path.ray.prev.direction, path.ray.normal, path.ray.direction, path.direction)
+    # update stuff appropriately
+    if path.ray is None:
+        # pushing onto empty stack, nothing really matters here
+        ray.bounces = 0
+        pass
     else:
-        ray.p = path.ray.p
-    ray.bounces = path.ray.bounces + 1
+        if path.ray.prev is None:
+            # pushing onto stack of 1, just propagate p and color (?)
+            ray.color = path.ray.color
+            ray.p = path.ray.p
+        else:
+            # pushing onto stack of 2 or more, do some work
+            ray.color = path.ray.local_color * path.ray.color * BRDF_function(path.ray.material, path.ray.prev.direction, path.ray.normal, path.ray.direction,
+                                       path.direction)
+            ray.p = path.ray.p * BRDF_pdf(path.ray.material, path.ray.prev.direction, path.ray.normal, path.ray.direction,
+                                          path.direction)
+        path.ray.direction = unit(ray.origin - path.ray.origin)
+        ray.bounces = path.ray.bounces + 1
 
     # store new ray
     ray.prev = path.ray
@@ -172,8 +184,6 @@ def path_push(path: Path, ray: Ray):
 @numba.jit(nogil=True)
 def path_pop(path: Path):
     ray = path.ray
-    if path.ray.prev is not None:
-        ray.color /= path.ray.prev.color
     path.ray = path.ray.prev
     ray.prev = None
     return ray
