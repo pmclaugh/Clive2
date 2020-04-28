@@ -3,7 +3,9 @@ import enum
 
 H_FOV = 90
 
+# these are the same for now but might need to be different later
 FLOAT_TOLERANCE = 0.00001
+COLLISION_SHIFT = 0.00001
 
 UNIT_X = np.array([1, 0, 0], dtype=np.float64)
 UNIT_Y = np.array([0, 1, 0], dtype=np.float64)
@@ -30,7 +32,6 @@ INTERSECT_COST = 2
 
 # Tracing constants
 MAX_BOUNCES = 3
-COLLISION_OFFSET = 0.001
 
 
 # Bidirectional constants

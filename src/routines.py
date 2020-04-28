@@ -29,7 +29,7 @@ def ray_triangle_intersect(ray: Ray, triangle: Triangle):
         return None
 
     t = f * np.dot(triangle.e2, q)
-    if t > FLOAT_TOLERANCE:
+    if t > COLLISION_SHIFT:
         return t
     else:
         return None
@@ -54,7 +54,7 @@ def ray_box_intersect(ray: Ray, box: Box):
         return False, 0., 0.
     tmin = max(tmin, tzmin)
     tmax = min(tmax, tzmax)
-    if tmax > 0:
+    if tmax > COLLISION_SHIFT:
         return True, tmin, tmax
     else:
         return False, 0., 0.
@@ -140,7 +140,7 @@ def extend_path(path: Path, root: Box):
     triangle, t = traverse_bvh(root, path.ray)
     if triangle is not None:
         # generate new ray
-        new_origin = path.ray.origin + path.ray.direction * t + triangle.normal * COLLISION_OFFSET
+        new_origin = path.ray.origin + path.ray.direction * t
         new_direction = BRDF_sample(triangle.material, -1 * path.ray.direction, triangle.normal, path.direction)
         new_ray = Ray(new_origin, new_direction)
         new_ray.normal = triangle.normal

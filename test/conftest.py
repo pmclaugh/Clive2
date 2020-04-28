@@ -65,3 +65,4 @@ def ray_inside_box():
 def ray_that_misses():
     return Ray(ONES * 5, UNIT_Y)
 
+

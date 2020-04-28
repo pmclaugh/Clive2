@@ -63,3 +63,4 @@ if __name__ == '__main__':
 #  remove collision offset from all location storage, instead enforce minimum t somewhere
 #  back up from bidirectional for a little bit to build better confidence in core collision engine
 #  write a raster viewer. it won't be as hard as i think, at all
+#  fix having to use this .value thing on all the enums. numba is supposed to support them
