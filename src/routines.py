@@ -251,7 +251,7 @@ def random_hemisphere_uniform_weighted(x_axis, y_axis, z_axis):
 
 @numba.jit(nogil=True)
 def specular_reflection(direction, normal):
-    return 2 * np.dot(direction, normal) * normal + direction
+    return 2 * np.dot(direction, normal) * normal - direction
 
 
 @numba.jit(nogil=True)
