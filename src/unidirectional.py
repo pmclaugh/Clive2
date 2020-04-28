@@ -22,5 +22,4 @@ def unidirectional_sample(camera_path: Path):
     if not camera_path.hit_light:
         return BLACK
     else:
-        # todo this is no longer correct, camera_path.ray.p is missing one last multiplier
         return camera_path.ray.color / camera_path.ray.p

@@ -188,14 +188,3 @@ class Path:
 node_type.define(BoxStackNode.class_type.instance_type)
 box_type.define(Box.class_type.instance_type)
 ray_type.define(Ray.class_type.instance_type)
-
-
-@numba.jit(nogil=True)
-def jit_path_build(ray: Ray):
-    Path(ray, Direction.FROM_CAMERA.value)
-    Path(None, Direction.FROM_CAMERA.value)
-
-
-if __name__ == '__main__':
-    r = Ray(ZEROS, UNIT_Z)
-    jit_path_build(r)

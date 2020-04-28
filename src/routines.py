@@ -190,14 +190,14 @@ def path_push(path: Path, ray: Ray):
         path.ray.direction = unit(ray.origin - path.ray.origin)
         if path.ray.prev is None:
             # pushing onto stack of 1, just propagate p and color (?)
-            ray.color = path.ray.color
-            ray.p = path.ray.p
+            ray.color = path.ray.color * G
+            ray.p = path.ray.p * G
         else:
             # pushing onto stack of 2 or more, do some work
             brdf = BRDF_function(path.ray.material, -1 * path.ray.prev.direction, path.ray.normal, path.ray.direction,
                                        path.direction)
-            ray.color = path.ray.local_color * path.ray.color * brdf
-            ray.p = path.ray.p * BRDF_pdf(path.ray.material, -1 * path.ray.prev.direction, path.ray.normal, path.ray.direction,
+            ray.color = path.ray.local_color * path.ray.color * brdf * G
+            ray.p = path.ray.p * G * BRDF_pdf(path.ray.material, -1 * path.ray.prev.direction, path.ray.normal, path.ray.direction,
                                           path.direction)
         ray.bounces = path.ray.bounces + 1
 

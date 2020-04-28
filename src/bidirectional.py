@@ -7,7 +7,6 @@ from utils import timed
 
 
 @timed
-@numba.jit(nogil=True)
 def bidirectional_screen_sample(camera: Camera, root: Box, samples=5):
     for _ in range(samples):
         for i in range(camera.pixel_height):
@@ -22,7 +21,7 @@ def bidirectional_screen_sample(camera: Camera, root: Box, samples=5):
 def sum_probabilities(s, t):
     # given real sample X(s,t), calculate sum of p(X(s,t)) for all used values of s, t
     sigma_p = s.ray.p * t.ray.p * geometry_term(s.ray, t.ray)
-    s_len = s.ray.bounces
+    s_len = s.ray.bounces - 1
     t_len = t.ray.bounces - 1
 
     # push all s onto t, tally p
@@ -50,12 +49,11 @@ def sum_probabilities(s, t):
     return sigma_p
 
 
-# todo: getting really close here. need to propagate G through paths, handle properly in sum_probability
-#  then need to understand the 1/N and 1/Nk stuff and we're done i think
-
-
 @numba.jit(nogil=True)
 def bidirectional_sample(root: Box, camera_path: Path, light_path: Path):
+    # todo this is very slow, and also has some subtle issue i can't get rid of. should rewrite and simplify
+    #  the slowdown is mostly in the iteration. I think paths need to be lists.
+    #  probably need to go back to the pl pc plan too
     # iterates over all possible s and t available from light_path and camera_path, respectively
     camera_stack = Path(None, Direction.STORAGE.value)
     light_stack = Path(None, Direction.STORAGE.value)
