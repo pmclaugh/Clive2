@@ -98,7 +98,7 @@ class Triangle:
         u = 1 - np.sqrt(r1)
         v = np.sqrt(r1) * (1 - r2)
         w = r2 * np.sqrt(r1)
-        return self.v0 * u + self.v1 * v + self.v2 * w + COLLISION_OFFSET * self.normal
+        return self.v0 * u + self.v1 * v + self.v2 * w
 
 
 

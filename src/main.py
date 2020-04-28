@@ -56,3 +56,10 @@ if __name__ == '__main__':
 #    - not calling the brdf right, it's inconsistent, leading to negative numbers
 #    - need to unify all brdf stuff around i and o both pointing away
 #    - issue is not the brdfs, but that rays are hitting triangles on their back side (the ceiling light)
+
+
+# todo: returning to project, first steps
+#  write more unit tests, off to a good start
+#  remove collision offset from all location storage, instead enforce minimum t somewhere
+#  back up from bidirectional for a little bit to build better confidence in core collision engine
+#  write a raster viewer. it won't be as hard as i think, at all
