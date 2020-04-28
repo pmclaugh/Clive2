@@ -40,18 +40,28 @@ def wrong_handed_triangle():
 
 
 @pytest.fixture
+def big_triangle():
+    return Triangle(ZEROS, UNIT_X * 5, UNIT_Y * 5)
+
+
+@pytest.fixture
 def ray_that_barely_hits():
-    # hits triangle at origin
-    return Ray(UNIT_Z, -1 * UNIT_Z)
+    # hits object at origin
+    return Ray(UNIT_Z * 4, -1 * UNIT_Z)
 
 
 @pytest.fixture
 def ray_that_hits():
-    # hits triangle in center
-    return Ray(point(0.2, 0.2, 1), -1 * UNIT_Z)
+    # hits object in center
+    return Ray(point(0.2, 0.2, 5), -1 * UNIT_Z)
+
+
+@pytest.fixture
+def ray_inside_box():
+    return Ray(point(0.5, 0.5, 0.5), UNIT_Z)
 
 
 @pytest.fixture
 def ray_that_misses():
-    return Ray(ONES, UNIT_Y)
+    return Ray(ONES * 5, UNIT_Y)
 
