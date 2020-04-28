@@ -47,7 +47,8 @@ if __name__ == '__main__':
 #  - textures
 
 # todo: Tech Debt
-#  - Automated tests
+#  - Automated tests - primitives and brdfs decently covered, need to test data structures. also BVH unit tests.
+#        then there can be integration tests around paths
 #  - jit OBJ loading and bvh construction, eliminate TreeBox class
 
 # todo: Known Bugs
@@ -59,8 +60,6 @@ if __name__ == '__main__':
 
 
 # todo: returning to project, first steps
-#  write more unit tests, off to a good start
-#  remove collision offset from all location storage, instead enforce minimum t somewhere
 #  back up from bidirectional for a little bit to build better confidence in core collision engine
 #  write a raster viewer. it won't be as hard as i think, at all
 #  fix having to use this .value thing on all the enums. numba is supposed to support them

@@ -47,7 +47,7 @@ def big_triangle():
 @pytest.fixture
 def ray_that_barely_hits():
     # hits object at origin
-    return Ray(UNIT_Z * 4, -1 * UNIT_Z)
+    return Ray(UNIT_Z * 5, -1 * UNIT_Z)
 
 
 @pytest.fixture

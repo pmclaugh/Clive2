@@ -17,7 +17,7 @@ def test_wrong_handed_triangle(wrong_handed_triangle, z_axis):
 def test_should_hit(basic_triangle, ray_that_hits):
     t = ray_triangle_intersect(ray_that_hits, basic_triangle)
     assert t is not None
-    assert t == 1.0
+    assert t == 5.0
 
 
 @pytest.mark.unittest
@@ -36,7 +36,7 @@ def test_backface_culling(wrong_handed_triangle, ray_that_hits):
 def test_edge_hit(basic_triangle, ray_that_barely_hits):
     t = ray_triangle_intersect(ray_that_barely_hits, basic_triangle)
     assert t is not None
-    assert t == 1.0
+    assert t == 5.0
 
 
 @pytest.mark.unittest
