@@ -41,25 +41,26 @@ if __name__ == '__main__':
 # single_threaded_capture - 44.5569
 
 # todo: Feature Schedule
-#  - Bidirectional largely implemented, just need to understand the 1/N 1/Nk stuff and correct geometry term issues
-#  - I made a lot of changes. i should revert to unidirectional and make sure everything still works at a basic level
+#  - raster viewer
+#  - glossy brdf
+#  - Correct bidirectional
+#  - glossy in bidirectional
+#  - specular in bidirectional
 #  - normal smoothing
 #  - textures
 
 # todo: Tech Debt
-#  - Automated tests - primitives and brdfs decently covered, need to test data structures. also BVH unit tests.
-#        then there can be integration tests around paths
+#  - Automated tests
+#       - primitives and brdfs decently covered,
+#       - need to test data structures.
+#       - BVH unit tests.
+#       - integration tests around paths in a simple scene
 #  - jit OBJ loading and bvh construction, eliminate TreeBox class
+#  - BVH caching
+#  - fix having to use this .value thing on all the enums. numba is supposed to support them
 
 # todo: Known Bugs
 #  - sample 0 does not display properly
 #  - light paths are getting negative color somehow
-#    - not calling the brdf right, it's inconsistent, leading to negative numbers
-#    - need to unify all brdf stuff around i and o both pointing away
-#    - issue is not the brdfs, but that rays are hitting triangles on their back side (the ceiling light)
+#       still unclear how. may be fixed with removal of collision shift
 
-
-# todo: returning to project, first steps
-#  back up from bidirectional for a little bit to build better confidence in core collision engine
-#  write a raster viewer. it won't be as hard as i think, at all
-#  fix having to use this .value thing on all the enums. numba is supposed to support them
