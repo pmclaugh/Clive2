@@ -22,12 +22,11 @@ if __name__ == '__main__':
         triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10)))  )#+ load_obj('../resources/teapot.obj', material=Material.DIFFUSE.value))
 
     try:
-        cv2.imshow('render', tone_map(camera))
         for n in range(SAMPLE_COUNT):
-            bidirectional_screen_sample(camera, bvh.root.box, 1)
-            print('sample', n, 'done')
             cv2.imshow('render', tone_map(camera))
             cv2.waitKey(1)
+            bidirectional_screen_sample(camera, bvh.root.box, 1)
+            print('sample', n, 'done')
     except KeyboardInterrupt:
         print('stopped early')
     else:

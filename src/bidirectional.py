@@ -14,7 +14,6 @@ def bidirectional_screen_sample(camera: Camera, root: Box, samples=5):
             for j in range(camera.pixel_width):
                 light_path = generate_path(root, generate_light_ray(root), direction=Direction.FROM_EMITTER.value)
                 camera_path = generate_path(root, camera.make_ray(i, j), direction=Direction.FROM_CAMERA.value)
-                # print('L:', light_path.ray.bounces, 'C:', camera_path.ray.bounces)
                 camera.image[i][j] += bidirectional_sample(root, camera_path, light_path)
     camera.samples += 1
 
@@ -54,19 +53,16 @@ def sum_probabilities(s, t):
 # todo: getting really close here. need to propagate G through paths, handle properly in sum_probability
 #  then need to understand the 1/N and 1/Nk stuff and we're done i think
 
-# how are sampling techniques grouped? path length? s or t?
-
 
 @numba.jit(nogil=True)
 def bidirectional_sample(root: Box, camera_path: Path, light_path: Path):
     # iterates over all possible s and t available from light_path and camera_path, respectively
     camera_stack = Path(None, Direction.STORAGE.value)
     light_stack = Path(None, Direction.STORAGE.value)
-    light_canary = light_path.ray.p
     result = point(0, 0, 0)
     samples = 0
     while camera_path.ray.prev is not None:
-        while light_path.ray is not None:
+        while light_path.ray.prev is not None:
             # Sample for this s, t
             # dot the normals to skip pointless visibility checks
             # NB this needs adjustment when transmissive materials are introduced
@@ -87,8 +83,7 @@ def bidirectional_sample(root: Box, camera_path: Path, light_path: Path):
                                                      light_path.ray.normal, dir_l_to_c, light_path.direction)
 
                     f = camera_path.ray.color * light_path.ray.color * light_join_f * camera_join_f * geometry_term(light_path.ray, camera_path.ray)
-                    # todo test if this is still necessary, fix underlying bug
-                    result += np.maximum(0, f / p)
+                    result += f / p
             samples += 1
 
             # iterate s down
