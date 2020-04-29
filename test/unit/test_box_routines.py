@@ -7,6 +7,7 @@ from constants import ONES, ZEROS
 @pytest.mark.unittest
 def test_should_hit(ray_that_hits, unit_box):
     hit, tmin, tmax = ray_box_intersect(ray_that_hits, unit_box)
+
     assert hit
     assert tmin > 0
     assert tmax > tmin
@@ -15,6 +16,7 @@ def test_should_hit(ray_that_hits, unit_box):
 @pytest.mark.unittest
 def test_should_miss(ray_that_misses, unit_box):
     hit, tmin, tmax = ray_box_intersect(ray_that_misses, unit_box)
+
     assert not hit
     assert tmin == 0
     assert tmax == 0
@@ -23,6 +25,7 @@ def test_should_miss(ray_that_misses, unit_box):
 @pytest.mark.unittest
 def test_inside_box(ray_inside_box, unit_box):
     hit, tmin, tmax = ray_box_intersect(ray_inside_box, unit_box)
+
     assert hit
     assert tmin < 0
     assert tmax > 0
@@ -47,7 +50,9 @@ def test_extend(unit_box, big_triangle):
     assert (unit_box.span == ONES).all()
     assert (unit_box.min == ZEROS).all()
     assert (unit_box.max == ONES).all()
+
     unit_box.extend(big_triangle)
+
     assert (unit_box.span == point(5, 5, 1)).all()
     assert (unit_box.min == ZEROS).all()
     assert (unit_box.max == point(5, 5, 1)).all()
