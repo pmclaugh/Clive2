@@ -1,4 +1,5 @@
-from routines import ray_triangle_intersect, unit
+from routines import unit
+from collision import ray_triangle_intersect
 import pytest
 import numpy as np
 

@@ -1,6 +1,7 @@
 from camera import Camera
 from primitives import Box, Path, unit, point
-from routines import generate_light_ray, generate_path, visibility_test, path_pop, path_push, BRDF_function, BRDF_pdf, geometry_term
+from routines import generate_light_ray, generate_path, path_pop, path_push, BRDF_function, BRDF_pdf, geometry_term
+from collision import visibility_test
 from constants import *
 import numba
 from utils import timed

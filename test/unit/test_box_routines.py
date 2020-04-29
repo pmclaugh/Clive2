@@ -1,5 +1,5 @@
 import pytest
-from routines import ray_box_intersect
+from collision import ray_box_intersect
 from primitives import point
 from constants import ONES, ZEROS
 
