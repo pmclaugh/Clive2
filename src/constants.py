@@ -36,9 +36,9 @@ MAX_BOUNCES = 3
 
 # Bidirectional constants
 class Direction(enum.Enum):
-    FROM_CAMERA = 1
-    FROM_EMITTER = 2
-    STORAGE = 3
+    FROM_CAMERA = 0
+    FROM_EMITTER = 1
+    STORAGE = 2
 
 
 # Material constants
