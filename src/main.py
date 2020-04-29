@@ -50,13 +50,13 @@ if __name__ == '__main__':
 
 # todo: Tech Debt
 #  - Automated tests
-#       - primitives and brdfs decently covered,
-#       - need to test data structures.
-#       - BVH unit tests.
+#       - box and path data structures
+#       - BVH unit tests
 #       - integration tests around paths in a simple scene
 #  - jit OBJ loading and bvh construction, eliminate TreeBox class
 #  - BVH caching
 #  - fix having to use this .value thing on all the enums. numba is supposed to support them
+#  - requirements.txt
 
 # todo: Known Bugs
 #  - sample 0 does not display properly

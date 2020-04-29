@@ -6,7 +6,7 @@ from utils import timed
 from collision import traverse_bvh
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def generate_path(root: Box, ray: Ray, direction, max_bounces=4, rr_chance=0.1, stop_for_light=False):
     path = Path(ray, direction)
     while path.ray.bounces < max_bounces: # or np.random.random() < rr_chance:
@@ -20,7 +20,7 @@ def generate_path(root: Box, ray: Ray, direction, max_bounces=4, rr_chance=0.1, 
     return path
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def extend_path(path: Path, root: Box):
     triangle, t = traverse_bvh(root, path.ray)
     if triangle is not None:
@@ -61,7 +61,7 @@ def path_health_check(path: Path):
         return True
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def path_push(path: Path, ray: Ray):
     # update stuff appropriately
     if path.direction == Direction.STORAGE.value:
@@ -91,7 +91,7 @@ def path_push(path: Path, ray: Ray):
     path.ray = ray
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def path_pop(path: Path):
     # path_push directly overrides all important fields, so pop is just a straight pop
     ray = path.ray
@@ -100,7 +100,7 @@ def path_pop(path: Path):
     return ray
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def local_orthonormal_system(z):
     # todo: this should take triangle, point and do normal smoothing if available
     if np.abs(z[0]) > np.abs(z[1]):
@@ -112,7 +112,7 @@ def local_orthonormal_system(z):
     return x, y, z
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def random_hemisphere_cosine_weighted(x_axis, y_axis, z_axis):
     u1 = np.random.random()
     u2 = np.random.random()
@@ -123,7 +123,7 @@ def random_hemisphere_cosine_weighted(x_axis, y_axis, z_axis):
     return x * x_axis + y * y_axis + z_axis * np.sqrt(np.maximum(0., 1. - u1))
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def random_hemisphere_uniform_weighted(x_axis, y_axis, z_axis):
     u1 = np.random.random()
     u2 = np.random.random()
@@ -134,12 +134,12 @@ def random_hemisphere_uniform_weighted(x_axis, y_axis, z_axis):
     return x_axis * x + y_axis * y + z_axis * u1
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def specular_reflection(direction, normal):
     return 2 * np.dot(direction, normal) * normal - direction
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def BRDF_sample(material, incident_direction, incident_normal, path_direction):
     # in all BRDF routines, all directions must point away from the point being sampled
     # returns a new direction
@@ -155,7 +155,7 @@ def BRDF_sample(material, incident_direction, incident_normal, path_direction):
         return incident_normal
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def BRDF_function(material, incident_direction, incident_normal, exitant_direction, path_direction):
     # in all BRDF routines, all directions must point away from the point being sampled
     # returns albedo mask of this bounce
@@ -168,7 +168,7 @@ def BRDF_function(material, incident_direction, incident_normal, exitant_directi
         return 1
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def BRDF_pdf(material, incident_direction, incident_normal, exitant_direction, path_direction):
     # in all BRDF routines, all directions must point away from the point being sampled
     # returns probability density of choosing exitant direction
@@ -183,7 +183,7 @@ def BRDF_pdf(material, incident_direction, incident_normal, exitant_direction, p
         return 0.
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def geometry_term(a: Ray, b: Ray):
     # quantifies the probability of connecting two specific vertices.
     # used when joining paths in bidirectional
@@ -197,7 +197,7 @@ def geometry_term(a: Ray, b: Ray):
     return np.abs(camera_cos * light_cos) / (t * t)
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def generate_light_ray(box: Box):
     light_index = np.random.randint(0, len(box.lights))
     light = box.lights[light_index]

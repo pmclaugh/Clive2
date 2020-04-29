@@ -18,7 +18,7 @@ def bidirectional_screen_sample(camera: Camera, root: Box, samples=5):
     camera.samples += 1
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def sum_probabilities(s, t):
     # given real sample X(s,t), calculate sum of p(X(s,t)) for all used values of s, t
     sigma_p = s.ray.p * t.ray.p * geometry_term(s.ray, t.ray)
@@ -50,7 +50,7 @@ def sum_probabilities(s, t):
     return sigma_p
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def bidirectional_sample(root: Box, camera_path: Path, light_path: Path):
     # todo this is very slow, and also has some subtle issue i can't get rid of. should rewrite and simplify
     #  the slowdown is mostly in the iteration. I think paths need to be lists.

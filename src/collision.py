@@ -79,7 +79,7 @@ def bvh_hit_leaf(ray: Ray, box: Box, least_t):
     return least_hit, least_t
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def visibility_test(root: Box, ray_a: Ray, ray_b: Ray):
     delta = ray_b.origin - ray_a.origin
     least_t = np.linalg.norm(delta)
@@ -99,7 +99,7 @@ def visibility_test(root: Box, ray_a: Ray, ray_b: Ray):
     return True
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def traverse_bvh(root: Box, ray: Ray):
     least_t = np.inf
     least_hit = None

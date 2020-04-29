@@ -4,7 +4,7 @@ from constants import *
 from primitives import unit, point, vec, Ray
 
 
-@numba.jitclass([
+@numba.experimental.jitclass([
     ('center', numba.float64[3]),
     ('direction', numba.float64[3]),
     ('phys_width', numba.float64),

@@ -5,17 +5,17 @@ from constants import *
 # sugar
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def point(x, y, z):
     return np.array([x, y, z], dtype=np.float64)
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def vec(x, y, z):
     return np.array([x, y, z], dtype=np.float64)
 
 
-@numba.jit(nogil=True)
+@numba.njit
 def unit(v):
     return v / np.linalg.norm(v)
 
@@ -26,7 +26,7 @@ ray_type = numba.deferred_type()
 node_type = numba.deferred_type()
 box_type = numba.deferred_type()
 
-@numba.jitclass([
+@numba.experimental.jitclass([
     ('origin', numba.float64[3::1]),
     ('direction', numba.float64[3::1]),
     ('inv_direction', numba.float64[3::1]),
@@ -59,7 +59,7 @@ class Ray:
         self.material = Material.SPECULAR.value
 
 
-@numba.jitclass([
+@numba.experimental.jitclass([
     ('v0', numba.float64[3::1]),
     ('v1', numba.float64[3::1]),
     ('v2', numba.float64[3::1]),
@@ -102,7 +102,7 @@ class Triangle:
 
 
 
-@numba.jitclass([
+@numba.experimental.jitclass([
     ('min', numba.float64[3::1]),
     ('max', numba.float64[3::1]),
     ('bounds', numba.float64[:, ::1]),
@@ -138,7 +138,7 @@ class Box:
         return 2 * (self.span[0] * self.span[1] + self.span[1] * self.span[2] + self.span[0] * self.span[2])
 
 
-@numba.jitclass([
+@numba.experimental.jitclass([
     ('next', numba.optional(node_type)),
     ('data', box_type),
 ])
@@ -148,7 +148,7 @@ class BoxStackNode:
         self.next = None
 
 
-@numba.jitclass([
+@numba.experimental.jitclass([
     ('head', numba.optional(node_type)),
     ('size', numba.uint32)
 ])
@@ -172,7 +172,7 @@ class BoxStack:
         return old.data
 
 
-@numba.jitclass([
+@numba.experimental.jitclass([
     ('ray', numba.optional(Ray.class_type.instance_type)),
     ('hit_light', numba.boolean),
     ('direction', numba.int64),

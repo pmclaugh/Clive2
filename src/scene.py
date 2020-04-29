@@ -4,7 +4,7 @@ from typing import List
 from primitives import *
 
 
-@numba.jitclass([
+@numba.experimental.jitclass([
     ('boxes', numba.types.ListType(Box.class_type.instance_type))
 ])
 class SimpleScene:
