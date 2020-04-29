@@ -54,6 +54,8 @@ class Ray:
         self.j = 0
         self.bounces = 0
         self.p = 1
+        self.pc = 1
+        self.pl = 1
         self.prev = None
         self.normal = self.direction
         self.material = Material.SPECULAR.value

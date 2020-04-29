@@ -20,7 +20,7 @@ def extend_path(path, root):
             new_ray = Ray(origin, direction)
 
             # probability, weight, and color updates
-            
+
 
             #  store info from triangle
             new_ray.normal = triangle.normal
