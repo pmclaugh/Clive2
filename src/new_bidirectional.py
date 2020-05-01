@@ -73,8 +73,10 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                     else:
                         camera_brdf = BRDF_function(camera_vertex.material, -1 * camera_path[t - 2].direction,
                                                     camera_vertex.normal, -1 * dir_l_to_c, Direction.FROM_CAMERA.value)
-                    if s < 2:
+                    if s == 0:
                         light_brdf = 1
+                    elif s == 1:
+                        light_brdf = np.dot(dir_l_to_c, light_vertex.normal)
                     else:
                         light_brdf = BRDF_function(light_vertex.material, -1 * light_path[s - 2].direction,
                                                     light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
@@ -85,8 +87,9 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
 
                     path = [light_path[i] if i < s else camera_path[s - i] for i in range(s + t)]
                     p_ratios = np.zeros(s + t, dtype=np.float64)
+                    # adapted from Veach section 10.2
                     for i in range(s + t):
-                        # i is the number in the denominator, computing ratios of p(i + 1) / p(i)
+                        # i is the subscript in the denominator, computing ratios of p(i + 1) / p(i)
                         if i == 0:
                             num = 1
                         elif i == 1:
@@ -97,7 +100,7 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                         if i == s + t - 1:
                             denom = 1
                         elif i == s + t - 2:
-                            denom = path[i].p
+                            denom = path[-1].p
                         else:
                             denom = BRDF_pdf(path[i + 1].material, dir(path[i + 1], path[i + 2]), path[i + 1].normal,
                                              dir(path[i + 1], path[i]), Direction.FROM_CAMERA.value) * geometry_term(path[i + 1], path[i])
@@ -111,9 +114,10 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                     # p_ratios is like [p1/p0, p2/p0, p3/p0 ...]
 
                     # p_ratios[s - 1] is ps/p0
-                    w = np.sum(p_ratios[s - 1] / p_ratios) + 1 / p_ratios[s - 1]
+                    w = np.sum(p_ratios[s - 1] / p_ratios[:-2]) #+ 1 / p_ratios[s - 1]
+                    # w is sum(ps/pi) for all pi we actually consider
 
-                    total += f / (p * w)
+                    total += np.maximum(0, f / (p * w))
             samples += 1
     return total / samples
 
