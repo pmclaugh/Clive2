@@ -52,7 +52,7 @@ def dir(a, b):
     return unit(b.origin - a.origin)
 
 
-# @numba.njit
+@numba.njit
 def bidirectional_pixel_sample(camera_path, light_path, root):
     extend_path(camera_path, root, Direction.FROM_CAMERA.value)
     extend_path(light_path, root, Direction.FROM_EMITTER.value)
@@ -68,10 +68,16 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
             dir_l_to_c = unit(camera_vertex.origin - light_vertex.origin)
             if np.dot(camera_vertex.normal, -1 * dir_l_to_c) > 0 and np.dot(light_vertex.normal, dir_l_to_c) > 0:
                 if visibility_test(root, camera_vertex, light_vertex):
-                    camera_brdf = BRDF_function(camera_vertex.material, -1 * camera_path[t - 1].direction,
-                                                camera_vertex.normal, -1 * dir_l_to_c, Direction.FROM_CAMERA.value)
-                    light_brdf = BRDF_function(light_vertex.material, -1 * light_path[t - 1].direction,
-                                                light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
+                    if t < 2:
+                        camera_brdf = 1 # come back to this
+                    else:
+                        camera_brdf = BRDF_function(camera_vertex.material, -1 * camera_path[t - 2].direction,
+                                                    camera_vertex.normal, -1 * dir_l_to_c, Direction.FROM_CAMERA.value)
+                    if s < 2:
+                        light_brdf = 1
+                    else:
+                        light_brdf = BRDF_function(light_vertex.material, -1 * light_path[s - 2].direction,
+                                                    light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
                     G = geometry_term(camera_vertex, light_vertex)
                     f = G * camera_vertex.color * camera_vertex.local_color * camera_brdf * \
                         light_vertex.color * light_vertex.local_color * light_brdf
@@ -97,16 +103,23 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                                              dir(path[i + 1], path[i]), Direction.FROM_CAMERA.value) * geometry_term(path[i + 1], path[i])
                         p_ratios[i] = num / denom
 
-                    # to get from Pi to Pi+1, multiply by:
-                    # light p(i - 1 to i) * G of that edge / camera p(i + 1 to i) * G of that edge
+                    # p_ratios is like [p1/p0, p2/p1, p3/p2, ... ]
 
-                    # writing so i don't lose this: calculate all values up front, all brdfs and pdfs, we have to do them all anyway
-                    # G and P of each edge, ratio grids
-                    # don't do this til math is right though
-                    total += f / p
+                    for k in range(1, s + t):
+                        p_ratios[k] = p_ratios[k] * p_ratios[k - 1]
+
+                    # p_ratios is like [p1/p0, p2/p0, p3/p0 ...]
+
+                    # p_ratios[s - 1] is ps/p0
+                    w = np.sum(p_ratios[s - 1] / p_ratios) + 1 / p_ratios[s - 1]
+
+                    total += f / (p * w)
             samples += 1
     return total / samples
 
+# final optimized version probably looks like:
+# do all visibility tests first, save all the directions, then do brdfs and pdfs for all possible joins
+# make a grid of G ratios
 
 @timed
 def bidirectional_screen_sample(camera: Camera, root: Box, samples=5):
