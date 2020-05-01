@@ -26,6 +26,7 @@ ray_type = numba.deferred_type()
 node_type = numba.deferred_type()
 box_type = numba.deferred_type()
 
+
 @numba.experimental.jitclass([
     ('origin', numba.float64[3::1]),
     ('direction', numba.float64[3::1]),
@@ -37,7 +38,6 @@ box_type = numba.deferred_type()
     ('j', numba.int32),
     ('bounces', numba.int32),
     ('p', numba.float64),
-    ('pp', numba.float64[2::1]),
     ('prev', numba.optional(ray_type)),
     ('normal', numba.float64[3::1]),
     ('material', numba.int64),
@@ -55,7 +55,6 @@ class Ray:
         self.j = 0
         self.bounces = 0
         self.p = 1
-        self.pp = np.array([1, 1], dtype=np.float64)
         self.prev = None
         self.normal = self.direction
         self.material = Material.SPECULAR.value

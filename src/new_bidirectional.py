@@ -6,25 +6,9 @@ from constants import *
 import numba
 from utils import timed
 
-# G = geometry_term(path.ray, ray)
-#         path.ray.direction = unit(ray.origin - path.ray.origin)
-#         if path.ray.prev is None:
-#             # pushing onto stack of 1, just propagate p and color (?)
-#             ray.color = path.ray.color * G
-#             ray.p = path.ray.p * G
-#         else:
-#             # pushing onto stack of 2 or more, do some work
-#             brdf = BRDF_function(path.ray.material, -1 * path.ray.prev.direction, path.ray.normal, path.ray.direction,
-#                                        path.direction)
-#             ray.color = path.ray.local_color * path.ray.color * brdf * G
-#             ray.p = path.ray.p * G * BRDF_pdf(path.ray.material, -1 * path.ray.prev.direction, path.ray.normal, path.ray.direction,
-#                                           path.direction)
-#         ray.bounces = path.ray.bounces + 1
 
-
-#@numba.njit
-def extend_path(path, root, d):
-    not_d = (d + 1) % 2
+@numba.njit
+def extend_path(path, root, path_direction):
     for i in range(MAX_BOUNCES):
         ray = path[-1]
         triangle, t = traverse_bvh(root, ray)
@@ -32,7 +16,7 @@ def extend_path(path, root, d):
             # generate new ray
             #  new vectors
             origin = ray.origin + ray.direction * t
-            direction = BRDF_sample(triangle.material, -1 * ray.direction, triangle.normal, d)
+            direction = BRDF_sample(triangle.material, -1 * ray.direction, triangle.normal, path_direction)
             new_ray = Ray(origin, direction)
 
             #  store info from triangle
@@ -42,26 +26,55 @@ def extend_path(path, root, d):
 
             # probability, weight, and color updates
             G = geometry_term(ray, new_ray)
-            # notes from reading before stopping:
-            # camera rays only need to totient pc and light rays only need to totient pl
-            # otherwise what I should be caching is local pdf values and geometry terms
 
-
-
+            if i == 0:
+                # only need to multiply by G because p of this direction is already stored at creation
+                new_ray.p = ray.p * G
+                # same deal, brdf of source is just 1
+                new_ray.color = ray.color * G
+            else:
+                # so the idea here is that each vertex has information about everything up to it but not including it,
+                # because we can't be sure of anything about the final bounce until we know the joining vertex
+                new_ray.p = ray.p * G * BRDF_pdf(ray.material, -1 * path[-2].direction, ray.normal, ray.direction, path_direction)
+                new_ray.color = ray.color * ray.local_color * G * BRDF_function(ray.material, -1 * path[-2].direction,
+                                                                                ray.normal, ray.direction, path_direction)
+                # I will also want to cache pdf results and Gs for individual bounces but waiting to write that
 
             path.append(new_ray)
         else:
             break
 
 
-#@numba.njit
+@numba.njit
 def bidirectional_pixel_sample(camera_path, light_path, root):
-    pass
-
-
-
-
-
+    extend_path(camera_path, root, Direction.FROM_CAMERA.value)
+    extend_path(light_path, root, Direction.FROM_EMITTER.value)
+    # nb i am leaving true s == 0 and t == 0 out for now because they're weird. just trying to get the core done
+    # skipping the 1s for a moment as well to keep it simplest
+    samples = 0
+    total = ZEROS.copy()
+    for t in range(1, len(camera_path)):
+        for s in range(1, len(light_path)):
+            camera_vertex = camera_path[t]
+            light_vertex = light_path[t]
+            dir_l_to_c = unit(camera_vertex.origin - light_vertex.origin)
+            if np.dot(camera_vertex.normal, -1 * dir_l_to_c) > 0 and np.dot(light_vertex.normal, dir_l_to_c) > 0:
+                if visibility_test(root, camera_vertex, light_vertex):
+                    camera_brdf = BRDF_function(camera_vertex.material, -1 * camera_path[t - 1].direction,
+                                                camera_vertex.normal, -1 * dir_l_to_c, Direction.FROM_CAMERA.value)
+                    camera_pdf = BRDF_pdf(camera_vertex.material, -1 * camera_path[t - 1].direction,
+                                                camera_vertex.normal, -1 * dir_l_to_c, Direction.FROM_CAMERA.value)
+                    light_brdf = BRDF_function(light_vertex.material, -1 * light_path[t - 1].direction,
+                                                light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
+                    light_pdf = BRDF_pdf(light_vertex.material, -1 * light_path[t - 1].direction,
+                                          light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
+                    G = geometry_term(camera_vertex, light_vertex)
+                    f = camera_vertex.color * camera_vertex.local_color * camera_brdf * \
+                        light_vertex.color * light_vertex.local_color * light_brdf
+                    p = camera_vertex.p * light_vertex.p #* camera_pdf * light_pdf
+                    total += f / p
+            samples += 1
+    return total / samples
 
 
 @timed
