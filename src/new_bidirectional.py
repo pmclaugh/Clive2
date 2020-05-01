@@ -45,33 +45,64 @@ def extend_path(path, root, path_direction):
             break
 
 
+# using this might be a little inefficient but it makes the code a lot simpler
 @numba.njit
+def dir(a, b):
+    # return direction from A to B
+    return unit(b.origin - a.origin)
+
+
+# @numba.njit
 def bidirectional_pixel_sample(camera_path, light_path, root):
     extend_path(camera_path, root, Direction.FROM_CAMERA.value)
     extend_path(light_path, root, Direction.FROM_EMITTER.value)
-    # nb i am leaving true s == 0 and t == 0 out for now because they're weird. just trying to get the core done
-    # skipping the 1s for a moment as well to keep it simplest
     samples = 0
     total = ZEROS.copy()
-    for t in range(1, len(camera_path)):
-        for s in range(1, len(light_path)):
-            camera_vertex = camera_path[t]
-            light_vertex = light_path[t]
+    for t in range(len(camera_path) + 1):
+        for s in range(len(light_path) + 1):
+            if t == 0 or s == 0 or t == 1:
+                # skipping some special cases for now
+                continue
+            camera_vertex = camera_path[t - 1]
+            light_vertex = light_path[s - 1]
             dir_l_to_c = unit(camera_vertex.origin - light_vertex.origin)
             if np.dot(camera_vertex.normal, -1 * dir_l_to_c) > 0 and np.dot(light_vertex.normal, dir_l_to_c) > 0:
                 if visibility_test(root, camera_vertex, light_vertex):
                     camera_brdf = BRDF_function(camera_vertex.material, -1 * camera_path[t - 1].direction,
                                                 camera_vertex.normal, -1 * dir_l_to_c, Direction.FROM_CAMERA.value)
-                    camera_pdf = BRDF_pdf(camera_vertex.material, -1 * camera_path[t - 1].direction,
-                                                camera_vertex.normal, -1 * dir_l_to_c, Direction.FROM_CAMERA.value)
                     light_brdf = BRDF_function(light_vertex.material, -1 * light_path[t - 1].direction,
                                                 light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
-                    light_pdf = BRDF_pdf(light_vertex.material, -1 * light_path[t - 1].direction,
-                                          light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
                     G = geometry_term(camera_vertex, light_vertex)
-                    f = camera_vertex.color * camera_vertex.local_color * camera_brdf * \
+                    f = G * camera_vertex.color * camera_vertex.local_color * camera_brdf * \
                         light_vertex.color * light_vertex.local_color * light_brdf
-                    p = camera_vertex.p * light_vertex.p #* camera_pdf * light_pdf
+                    p = camera_vertex.p * light_vertex.p * G
+
+                    path = [light_path[i] if i < s else camera_path[s - i] for i in range(s + t)]
+                    p_ratios = np.zeros(s + t, dtype=np.float64)
+                    for i in range(s + t):
+                        # i is the number in the denominator, computing ratios of p(i + 1) / p(i)
+                        if i == 0:
+                            num = 1
+                        elif i == 1:
+                            num = path[0].p
+                        else:
+                            num = BRDF_pdf(path[i - 1].material, dir(path[i - 1], path[i - 2]), path[i - 1].normal,
+                                       dir(path[i - 1], path[i]), Direction.FROM_EMITTER.value) * geometry_term(path[i - 1], path[i])
+                        if i == s + t - 1:
+                            denom = 1
+                        elif i == s + t - 2:
+                            denom = path[i].p
+                        else:
+                            denom = BRDF_pdf(path[i + 1].material, dir(path[i + 1], path[i + 2]), path[i + 1].normal,
+                                             dir(path[i + 1], path[i]), Direction.FROM_CAMERA.value) * geometry_term(path[i + 1], path[i])
+                        p_ratios[i] = num / denom
+
+                    # to get from Pi to Pi+1, multiply by:
+                    # light p(i - 1 to i) * G of that edge / camera p(i + 1 to i) * G of that edge
+
+                    # writing so i don't lose this: calculate all values up front, all brdfs and pdfs, we have to do them all anyway
+                    # G and P of each edge, ratio grids
+                    # don't do this til math is right though
                     total += f / p
             samples += 1
     return total / samples
