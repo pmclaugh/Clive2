@@ -101,14 +101,14 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                             num = path[0].p
                         else:
                             num = BRDF_pdf(path[i - 1].material, dir(path[i - 1], path[i - 2]), path[i - 1].normal,
-                                       dir(path[i - 1], path[i]), Direction.FROM_EMITTER.value) * geometry_term(path[i - 1], path[i])
+                                       dir(path[i - 1], path[i]), Direction.FROM_CAMERA.value) * geometry_term(path[i - 1], path[i])
                         if i == s + t - 1:
                             denom = 1
                         elif i == s + t - 2:
                             denom = path[-1].p
                         else:
                             denom = BRDF_pdf(path[i + 1].material, dir(path[i + 1], path[i + 2]), path[i + 1].normal,
-                                             dir(path[i + 1], path[i]), Direction.FROM_CAMERA.value) * geometry_term(path[i + 1], path[i])
+                                             dir(path[i + 1], path[i]), Direction.FROM_EMITTER.value) * geometry_term(path[i + 1], path[i])
                         p_ratios[i] = num / denom
 
                     # p_ratios is like [p1/p0, p2/p1, p3/p2, ... ]
