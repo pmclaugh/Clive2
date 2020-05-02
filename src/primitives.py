@@ -43,6 +43,7 @@ box_type = numba.deferred_type()
     ('prev', numba.optional(ray_type)),
     ('normal', numba.float64[3::1]),
     ('material', numba.int64),
+    ('hit_light', numba.boolean),
 ])
 class Ray:
     def __init__(self, origin, direction):
@@ -62,6 +63,7 @@ class Ray:
         self.prev = None
         self.normal = self.direction
         self.material = Material.SPECULAR.value
+        self.hit_light = False
 
 
 @numba.experimental.jitclass([

@@ -23,6 +23,8 @@ def extend_path(path, root, path_direction):
             new_ray.normal = triangle.normal
             new_ray.material = triangle.material
             new_ray.local_color = triangle.color
+            if path_direction == Direction.FROM_CAMERA.value and triangle.emitter:
+                new_ray.hit_light = True
 
             # probability, weight, and color updates
             G = geometry_term(ray, new_ray)
@@ -30,7 +32,7 @@ def extend_path(path, root, path_direction):
             if i == 0:
                 # only need to multiply by G because p of this direction is already stored at creation
                 new_ray.p = ray.p * G
-                # same deal, brdf of source is just 1
+                # same deal, "brdf" of source is already in ray.color
                 new_ray.color = ray.color * G
                 new_ray.G = G
             else:
@@ -63,11 +65,11 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
     total = ZEROS.copy()
     for t in range(len(camera_path) + 1):
         for s in range(len(light_path) + 1):
-            if t == 0 or s == 0 or t == 1:
+            if s == 0 or t == 0 or t == 1:
                 # skipping some special cases for now
                 continue
-            camera_vertex = camera_path[t - 1]
             light_vertex = light_path[s - 1]
+            camera_vertex = camera_path[t - 1]
             dir_l_to_c = unit(camera_vertex.origin - light_vertex.origin)
             if np.dot(camera_vertex.normal, -1 * dir_l_to_c) > FLOAT_TOLERANCE and np.dot(light_vertex.normal, dir_l_to_c) > FLOAT_TOLERANCE:
                 if visibility_test(root, camera_vertex, light_vertex):
