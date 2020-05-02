@@ -203,12 +203,12 @@ def generate_light_ray(box: Box):
     light = box.lights[light_index]
     light_origin = light.sample_surface()
     x, y, z = local_orthonormal_system(light.normal)
-    light_direction = random_hemisphere_cosine_weighted(x, y, z)
+    light_direction = random_hemisphere_uniform_weighted(x, y, z)
     ray = Ray(light_origin, light_direction)
     ray.color = light.color
     ray.local_color = light.color
     ray.normal = light.normal
-    ray.p = np.dot(light_direction, light.normal) / np.pi
+    ray.p = 1 / (2 * np.pi * light.surface_area)
     return ray
 
 

@@ -32,7 +32,7 @@ TRAVERSAL_COST = 1
 INTERSECT_COST = 2
 
 # Tracing constants
-MAX_BOUNCES = 3
+MAX_BOUNCES = 2
 
 
 # Bidirectional constants
