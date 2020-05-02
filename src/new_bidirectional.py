@@ -62,12 +62,18 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
     extend_path(camera_path, root, Direction.FROM_CAMERA.value)
     extend_path(light_path, root, Direction.FROM_EMITTER.value)
     samples = [[WHITE * -1 for t in range(len(camera_path) + 1)] for s in range(len(light_path) + 1)]
-    total = ZEROS.copy()
     for t in range(len(camera_path) + 1):
         for s in range(len(light_path) + 1):
             if s == 0 or t == 0:
                 # no visibility test needed
-                continue
+                if t == 0:
+                    continue
+                if not camera_path[t - 1].hit_light:
+                    continue
+                light_p = 1.0
+                light_f = WHITE
+                camera_p = camera_path[t - 1].p
+                camera_f = camera_path[t - 1].color
             else:
                 if t == 1:
                     # project new camera_vertex for visibility test
@@ -77,8 +83,8 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                 camera_vertex = camera_path[t - 1]
                 dir_l_to_c = unit(camera_vertex.origin - light_vertex.origin)
                 if visibility_test(root, camera_vertex, light_vertex):
-                    if t < 2:
-                        camera_brdf = 1 # come back to this
+                    if t == 1:
+                        camera_brdf = 1
                     else:
                         camera_brdf = BRDF_function(camera_vertex.material, -1 * camera_path[t - 2].direction,
                                                     camera_vertex.normal, -1 * dir_l_to_c, Direction.FROM_CAMERA.value)
@@ -87,13 +93,15 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                     else:
                         light_brdf = BRDF_function(light_vertex.material, -1 * light_path[s - 2].direction,
                                                     light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
+                    camera_f = camera_vertex.color * camera_vertex.local_color * camera_brdf
+                    camera_p = camera_vertex.p
+                    light_f = light_vertex.color * light_vertex.local_color * light_brdf
+                    light_p = light_vertex.p
                 else:
                     continue
 
-            f = camera_vertex.color * camera_vertex.local_color * camera_brdf * \
-                light_vertex.color * light_vertex.local_color * light_brdf
-            p = camera_vertex.p * light_vertex.p
-
+            f = camera_f * light_f
+            p = camera_p * light_p
 
             path = [light_path[i] if i < s else camera_path[s - i] for i in range(s + t)]
             p_ratios = np.zeros(s + t, dtype=np.float64)
@@ -126,11 +134,10 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
             # p_ratios is like [p1/p0, p2/p0, p3/p0 ...]
 
             # p_ratios[s - 1] is ps/p0
-            w = np.sum(p_ratios[s - 1] / p_ratios[:-2]) #+ 1 / p_ratios[s - 1]
+            w = np.sum(p_ratios[s - 1] / p_ratios[:-2]) + 1 / p_ratios[s - 1]
             # w is sum(ps/pi) for all pi we actually consider
 
             sample = np.maximum(0, f / (p * w))
-            total += sample
             samples[s][t] = sample
     return samples
 
