@@ -71,62 +71,62 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
             light_vertex = light_path[s - 1]
             camera_vertex = camera_path[t - 1]
             dir_l_to_c = unit(camera_vertex.origin - light_vertex.origin)
-            if np.dot(camera_vertex.normal, -1 * dir_l_to_c) > FLOAT_TOLERANCE and np.dot(light_vertex.normal, dir_l_to_c) > FLOAT_TOLERANCE:
-                if visibility_test(root, camera_vertex, light_vertex):
-                    if t < 2:
-                        camera_brdf = 1 # come back to this
+            if visibility_test(root, camera_vertex, light_vertex):
+                if t < 2:
+                    camera_brdf = 1 # come back to this
+                else:
+                    camera_brdf = BRDF_function(camera_vertex.material, -1 * camera_path[t - 2].direction,
+                                                camera_vertex.normal, -1 * dir_l_to_c, Direction.FROM_CAMERA.value)
+                if s == 0:
+                    light_brdf = 1
+                elif s == 1:
+                    light_brdf = np.dot(dir_l_to_c, light_vertex.normal)
+                else:
+                    light_brdf = BRDF_function(light_vertex.material, -1 * light_path[s - 2].direction,
+                                                light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
+                G = geometry_term(camera_vertex, light_vertex)
+                f = camera_vertex.color * camera_vertex.local_color * camera_brdf * \
+                    light_vertex.color * light_vertex.local_color * light_brdf
+                p = camera_vertex.p * light_vertex.p
+
+
+                path = [light_path[i] if i < s else camera_path[s - i] for i in range(s + t)]
+                p_ratios = np.zeros(s + t, dtype=np.float64)
+                # adapted from Veach section 10.2
+                # note that this does not reach the efficiency that he describes, kind of an intermediate state
+                # where it is correct in terms of calculations but not efficient yet in minimizing computation
+                for i in range(s + t):
+                    # i is the subscript in the denominator, computing ratios of p(i + 1) / p(i)
+                    if i == 0:
+                        num = 1
+                    elif i == 1:
+                        num = path[0].p
                     else:
-                        camera_brdf = BRDF_function(camera_vertex.material, -1 * camera_path[t - 2].direction,
-                                                    camera_vertex.normal, -1 * dir_l_to_c, Direction.FROM_CAMERA.value)
-                    if s == 0:
-                        light_brdf = 1
-                    elif s == 1:
-                        light_brdf = np.dot(dir_l_to_c, light_vertex.normal)
+                        num = BRDF_pdf(path[i - 1].material, dir(path[i - 1], path[i - 2]), path[i - 1].normal,
+                                   dir(path[i - 1], path[i]), Direction.FROM_CAMERA.value) * geometry_term(path[i - 1], path[i])
+                    if i == s + t - 1:
+                        denom = 1
+                    elif i == s + t - 2:
+                        denom = path[-1].p
                     else:
-                        light_brdf = BRDF_function(light_vertex.material, -1 * light_path[s - 2].direction,
-                                                    light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
-                    G = geometry_term(camera_vertex, light_vertex)
-                    f = G * camera_vertex.color * camera_vertex.local_color * camera_brdf * \
-                        light_vertex.color * light_vertex.local_color * light_brdf
-                    p = camera_vertex.p * light_vertex.p * G
+                        denom = BRDF_pdf(path[i + 1].material, dir(path[i + 1], path[i + 2]), path[i + 1].normal,
+                                         dir(path[i + 1], path[i]), Direction.FROM_EMITTER.value) * geometry_term(path[i + 1], path[i])
+                    p_ratios[i] = num / denom
 
-                    path = [light_path[i] if i < s else camera_path[s - i] for i in range(s + t)]
-                    p_ratios = np.zeros(s + t, dtype=np.float64)
-                    # adapted from Veach section 10.2
-                    # note that this does not reach the efficiency that he describes, kind of an intermediate state
-                    # where it is correct in terms of calculations but not efficient yet in minimizing computation
-                    for i in range(s + t):
-                        # i is the subscript in the denominator, computing ratios of p(i + 1) / p(i)
-                        if i == 0:
-                            num = 1
-                        elif i == 1:
-                            num = path[0].p
-                        else:
-                            num = BRDF_pdf(path[i - 1].material, dir(path[i - 1], path[i - 2]), path[i - 1].normal,
-                                       dir(path[i - 1], path[i]), Direction.FROM_CAMERA.value) * geometry_term(path[i - 1], path[i])
-                        if i == s + t - 1:
-                            denom = 1
-                        elif i == s + t - 2:
-                            denom = path[-1].p
-                        else:
-                            denom = BRDF_pdf(path[i + 1].material, dir(path[i + 1], path[i + 2]), path[i + 1].normal,
-                                             dir(path[i + 1], path[i]), Direction.FROM_EMITTER.value) * geometry_term(path[i + 1], path[i])
-                        p_ratios[i] = num / denom
+                # p_ratios is like [p1/p0, p2/p1, p3/p2, ... ]
 
-                    # p_ratios is like [p1/p0, p2/p1, p3/p2, ... ]
+                for k in range(1, s + t):
+                    p_ratios[k] = p_ratios[k] * p_ratios[k - 1]
 
-                    for k in range(1, s + t):
-                        p_ratios[k] = p_ratios[k] * p_ratios[k - 1]
+                # p_ratios is like [p1/p0, p2/p0, p3/p0 ...]
 
-                    # p_ratios is like [p1/p0, p2/p0, p3/p0 ...]
+                # p_ratios[s - 1] is ps/p0
+                w = np.sum(p_ratios[s - 1] / p_ratios[:-2]) #+ 1 / p_ratios[s - 1]
+                # w is sum(ps/pi) for all pi we actually consider
 
-                    # p_ratios[s - 1] is ps/p0
-                    w = np.sum(p_ratios[s - 1] / p_ratios[:-2]) #+ 1 / p_ratios[s - 1]
-                    # w is sum(ps/pi) for all pi we actually consider
-
-                    sample = np.maximum(0, f / (p * w))
-                    total += sample
-                    samples[s][t] = sample
+                sample = np.maximum(0, f / (p * w))
+                total += sample
+                samples[s][t] = sample
     return samples
 
 # final optimized version probably looks like:
