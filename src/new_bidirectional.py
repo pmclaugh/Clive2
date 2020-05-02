@@ -69,7 +69,7 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
             camera_vertex = camera_path[t - 1]
             light_vertex = light_path[s - 1]
             dir_l_to_c = unit(camera_vertex.origin - light_vertex.origin)
-            if np.dot(camera_vertex.normal, -1 * dir_l_to_c) > FLOAT_TOLERANCE and np.dot(light_vertex.normal, dir_l_to_c) > FLOAT_TOLERANCE:
+            if np.dot(camera_vertex.normal, -1 * dir_l_to_c) > 0 and np.dot(light_vertex.normal, dir_l_to_c) > 0:
                 if visibility_test(root, camera_vertex, light_vertex):
                     if t < 2:
                         camera_brdf = 1 # come back to this
@@ -79,7 +79,7 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                     if s == 0:
                         light_brdf = 1
                     elif s == 1:
-                        light_brdf = np.dot(dir_l_to_c, light_vertex.normal)
+                        light_brdf = 1
                     else:
                         light_brdf = BRDF_function(light_vertex.material, -1 * light_path[s - 2].direction,
                                                     light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
