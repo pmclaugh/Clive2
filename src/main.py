@@ -1,5 +1,5 @@
 import cv2
-from camera import Camera, tone_map
+from camera import Camera, composite_image
 from primitives import point, Box
 from utils import timed
 from datetime import datetime
@@ -9,8 +9,8 @@ from new_bidirectional import bidirectional_screen_sample
 from unidirectional import unidirectional_screen_sample
 from constants import Material
 
-WINDOW_WIDTH = 320
-WINDOW_HEIGHT = 180
+WINDOW_WIDTH = 160
+WINDOW_HEIGHT = 90
 SAMPLE_COUNT = 10
 
 
@@ -18,19 +18,19 @@ if __name__ == '__main__':
     camera = Camera(center=point(0, 2, 5), direction=point(0, 0, -1), pixel_height=WINDOW_HEIGHT,
                     pixel_width=WINDOW_WIDTH, phys_width=WINDOW_WIDTH / WINDOW_HEIGHT, phys_height=1.)
     bvh = BoundingVolumeHierarchy(
-        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))) + load_obj('../resources/teapot.obj', material=Material.DIFFUSE.value))
+        triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))))# + load_obj('../resources/teapot.obj', material=Material.DIFFUSE.value))
 
     try:
         for n in range(SAMPLE_COUNT):
-            cv2.imshow('render', tone_map(camera))
-            cv2.waitKey(1)
-            bidirectional_screen_sample(camera, bvh.root.box, 1)
+            bidirectional_screen_sample(camera, bvh.root.box)
             print('sample', n, 'done')
+            cv2.imshow('render', composite_image(camera))
+            cv2.waitKey(1)
     except KeyboardInterrupt:
         print('stopped early')
     else:
         print('done')
-    cv2.imwrite('../renders/%s.jpg' % datetime.now(), tone_map(camera))
+    cv2.imwrite('../renders/%s.jpg' % datetime.now(), composite_image(camera))
 
 
 # performance test unidirectional 200x200 10 samples
@@ -59,6 +59,5 @@ if __name__ == '__main__':
 
 # todo: Known Bugs
 #  - sample 0 does not display properly
-#  - light paths are getting negative color somehow
-#       still unclear how. may be fixed with removal of collision shift
+#  - fireflies in bidirectional
 

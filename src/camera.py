@@ -2,6 +2,7 @@ import numpy as np
 import numba
 from constants import *
 from primitives import unit, point, vec, Ray
+import cv2
 
 
 @numba.experimental.jitclass([
@@ -20,6 +21,8 @@ from primitives import unit, point, vec, Ray
     ('origin', numba.float64[3]),
     ('image', numba.float64[:, :, :]),
     ('samples', numba.int64),
+    ('sample_counts', numba.int64[:, :]),
+    ('images', numba.float64[:, :, :, :, :]),
 ])
 class Camera:
     def __init__(self, center=point(0, 0, 0), direction=vec(1, 0, 0), phys_width=1.0, phys_height=1.0,
@@ -33,6 +36,7 @@ class Camera:
         self.pixel_width = pixel_width
         self.pixel_height = pixel_height
         self.samples = 0
+        self.sample_counts = np.zeros((MAX_BOUNCES + 2, MAX_BOUNCES + 2), dtype=np.int64)
 
         if abs(self.direction[0]) < FLOAT_TOLERANCE:
             self.dx = UNIT_X if direction[2] > 0 else UNIT_X * -1
@@ -50,6 +54,7 @@ class Camera:
         self.origin = center - self.dx * phys_width / 2 - self.dy * phys_height / 2
 
         self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float64)
+        self.images = np.zeros((MAX_BOUNCES + 2, MAX_BOUNCES + 2, pixel_height, pixel_width, 3), dtype=np.float64)
 
     def make_ray(self, i, j):
         # was having difficulty making a good mass-ray-generation routine, settled on on-demand
@@ -63,17 +68,25 @@ class Camera:
         return ray
 
 
-def tone_map(camera):
-    if camera.samples == 0:
-        return camera.image.astype(np.uint8)
+def composite_image(camera):
+    # this shouldn't stay here
+    total_image = camera.image * 0
+    for s, row in enumerate(camera.images):
+        for t, sub_image in enumerate(row):
+            weighted_sub_image = np.nan_to_num(sub_image) * camera.sample_counts[s][t] / np.sum(camera.sample_counts)
+            total_image += weighted_sub_image
+            cv2.imwrite('../renders/components/%ds_%dt.jpg' % (s, t), tone_map(weighted_sub_image))
+    return tone_map(total_image)
+
+
+def tone_map(image):
     # tone_vector = point(0.0722, 0.7152, 0.2126)
     tone_vector = ONES
-    averages = camera.image / camera.samples
-    tone_sums = np.sum(averages * tone_vector, axis=2)
+    tone_sums = np.sum(image * tone_vector, axis=2)
     log_tone_sums = np.log(0.1 + tone_sums)
-    per_pixel_lts = np.sum(log_tone_sums) / np.product(camera.image.shape[:2])
+    per_pixel_lts = np.sum(log_tone_sums) / np.product(image.shape[:2])
     Lw = np.exp(per_pixel_lts)
-    result = averages * 2. / Lw
+    result = image * 2. / Lw
     return (255 * result / (result + 1)).astype(np.uint8)
 
 

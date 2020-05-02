@@ -32,13 +32,16 @@ def extend_path(path, root, path_direction):
                 new_ray.p = ray.p * G
                 # same deal, brdf of source is just 1
                 new_ray.color = ray.color * G
+                new_ray.G = G
             else:
                 # so the idea here is that each vertex has information about everything up to it but not including it,
                 # because we can't be sure of anything about the final bounce until we know the joining vertex
-                new_ray.p = ray.p * G * BRDF_pdf(ray.material, -1 * path[-2].direction, ray.normal, ray.direction, path_direction)
+                bounce_p = BRDF_pdf(ray.material, -1 * path[-2].direction, ray.normal, ray.direction, path_direction)
+                new_ray.p = ray.p * G * bounce_p
                 new_ray.color = ray.color * ray.local_color * G * BRDF_function(ray.material, -1 * path[-2].direction,
                                                                                 ray.normal, ray.direction, path_direction)
-                # I will also want to cache pdf results and Gs for individual bounces but waiting to write that
+                new_ray.G = G
+                ray.local_p = bounce_p
 
             path.append(new_ray)
         else:
@@ -56,7 +59,7 @@ def dir(a, b):
 def bidirectional_pixel_sample(camera_path, light_path, root):
     extend_path(camera_path, root, Direction.FROM_CAMERA.value)
     extend_path(light_path, root, Direction.FROM_EMITTER.value)
-    samples = 0
+    samples = [[WHITE * -1 for t in range(len(camera_path) + 1)] for s in range(len(light_path) + 1)]
     total = ZEROS.copy()
     for t in range(len(camera_path) + 1):
         for s in range(len(light_path) + 1):
@@ -88,6 +91,8 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                     path = [light_path[i] if i < s else camera_path[s - i] for i in range(s + t)]
                     p_ratios = np.zeros(s + t, dtype=np.float64)
                     # adapted from Veach section 10.2
+                    # note that this does not reach the efficiency that he describes, kind of an intermediate state
+                    # where it is correct in terms of calculations but not efficient yet in minimizing computation
                     for i in range(s + t):
                         # i is the subscript in the denominator, computing ratios of p(i + 1) / p(i)
                         if i == 0:
@@ -117,22 +122,32 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                     w = np.sum(p_ratios[s - 1] / p_ratios[:-2]) #+ 1 / p_ratios[s - 1]
                     # w is sum(ps/pi) for all pi we actually consider
 
-                    total += np.maximum(0, f / (p * w))
-            samples += 1
-    return total / samples
+                    sample = np.maximum(0, f / (p * w))
+                    total += sample
+                    samples[s][t] = sample
+    return samples
 
 # final optimized version probably looks like:
 # do all visibility tests first, save all the directions, then do brdfs and pdfs for all possible joins
 # make a grid of G ratios
 
+
 @timed
-def bidirectional_screen_sample(camera: Camera, root: Box, samples=5):
-    for _ in range(samples):
-        for i in range(camera.pixel_height):
-            for j in range(camera.pixel_width):
-                light_path = numba.typed.List()
-                light_path.append(generate_light_ray(root))
-                camera_path = numba.typed.List()
-                camera_path.append(camera.make_ray(i, j))
-                camera.image[i][j] += bidirectional_pixel_sample(camera_path, light_path, root)
+def bidirectional_screen_sample(camera: Camera, root: Box):
+    for i in range(camera.pixel_height):
+        for j in range(camera.pixel_width):
+            light_path = numba.typed.List()
+            light_path.append(generate_light_ray(root))
+            camera_path = numba.typed.List()
+            camera_path.append(camera.make_ray(i, j))
+
+            # camera.image[i][j] += bidirectional_pixel_sample(camera_path, light_path, root)
+
+            samples = bidirectional_pixel_sample(camera_path, light_path, root)
+            for s, row in enumerate(samples):
+                for t, sample in enumerate(row):
+                    if np.greater(sample, 0).all():
+                        camera.images[s][t][i][j] += sample
+                        camera.sample_counts[s][t] += 1
+                    camera.image[i][j] += sample
     camera.samples += 1
