@@ -79,7 +79,7 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                     if s == 0:
                         light_brdf = 1
                     elif s == 1:
-                        light_brdf = 1
+                        light_brdf = np.dot(dir_l_to_c, light_vertex.normal)
                     else:
                         light_brdf = BRDF_function(light_vertex.material, -1 * light_path[s - 2].direction,
                                                     light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
