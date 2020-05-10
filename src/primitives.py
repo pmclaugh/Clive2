@@ -120,7 +120,7 @@ class Triangle:
     ('light_SA', numba.float64),
 ])
 class Box:
-    def __init__(self, least_corner, most_corner, color=WHITE):
+    def __init__(self, least_corner, most_corner):
         self.min = least_corner
         self.max = most_corner
         self.bounds = np.stack((least_corner, most_corner))

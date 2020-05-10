@@ -1,14 +1,14 @@
 import cv2
 from camera import Camera, composite_image, tone_map
 from primitives import point, Box
-from utils import timed
 from datetime import datetime
 from bvh import BoundingVolumeHierarchy, triangles_for_box
 from load import load_obj
+from constants import Material
 from bidirectional import bidirectional_screen_sample
 from unidirectional import unidirectional_screen_sample
-from constants import Material
 from collections import ChainMap
+import pickle
 
 WINDOW_WIDTH = 160
 WINDOW_HEIGHT = 90
@@ -34,6 +34,7 @@ bidirectional_config = ChainMap({
 
 # todo: branch 'bvh_improvements':
 #  - bvh caching
+#     - make caching an explicit action and use configs to use them (skips the whole "did the config change??" question)
 #  - bvh performance test
 #  - unit tests for bvh methods
 #  - spatial splitting
@@ -44,18 +45,21 @@ if __name__ == '__main__':
     camera = Camera(cfg['cam_center'], cfg['cam_direction'], pixel_height=cfg['window_height'],
                     pixel_width=cfg['window_width'], phys_width=cfg['window_width'] / cfg['window_height'], phys_height=1.)
     bvh = cfg['bvh_constructor'](cfg['primitives'])
-
-    try:
-        for n in range(cfg['sample_count']):
-            cfg['sample_function'](camera, bvh.root.box)
-            print('sample', n, 'done')
-            cv2.imshow('render', cfg['postprocess_function'](camera))
-            cv2.waitKey(1)
-    except KeyboardInterrupt:
-        print('stopped early')
-    else:
-        print('done')
-    cv2.imwrite('../renders/%s.jpg' % datetime.now(), cfg['postprocess_function'](camera))
+    b, t = bvh.flatten()
+    print(len(b), len(t))
+    with open('../bvhs/bvh.pickle', 'wb+') as f:
+        pickle.dump(bvh, f)
+    # try:
+    #     for n in range(cfg['sample_count']):
+    #         cfg['sample_function'](camera, bvh.root.box)
+    #         print('sample', n, 'done')
+    #         cv2.imshow('render', cfg['postprocess_function'](camera))
+    #         cv2.waitKey(1)
+    # except KeyboardInterrupt:
+    #     print('stopped early')
+    # else:
+    #     print('done')
+    # cv2.imwrite('../renders/%s.jpg' % datetime.now(), cfg['postprocess_function'](camera))
 
 
 # todo: Feature Schedule

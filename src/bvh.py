@@ -54,7 +54,6 @@ class TreeBox:
 
 
 def AABB(triangles: List[Triangle]):
-    # < 0.001 seconds
     box = TreeBox(MAX3, MIN3)
     for triangle in triangles:
         box.extend(triangle)
@@ -66,6 +65,44 @@ class BoundingVolumeHierarchy:
         self.root = None
         self.triangles = triangles
         self.build()
+
+    def __getstate__(self):
+        flat_boxes, flat_triangles = self.flatten()
+        return {'boxes': [self.jsonize_box(box) for box in flat_boxes],
+                'triangles': [self.jsonize_triangle(triangle) for triangle in flat_triangles]}
+
+    def __setstate__(self, state):
+        pass
+
+    @staticmethod
+    def jsonize_triangle(triangle: Triangle):
+        return {'v0': triangle.v0,
+                'v1': triangle.v1,
+                'v2': triangle.v2,
+                'color': triangle.color,
+                'emitter': triangle.emitter,
+                'material': triangle.material,
+                }
+
+    @staticmethod
+    def jsonize_box(box: Box):
+        return {'min': box.min, 'max': box.max, 'count': 0 if box.triangles is None else len(box.triangles)}
+
+    def flatten(self):
+        traversal_queue = [self.root.box]
+        flattened_boxes = []
+        flattened_triangles = []
+        while traversal_queue:
+            b = traversal_queue.pop(0)
+            if b.left is not None:
+                traversal_queue.append(b.left)
+            if b.right is not None:
+                traversal_queue.append(b.right)
+            if b.triangles is not None:
+                for triangle in b.triangles:
+                    flattened_triangles.append(triangle)
+            flattened_boxes.append(b)
+        return flattened_boxes, flattened_triangles
 
     def build(self, max_members=32, max_depth=15):
         self.root = AABB(self.triangles)
@@ -137,6 +174,14 @@ class BoundingVolumeHierarchy:
             return None, None
 
 
+@timed
+@numba.njit
+def fastBVH(triangles):
+    start_box = Box(INF, NEG_INF)
+    for triangle in triangles:
+        start_box.extend(triangle)
+    return start_box
+
 def triangles_for_box(box: Box, material=Material.DIFFUSE.value):
     left_bottom_back = box.min
     right_bottom_back = box.min + box.span * UNIT_X
@@ -178,4 +223,4 @@ def triangles_for_box(box: Box, material=Material.DIFFUSE.value):
 
 if __name__ == '__main__':
     teapot = load_obj('../resources/teapot.obj')
-    BoundingVolumeHierarchy(teapot)
+    fastBVH(teapot)
