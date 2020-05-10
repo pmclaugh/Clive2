@@ -52,14 +52,10 @@ if __name__ == '__main__':
     cv2.imwrite('../renders/%s.jpg' % datetime.now(), cfg['postprocess_function'](camera))
 
 
-# performance test unidirectional 200x200 10 samples
-# parallel_pixel_capture - 33.9686
-# parallel_capture - 33.8465
-# single_threaded_capture - 44.5569
-
 # todo: Feature Schedule
+#  - BVH improvements
+#  - t == 0, 1
 #  - glossy brdf
-#  - Correct bidirectional
 #  - glossy in bidirectional
 #  - specular in bidirectional
 #  - normal smoothing
@@ -67,7 +63,6 @@ if __name__ == '__main__':
 
 # todo: Tech Debt
 #  - Automated tests
-#       - box and path data structures
 #       - BVH unit tests
 #       - integration tests around paths in a simple scene
 #  - jit OBJ loading and bvh construction, eliminate TreeBox class
