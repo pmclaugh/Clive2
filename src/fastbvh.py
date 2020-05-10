@@ -21,8 +21,8 @@ def flatten_fastBVH(root: TreeBox):
         box = box_queue[0]
         fast_box = FastBox(box.min, box.max)
         if box.right is not None and box.left is not None:
+            fast_box.left = len(flat_boxes) + len(box_queue)
             box_queue.append(box.left)
-            fast_box.left = len(flat_boxes) + 1 + len(box_queue)
             box_queue.append(box.right)
             # right will always be left + 1, this is how we signal inner node in fast traverse
             fast_box.right = 0

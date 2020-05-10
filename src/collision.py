@@ -107,7 +107,7 @@ def traverse_bvh(boxes, triangles, ray: Ray):
     least_hit = None
     stack = [boxes[0]]
     while stack:
-        box = stack.pop()
+        box = stack[0]
         if box.right == 0:
             if bvh_hit_inner(ray, box, least_t):
                 stack.append(boxes[box.left])
@@ -117,5 +117,17 @@ def traverse_bvh(boxes, triangles, ray: Ray):
             if hit is not None and t < least_t:
                 least_hit = hit
                 least_t = t
+        stack = stack[1:]
 
     return least_hit, least_t
+
+
+def simple_collision_screen_sample(camera, boxes, triangles):
+    for i in range(camera.pixel_height):
+        for j in range(camera.pixel_width):
+            camera_ray = camera.make_ray(i, j)
+            triangle, t = traverse_bvh(boxes, triangles, camera_ray)
+            if triangle is not None:
+                camera.image[i][j] += triangle.color
+    camera.sample_counts += 1
+    camera.samples += 1

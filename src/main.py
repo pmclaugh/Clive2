@@ -5,6 +5,7 @@ from datetime import datetime
 from bvh import BoundingVolumeHierarchy, triangles_for_box
 from load import load_obj
 from constants import Material
+from collision import simple_collision_screen_sample
 from bidirectional import bidirectional_screen_sample
 from unidirectional import unidirectional_screen_sample
 from collections import ChainMap
@@ -36,8 +37,14 @@ bidirectional_config = {
     'postprocess_function': composite_image,
 }
 
-teapot_config = {
+collision_test_config = {
+    'sample_count': 10,
     'bvh_constructor': fastBVH,
+    'sample_function': simple_collision_screen_sample,
+    'postprocess_function': lambda x: tone_map(x.image),
+}
+
+teapot_config = {
     'primitives': teapot_scene,
 }
 
@@ -48,12 +55,9 @@ teapot_config = {
 #  - jit object splitting
 #  - jit spatial splitting
 
-# the config pattern was a bit premature since i'm reworking how a lot of stuff gets created.
-# need to simplify things, connect my flat bvh and rework the traverses
-
 
 if __name__ == '__main__':
-    cfg = ChainMap(teapot_config, default_config)
+    cfg = ChainMap(teapot_config, collision_test_config, default_config)
     camera = Camera(cfg['cam_center'], cfg['cam_direction'], pixel_height=cfg['window_height'],
                     pixel_width=cfg['window_width'], phys_width=cfg['window_width'] / cfg['window_height'], phys_height=1.)
     boxes, triangles = cfg['bvh_constructor'](cfg['primitives'])
