@@ -174,20 +174,6 @@ class BoundingVolumeHierarchy:
             return None, None
 
 
-@timed
-@numba.njit
-def fastBVH(triangles):
-    start_box = FastBox(INF, NEG_INF)
-    for triangle in triangles:
-        start_box.extend(triangle)
-
-    stack = BoxStack()
-    stack.push(start_box)
-    while stack.size > 0:
-        box = stack.pop()
-
-
-
 def triangles_for_box(box: FastBox, material=Material.DIFFUSE.value):
     left_bottom_back = box.min
     right_bottom_back = box.min + box.span * UNIT_X
@@ -225,8 +211,3 @@ def triangles_for_box(box: FastBox, material=Material.DIFFUSE.value):
         Triangle(left_top_back * shrink, right_top_front * shrink, left_top_front * shrink, color=WHITE, emitter=True),
     ]
     return tris
-
-
-if __name__ == '__main__':
-    teapot = load_obj('../resources/teapot.obj')
-    fastBVH(teapot)

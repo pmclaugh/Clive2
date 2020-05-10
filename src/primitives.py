@@ -23,8 +23,7 @@ def unit(v):
 
 
 ray_type = numba.deferred_type()
-node_type = numba.deferred_type()
-box_type = numba.deferred_type()
+tree_box_type = numba.deferred_type()
 
 
 @numba.experimental.jitclass([
@@ -108,6 +107,7 @@ class Triangle:
         return self.v0 * u + self.v1 * v + self.v2 * w
 
 
+# todo this could be a struct at this point. so could most of the other jit classes.
 @numba.experimental.jitclass([
     ('min', numba.float64[3::1]),
     ('max', numba.float64[3::1]),
@@ -121,6 +121,22 @@ class FastBox:
         self.left = 0
         self.right = -1
 
+
+@numba.experimental.jitclass([
+    ('min', numba.float64[3::1]),
+    ('max', numba.float64[3::1]),
+    ('left', numba.optional(tree_box_type)),
+    ('right', numba.optional(tree_box_type)),
+    ('triangles', numba.optional(numba.types.ListType(Triangle.class_type.instance_type))),
+])
+class TreeBox:
+    def __init__(self, least_corner, most_corner):
+        self.min = least_corner
+        self.max = most_corner
+        self.left = None
+        self.right = None
+        self.triangles = None
+
     def contains(self, point: numba.float64[3]):
         return (point >= self.min).all() and (point <= self.max).all()
 
@@ -130,43 +146,10 @@ class FastBox:
 
     def surface_area(self):
         span = self.max - self.min
-        return 2 * (span[0] * span[1] + span[1] * span[2] + span[0] * span[2])
+        return 2 * (span[0] * span[1] + span[1] * span[2] + span[2] * span[0])
 
 
-@numba.experimental.jitclass([
-    ('next', numba.optional(node_type)),
-    ('data', box_type),
-])
-class BoxStackNode:
-    def __init__(self, data):
-        self.data = data
-        self.next = None
-
-
-@numba.experimental.jitclass([
-    ('head', numba.optional(node_type)),
-    ('size', numba.uint32)
-])
-class BoxStack:
-    def __init__(self):
-        self.head = None
-        self.size = 0
-
-    def push(self, data):
-        node = BoxStackNode(data)
-        node.next = self.head
-        self.head = node
-        self.size += 1
-
-    def pop(self):
-        old = self.head
-        if old is None:
-            return None
-        self.head = old.next
-        self.size -= 1
-        return old.data
-
-
+# todo eliminate this and make unidirectional use lists instead
 @numba.experimental.jitclass([
     ('ray', numba.optional(Ray.class_type.instance_type)),
     ('hit_light', numba.boolean),
@@ -180,10 +163,5 @@ class Path:
         self.direction = direction
 
 
-box_type.define(FastBox.class_type.instance_type)
-node_type.define(BoxStackNode.class_type.instance_type)
 ray_type.define(Ray.class_type.instance_type)
-
-if __name__ == '__main__':
-    BoxStackNode(FastBox(ZEROS, ONES))
-    bs = BoxStack()
+tree_box_type.define(TreeBox.class_type.instance_type)
