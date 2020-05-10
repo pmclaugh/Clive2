@@ -72,13 +72,12 @@ if __name__ == '__main__':
 #  - textures
 
 # todo: Tech Debt
+#  - do a deep dive on where i do and don't need to use .copy() in the jit classes
 #  - Automated tests
 #       - BVH unit tests
 #       - integration tests around paths in a simple scene
-#  - jit OBJ loading and bvh construction, eliminate TreeBox class
 #  - BVH caching
 #  - fix having to use this .value thing on all the enums. numba is supposed to support them
-#  - requirements.txt
 
 # todo: Known Bugs
 #  - sample 0 does not display properly

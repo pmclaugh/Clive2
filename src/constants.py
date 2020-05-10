@@ -32,6 +32,8 @@ CYAN = np.array([1., 1., 0.3], dtype=np.float64)
 # BVH constants
 TRAVERSAL_COST = 1
 INTERSECT_COST = 2
+MAX_MEMBERS = 32
+MAX_DEPTH = 15
 
 # Tracing constants
 MAX_BOUNCES = 2

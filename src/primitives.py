@@ -137,8 +137,14 @@ class TreeBox:
         self.right = None
         self.triangles = None
 
-    def contains(self, point: numba.float64[3]):
+    def contains_point(self, point: numba.float64[3]):
         return (point >= self.min).all() and (point <= self.max).all()
+
+    def contains_triangle(self, triangle: Triangle):
+        if self.contains_point(triangle.v0) or self.contains_point(triangle.v1) or self.contains_point(triangle.v2):
+            return True
+        else:
+            return False
 
     def extend(self, triangle: Triangle):
         self.min = np.minimum(triangle.mins, self.min)

@@ -36,14 +36,14 @@ def test_surface_area(unit_box):
 
 
 def test_contains_point(unit_box, ray_inside_box, x_axis, y_axis, z_axis):
-    assert unit_box.contains(ray_inside_box.origin)
-    assert unit_box.contains(x_axis)
-    assert unit_box.contains(y_axis)
-    assert unit_box.contains(z_axis)
-    assert not unit_box.contains(-1 * x_axis)
-    assert not unit_box.contains(-1 * y_axis)
-    assert not unit_box.contains(-1 * z_axis)
-    assert not unit_box.contains(point(10, 2, 4))
+    assert unit_box.contains_point(ray_inside_box.origin)
+    assert unit_box.contains_point(x_axis)
+    assert unit_box.contains_point(y_axis)
+    assert unit_box.contains_point(z_axis)
+    assert not unit_box.contains_point(-1 * x_axis)
+    assert not unit_box.contains_point(-1 * y_axis)
+    assert not unit_box.contains_point(-1 * z_axis)
+    assert not unit_box.contains_point(point(10, 2, 4))
 
 
 def test_extend(unit_box, big_triangle):
