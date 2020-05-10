@@ -1,4 +1,4 @@
-from primitives import FastBox, Triangle, BoxStack
+from primitives import FastBox, Triangle
 import numpy as np
 from typing import List
 from load import load_obj
@@ -175,18 +175,20 @@ class BoundingVolumeHierarchy:
 
 
 def triangles_for_box(box: FastBox, material=Material.DIFFUSE.value):
+    span = box.max - box.min
     left_bottom_back = box.min
-    right_bottom_back = box.min + box.span * UNIT_X
-    left_top_back = box.min + box.span * UNIT_Y
-    left_bottom_front = box.min + box.span * UNIT_Z
+    right_bottom_back = box.min + span * UNIT_X
+    left_top_back = box.min + span * UNIT_Y
+    left_bottom_front = box.min + span * UNIT_Z
 
     right_top_front = box.max
-    left_top_front = box.max - box.span * UNIT_X
-    right_bottom_front = box.max - box.span * UNIT_Y
-    right_top_back = box.max - box.span * UNIT_Z
+    left_top_front = box.max - span * UNIT_X
+    right_bottom_front = box.max - span * UNIT_Y
+    right_top_back = box.max - span * UNIT_Z
 
     shrink = np.array([.5, .95, .5], dtype=np.float32)
 
+    ret = numba.typed.List()
     tris = [
         # back wall
         Triangle(left_bottom_back, right_bottom_back, right_top_back, color=RED, material=material),
@@ -210,4 +212,6 @@ def triangles_for_box(box: FastBox, material=Material.DIFFUSE.value):
         Triangle(left_top_back * shrink, right_top_back * shrink, right_top_front * shrink, color=WHITE, emitter=True),
         Triangle(left_top_back * shrink, right_top_front * shrink, left_top_front * shrink, color=WHITE, emitter=True),
     ]
-    return tris
+    for tri in tris:
+        ret.append(tri)
+    return ret

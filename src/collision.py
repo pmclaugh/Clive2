@@ -1,4 +1,4 @@
-from primitives import Ray, Triangle, FastBox, BoxStack
+from primitives import Ray, Triangle, FastBox
 import numpy as np
 import numba
 from constants import COLLISION_SHIFT

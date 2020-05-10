@@ -1,7 +1,7 @@
 import numba
 import numpy as np
 from constants import *
-from primitives import Ray, Path, Triangle, FastBox, BoxStack, unit
+from primitives import Ray, Path, Triangle, FastBox, unit
 from utils import timed
 from collision import traverse_bvh
 
