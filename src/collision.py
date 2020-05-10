@@ -36,24 +36,24 @@ def ray_triangle_intersect(ray: Ray, triangle: Triangle):
 
 @numba.jit(nogil=True, fastmath=True)
 def ray_box_intersect(ray: Ray, box: Box):
-    txmin = (box.bounds[ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
-    txmax = (box.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
-    tymin = (box.bounds[ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
-    tymax = (box.bounds[1 - ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
+    min_minus = (box.min - ray.origin) * ray.inv_direction
+    max_minus = (box.max - ray.origin) * ray.inv_direction
+    mins = np.minimum(min_minus, max_minus)
+    maxes = np.maximum(min_minus, max_minus)
 
-    if txmin > tymax or tymin > txmax:
+    if mins[0] > maxes[1] or mins[1] > maxes[0]:
         return False, 0., 0.
-    tmin = max(txmin, tymin)
-    tmax = min(txmax, tymax)
 
-    tzmin = (box.bounds[ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
-    tzmax = (box.bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
+    tmin = max(mins[0], mins[1])
+    tmax = min(maxes[0], maxes[1])
 
-    if tmin > tzmax or tzmin > tmax:
+    if tmin > maxes[2] or mins[2] > tmax:
         return False, 0., 0.
-    tmin = max(tmin, tzmin)
-    tmax = min(tmax, tzmax)
-    if tmax > COLLISION_SHIFT:
+
+    tmin = max(tmin, mins[2])
+    tmax = min(tmax, maxes[2])
+
+    if tmax > 0:
         return True, tmin, tmax
     else:
         return False, 0., 0.

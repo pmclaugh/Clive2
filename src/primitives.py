@@ -111,30 +111,15 @@ class Triangle:
 @numba.experimental.jitclass([
     ('min', numba.float64[3::1]),
     ('max', numba.float64[3::1]),
-    ('bounds', numba.float64[:, ::1]),
-    ('span', numba.float64[3::1]),
-    ('left', numba.optional(box_type)),
-    ('right', numba.optional(box_type)),
-    ('triangles', numba.optional(numba.types.ListType(Triangle.class_type.instance_type))),
-    ('triangle_count', numba.int64),
-    ('lights', numba.optional(numba.types.ListType(Triangle.class_type.instance_type))),
-    ('light_SA', numba.float64),
+    ('left', numba.int64),
+    ('right', numba.int64),
 ])
 class Box:
     def __init__(self, least_corner, most_corner):
         self.min = least_corner
         self.max = most_corner
-        self.bounds = np.stack((least_corner, most_corner))
-        self.span = self.max - self.min
-        self.left = None
-        self.right = None
-        self.triangles = None
-
-        # not the same as len(self.triangles). used during tree construction.
-        self.triangle_count = 0
-
-        self.lights = None
-        self.light_SA = 0
+        self.left = 0
+        self.right = -1
 
     def contains(self, point: numba.float64[3]):
         return (point >= self.min).all() and (point <= self.max).all()
@@ -142,11 +127,10 @@ class Box:
     def extend(self, triangle: Triangle):
         self.min = np.minimum(triangle.mins, self.min)
         self.max = np.maximum(triangle.maxes, self.max)
-        self.span = self.max - self.min
-        self.bounds = np.stack((self.min, self.max))
 
     def surface_area(self):
-        return 2 * (self.span[0] * self.span[1] + self.span[1] * self.span[2] + self.span[0] * self.span[2])
+        span = self.max - self.min
+        return 2 * (span[0] * span[1] + span[1] * span[2] + span[0] * span[2])
 
 
 @numba.experimental.jitclass([

@@ -47,12 +47,10 @@ def test_contains_point(unit_box, ray_inside_box, x_axis, y_axis, z_axis):
 
 
 def test_extend(unit_box, big_triangle):
-    assert (unit_box.span == ONES).all()
     assert (unit_box.min == ZEROS).all()
     assert (unit_box.max == ONES).all()
 
     unit_box.extend(big_triangle)
 
-    assert (unit_box.span == point(5, 5, 1)).all()
     assert (unit_box.min == ZEROS).all()
     assert (unit_box.max == point(5, 5, 1)).all()
