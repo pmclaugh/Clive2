@@ -147,7 +147,7 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
 
 
 @timed
-# @numba.njit
+@numba.njit
 def bidirectional_screen_sample(camera: Camera, root: Box):
     for i in range(camera.pixel_height):
         for j in range(camera.pixel_width):
