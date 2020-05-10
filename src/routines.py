@@ -1,13 +1,13 @@
 import numba
 import numpy as np
 from constants import *
-from primitives import Ray, Path, Triangle, Box, BoxStack, unit
+from primitives import Ray, Path, Triangle, FastBox, BoxStack, unit
 from utils import timed
 from collision import traverse_bvh
 
 
 @numba.njit
-def generate_path(root: Box, ray: Ray, direction, max_bounces=4, rr_chance=0.1, stop_for_light=False):
+def generate_path(root: FastBox, ray: Ray, direction, max_bounces=4, rr_chance=0.1, stop_for_light=False):
     path = Path(ray, direction)
     while path.ray.bounces < max_bounces: # or np.random.random() < rr_chance:
         hit = extend_path(path, root)
@@ -21,7 +21,7 @@ def generate_path(root: Box, ray: Ray, direction, max_bounces=4, rr_chance=0.1, 
 
 
 @numba.njit
-def extend_path(path: Path, root: Box):
+def extend_path(path: Path, root: FastBox):
     triangle, t = traverse_bvh(root, path.ray)
     if triangle is not None:
         # generate new ray
@@ -198,7 +198,7 @@ def geometry_term(a: Ray, b: Ray):
 
 
 @numba.njit
-def generate_light_ray(box: Box):
+def generate_light_ray(box: FastBox):
     light_index = np.random.randint(0, len(box.lights))
     light = box.lights[light_index]
     light_origin = light.sample_surface()

@@ -1,5 +1,5 @@
 from camera import Camera
-from primitives import Ray, Box, unit, point
+from primitives import Ray, FastBox, unit, point
 from routines import generate_light_ray, BRDF_sample, BRDF_function, BRDF_pdf, geometry_term
 from collision import visibility_test, traverse_bvh
 from constants import *
@@ -148,7 +148,7 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
 
 @timed
 @numba.njit
-def bidirectional_screen_sample(camera: Camera, root: Box):
+def bidirectional_screen_sample(camera: Camera, root: FastBox):
     for i in range(camera.pixel_height):
         for j in range(camera.pixel_width):
             light_path = numba.typed.List()

@@ -1,4 +1,4 @@
-from primitives import Ray, Triangle, Box, BoxStack
+from primitives import Ray, Triangle, FastBox, BoxStack
 import numpy as np
 import numba
 from constants import COLLISION_SHIFT
@@ -35,7 +35,7 @@ def ray_triangle_intersect(ray: Ray, triangle: Triangle):
 
 
 @numba.jit(nogil=True, fastmath=True)
-def ray_box_intersect(ray: Ray, box: Box):
+def ray_box_intersect(ray: Ray, box: FastBox):
     min_minus = (box.min - ray.origin) * ray.inv_direction
     max_minus = (box.max - ray.origin) * ray.inv_direction
     mins = np.minimum(min_minus, max_minus)
@@ -60,13 +60,13 @@ def ray_box_intersect(ray: Ray, box: Box):
 
 
 @numba.jit(nogil=True, fastmath=True)
-def bvh_hit_inner(ray: Ray, box: Box, least_t: float):
+def bvh_hit_inner(ray: Ray, box: FastBox, least_t: float):
     hit, t_low, t_high = ray_box_intersect(ray, box)
     return hit and t_low <= least_t
 
 
 @numba.jit(nogil=True, fastmath=True)
-def bvh_hit_leaf(ray: Ray, box: Box, least_t):
+def bvh_hit_leaf(ray: Ray, box: FastBox, least_t):
     hit, t_low, t_high = ray_box_intersect(ray, box)
     if not hit:
         return None, least_t
@@ -80,7 +80,7 @@ def bvh_hit_leaf(ray: Ray, box: Box, least_t):
 
 
 @numba.njit
-def visibility_test(root: Box, ray_a: Ray, ray_b: Ray):
+def visibility_test(root: FastBox, ray_a: Ray, ray_b: Ray):
     delta = ray_b.origin - ray_a.origin
     least_t = np.linalg.norm(delta)
     direction = delta / least_t
@@ -103,7 +103,7 @@ def visibility_test(root: Box, ray_a: Ray, ray_b: Ray):
 
 
 @numba.njit
-def traverse_bvh(root: Box, ray: Ray):
+def traverse_bvh(root: FastBox, ray: Ray):
     least_t = np.inf
     least_hit = None
     stack = BoxStack()

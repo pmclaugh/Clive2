@@ -114,7 +114,7 @@ class Triangle:
     ('left', numba.int64),
     ('right', numba.int64),
 ])
-class Box:
+class FastBox:
     def __init__(self, least_corner, most_corner):
         self.min = least_corner
         self.max = most_corner
@@ -180,6 +180,10 @@ class Path:
         self.direction = direction
 
 
+box_type.define(FastBox.class_type.instance_type)
 node_type.define(BoxStackNode.class_type.instance_type)
-box_type.define(Box.class_type.instance_type)
 ray_type.define(Ray.class_type.instance_type)
+
+if __name__ == '__main__':
+    BoxStackNode(FastBox(ZEROS, ONES))
+    BoxStack()

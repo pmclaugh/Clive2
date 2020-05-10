@@ -1,6 +1,6 @@
 import cv2
 from camera import Camera, composite_image, tone_map
-from primitives import point, Box
+from primitives import point, FastBox
 from datetime import datetime
 from bvh import BoundingVolumeHierarchy, triangles_for_box
 from load import load_obj
@@ -21,7 +21,7 @@ default_config = {
     'window_width': 160,
     'window_height': 90,
     'sample_count': 10,
-    'primitives': triangles_for_box(Box(point(-10, -3, -10), point(10, 17, 10))),
+    'primitives': triangles_for_box(FastBox(point(-10, -3, -10), point(10, 17, 10))),
     'bvh_constructor': BoundingVolumeHierarchy,
     'sample_function': unidirectional_screen_sample,
     'postprocess_function': lambda x: tone_map(x.image),

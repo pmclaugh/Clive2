@@ -1,5 +1,5 @@
 from camera import Camera
-from primitives import Box, Path
+from primitives import FastBox, Path
 from routines import generate_path
 from constants import *
 import numba
@@ -8,7 +8,7 @@ from utils import timed
 
 @timed
 @numba.njit
-def unidirectional_screen_sample(camera: Camera, root: Box, samples=5):
+def unidirectional_screen_sample(camera: Camera, root: FastBox, samples=5):
     for _ in range(samples):
         for i in range(camera.pixel_height):
             for j in range(camera.pixel_width):

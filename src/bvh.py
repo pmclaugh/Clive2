@@ -1,4 +1,4 @@
-from primitives import Box, Triangle, BoxStack
+from primitives import FastBox, Triangle, BoxStack
 import numpy as np
 from typing import List
 from load import load_obj
@@ -17,7 +17,7 @@ class TreeBox:
         self.parent = parent
         self.children = children if children is not None else []
         self.members = members if members is not None else []
-        self.box = Box(low_corner, high_corner)
+        self.box = FastBox(low_corner, high_corner)
 
     def extend(self, triangle: Triangle):
         self.box.extend(triangle)
@@ -85,7 +85,7 @@ class BoundingVolumeHierarchy:
                 }
 
     @staticmethod
-    def jsonize_box(box: Box):
+    def jsonize_box(box: FastBox):
         return {'min': box.min, 'max': box.max, 'count': 0 if box.triangles is None else len(box.triangles)}
 
     def flatten(self):
@@ -128,7 +128,7 @@ class BoundingVolumeHierarchy:
             box.finalize()
 
     @staticmethod
-    def divide_box(box: Box, axis: int, fraction: float):
+    def divide_box(box: FastBox, axis: int, fraction: float):
         # ~0.0001 seconds
         # return two boxes resulting from splitting input box along axis at fraction
         left_max = box.max.copy()
@@ -177,7 +177,7 @@ class BoundingVolumeHierarchy:
 @timed
 @numba.njit
 def fastBVH(triangles):
-    start_box = Box(INF, NEG_INF)
+    start_box = FastBox(INF, NEG_INF)
     for triangle in triangles:
         start_box.extend(triangle)
 
@@ -188,7 +188,7 @@ def fastBVH(triangles):
 
 
 
-def triangles_for_box(box: Box, material=Material.DIFFUSE.value):
+def triangles_for_box(box: FastBox, material=Material.DIFFUSE.value):
     left_bottom_back = box.min
     right_bottom_back = box.min + box.span * UNIT_X
     left_top_back = box.min + box.span * UNIT_Y
