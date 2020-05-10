@@ -5,7 +5,7 @@ from utils import timed
 from datetime import datetime
 from bvh import BoundingVolumeHierarchy, triangles_for_box
 from load import load_obj
-from new_bidirectional import bidirectional_screen_sample
+from bidirectional import bidirectional_screen_sample
 from unidirectional import unidirectional_screen_sample
 from constants import Material
 from collections import ChainMap
