@@ -1,4 +1,4 @@
-from primitives import Box, Triangle
+from primitives import Box, Triangle, BoxStack
 import numpy as np
 from typing import List
 from load import load_obj
@@ -180,7 +180,13 @@ def fastBVH(triangles):
     start_box = Box(INF, NEG_INF)
     for triangle in triangles:
         start_box.extend(triangle)
-    return start_box
+
+    stack = BoxStack()
+    stack.push(start_box)
+    while stack.size > 0:
+        box = stack.pop()
+
+
 
 def triangles_for_box(box: Box, material=Material.DIFFUSE.value):
     left_bottom_back = box.min

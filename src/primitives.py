@@ -116,6 +116,7 @@ class Triangle:
     ('left', numba.optional(box_type)),
     ('right', numba.optional(box_type)),
     ('triangles', numba.optional(numba.types.ListType(Triangle.class_type.instance_type))),
+    ('triangle_count', numba.int64),
     ('lights', numba.optional(numba.types.ListType(Triangle.class_type.instance_type))),
     ('light_SA', numba.float64),
 ])
@@ -128,6 +129,10 @@ class Box:
         self.left = None
         self.right = None
         self.triangles = None
+
+        # not the same as len(self.triangles). used during tree construction.
+        self.triangle_count = 0
+
         self.lights = None
         self.light_SA = 0
 
