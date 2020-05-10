@@ -2,14 +2,14 @@ import numba
 from utils import timed
 from constants import *
 from primitives import TreeBox, FastBox
+from load import load_obj
 
 
 @timed
 @numba.njit
 def fastBVH(triangles):
     root = construct_fastBVH(triangles)
-    flat_boxes, flat_triangles = flatten_fastBVH(root)
-    return {'boxes': flat_boxes, 'triangles': flat_triangles}
+    return flatten_fastBVH(root)
 
 
 @numba.njit
@@ -104,3 +104,8 @@ def object_split(box: TreeBox, n=8):
             best_val = sah
             best_ind = i
     return bags[best_ind]
+
+
+if __name__ == '__main__':
+    teapot = load_obj('../resources/teapot.obj')
+    flat_boxes, flat_triangles = fastBVH(teapot)

@@ -15,13 +15,16 @@ WINDOW_WIDTH = 160
 WINDOW_HEIGHT = 90
 SAMPLE_COUNT = 40
 
+teapot_scene = load_obj('../resources/teapot.obj')
+for triangle in triangles_for_box(FastBox(point(-10, -3, -10), point(10, 17, 10))):
+    teapot_scene.append(triangle)
 
 default_config = {
     'cam_center': point(0, 2, 6),
     'cam_direction': point(0, 0, -1),
     'window_width': 160,
     'window_height': 90,
-    'sample_count': 10,
+    'sample_count': 40,
     'primitives': triangles_for_box(FastBox(point(-10, -3, -10), point(10, 17, 10))),
     'bvh_constructor': BoundingVolumeHierarchy,
     'sample_function': unidirectional_screen_sample,
@@ -35,25 +38,28 @@ bidirectional_config = {
 
 teapot_config = {
     'bvh_constructor': fastBVH,
-    'primitives': load_obj('../resources/teapot.obj'),
+    'primitives': teapot_scene,
 }
 
 # todo: branch 'bvh_improvements':
 #  - bvh caching
-#     - make caching an explicit action and use configs to use them (skips the whole "did the config change??" question)
 #  - bvh performance test
 #  - unit tests for bvh methods
-#  - spatial splitting
+#  - jit object splitting
+#  - jit spatial splitting
+
+# the config pattern was a bit premature since i'm reworking how a lot of stuff gets created.
+# need to simplify things, connect my flat bvh and rework the traverses
 
 
 if __name__ == '__main__':
     cfg = ChainMap(teapot_config, default_config)
     camera = Camera(cfg['cam_center'], cfg['cam_direction'], pixel_height=cfg['window_height'],
                     pixel_width=cfg['window_width'], phys_width=cfg['window_width'] / cfg['window_height'], phys_height=1.)
-    bvh = cfg['bvh_constructor'](cfg['primitives'])
+    boxes, triangles = cfg['bvh_constructor'](cfg['primitives'])
     try:
         for n in range(cfg['sample_count']):
-            cfg['sample_function'](camera, bvh)
+            cfg['sample_function'](camera, boxes, triangles)
             print('sample', n, 'done')
             cv2.imshow('render', cfg['postprocess_function'](camera))
             cv2.waitKey(1)

@@ -7,10 +7,10 @@ from collision import traverse_bvh
 
 
 @numba.njit
-def generate_path(root: FastBox, ray: Ray, direction, max_bounces=4, rr_chance=0.1, stop_for_light=False):
+def generate_path(boxes, triangles, ray: Ray, direction, max_bounces=4, rr_chance=0.1, stop_for_light=False):
     path = Path(ray, direction)
     while path.ray.bounces < max_bounces: # or np.random.random() < rr_chance:
-        hit = extend_path(path, root)
+        hit = extend_path(path, boxes, triangles)
         if not hit:
             break
         if path.ray.prev.bounces >= max_bounces:
@@ -21,8 +21,8 @@ def generate_path(root: FastBox, ray: Ray, direction, max_bounces=4, rr_chance=0
 
 
 @numba.njit
-def extend_path(path: Path, root: FastBox):
-    triangle, t = traverse_bvh(root, path.ray)
+def extend_path(path: Path, boxes, triangles):
+    triangle, t = traverse_bvh(boxes, triangles, path.ray)
     if triangle is not None:
         # generate new ray
         new_origin = path.ray.origin + path.ray.direction * t
