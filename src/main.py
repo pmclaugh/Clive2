@@ -48,6 +48,7 @@ teapot_config = {
 }
 
 # todo: branch 'bvh_improvements':
+#  - full implementation of nvidia sbvh
 #  - bvh caching
 #  - bvh performance test
 #  - unit tests for bvh methods
