@@ -75,6 +75,7 @@ if __name__ == '__main__':
 
 # todo: Tech Debt
 #  - do a deep dive on where i do and don't need to use .copy() in the jit classes
+#  - new config pattern has some problems (my triangle-generating functions now return numba lists)
 #  - Automated tests
 #       - BVH unit tests
 #       - integration tests around paths in a simple scene

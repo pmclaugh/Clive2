@@ -87,14 +87,13 @@ def visibility_test(root: FastBox, ray_a: Ray, ray_b: Ray):
     if np.dot(ray_a.normal, direction) <= 0 or np.dot(ray_b.normal, -1 * direction) <= 0:
         return False
     test_ray = Ray(ray_a.origin, direction)
-    stack = BoxStack()
-    stack.push(root)
-    while stack.size:
+    stack = [root]
+    while stack:
         box = stack.pop()
         if box.left is not None and box.right is not None:
             if bvh_hit_inner(test_ray, box, least_t):
-                stack.push(box.left)
-                stack.push(box.right)
+                stack.append(box.left)
+                stack.append(box.right)
         else:
             hit, t = bvh_hit_leaf(test_ray, box, least_t)
             if hit is not None and t < least_t:
@@ -106,14 +105,13 @@ def visibility_test(root: FastBox, ray_a: Ray, ray_b: Ray):
 def traverse_bvh(root: FastBox, ray: Ray):
     least_t = np.inf
     least_hit = None
-    stack = BoxStack()
-    stack.push(root)
-    while stack.size:
+    stack = [root]
+    while stack:
         box = stack.pop()
         if box.left is not None and box.right is not None:
             if bvh_hit_inner(ray, box, least_t):
-                stack.push(box.left)
-                stack.push(box.right)
+                stack.append(box.left)
+                stack.append(box.right)
         else:
             hit, t = bvh_hit_leaf(ray, box, least_t)
             if hit is not None and t < least_t:
