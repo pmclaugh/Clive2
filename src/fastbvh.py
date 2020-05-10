@@ -52,7 +52,7 @@ def construct_fastBVH(triangles):
         box = stack.pop()
         if (len(box.triangles) <= MAX_MEMBERS) or len(stack) > MAX_DEPTH:
             continue
-        l, r = spatial_split(box)
+        l, r = object_split(box)
         if r is not None:
             box.right = r
             r.parent = box
@@ -78,7 +78,7 @@ def surface_area_heuristic(l: TreeBox, r: TreeBox):
 
 
 @numba.njit
-def spatial_split(box: TreeBox):
+def object_split(box: TreeBox):
     boxes = [divide_box(box, axis, f) for axis in [UNIT_X, UNIT_Y, UNIT_Z] for f in np.arange(1 / OBJ_SPLITS, 1, 1 / OBJ_SPLITS)]
     bags = []
     # the bag/box metaphor: boxes are rigid and represent the division of space; bags are flexible & grow to fit members
