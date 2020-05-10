@@ -69,7 +69,6 @@ class Camera:
 
 
 def composite_image(camera):
-    # this shouldn't stay here
     total_image = camera.image * 0
     for s, row in enumerate(camera.images):
         for t, sub_image in enumerate(row):
