@@ -32,6 +32,12 @@ bidirectional_config = ChainMap({
     'postprocess_function': composite_image,
 }, default_config)
 
+# todo: branch 'bvh_improvements':
+#  - bvh caching
+#  - bvh performance test
+#  - unit tests for bvh methods
+#  - spatial splitting
+
 
 if __name__ == '__main__':
     cfg = bidirectional_config
