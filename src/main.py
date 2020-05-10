@@ -25,7 +25,7 @@ default_config = {
     'cam_direction': point(0, 0, -1),
     'window_width': 160,
     'window_height': 90,
-    'sample_count': 40,
+    'sample_count': 20,
     'primitives': triangles_for_box(FastBox(point(-10, -3, -10), point(10, 17, 10))),
     'bvh_constructor': fastBVH,
     'sample_function': unidirectional_screen_sample,
@@ -56,13 +56,13 @@ teapot_config = {
 
 
 if __name__ == '__main__':
-    cfg = ChainMap(teapot_config, default_config)
+    cfg = ChainMap(bidirectional_config, teapot_config, default_config)
     camera = Camera(cfg['cam_center'], cfg['cam_direction'], pixel_height=cfg['window_height'],
                     pixel_width=cfg['window_width'], phys_width=cfg['window_width'] / cfg['window_height'], phys_height=1.)
-    boxes, triangles = cfg['bvh_constructor'](cfg['primitives'])
+    boxes, triangles, emitters = cfg['bvh_constructor'](cfg['primitives'])
     try:
         for n in range(cfg['sample_count']):
-            cfg['sample_function'](camera, boxes, triangles)
+            cfg['sample_function'](camera, boxes, triangles, emitters)
             print('sample', n, 'done')
             cv2.imshow('render', cfg['postprocess_function'](camera))
             cv2.waitKey(1)

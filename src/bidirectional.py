@@ -148,11 +148,11 @@ def bidirectional_pixel_sample(camera_path, light_path, boxes, triangles):
 
 @timed
 @numba.njit
-def bidirectional_screen_sample(camera: Camera, boxes, triangles):
+def bidirectional_screen_sample(camera: Camera, boxes, triangles, emitters):
     for i in range(camera.pixel_height):
         for j in range(camera.pixel_width):
             light_path = numba.typed.List()
-            light_path.append(generate_light_ray(root))
+            light_path.append(generate_light_ray(emitters))
             camera_path = numba.typed.List()
             camera_path.append(camera.make_ray(i, j))
 

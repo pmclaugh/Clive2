@@ -8,7 +8,7 @@ from utils import timed
 
 @timed
 @numba.njit
-def unidirectional_screen_sample(camera: Camera, boxes, triangles):
+def unidirectional_screen_sample(camera: Camera, boxes, triangles, emitters):
     for i in range(camera.pixel_height):
         for j in range(camera.pixel_width):
             camera_path = generate_path(boxes, triangles, camera.make_ray(i, j), Direction.FROM_CAMERA.value, stop_for_light=True)

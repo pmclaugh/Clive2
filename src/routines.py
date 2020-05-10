@@ -197,9 +197,9 @@ def geometry_term(a: Ray, b: Ray):
 
 
 @numba.njit
-def generate_light_ray(box: FastBox):
-    light_index = np.random.randint(0, len(box.lights))
-    light = box.lights[light_index]
+def generate_light_ray(emitters):
+    light_index = np.random.randint(0, len(emitters))
+    light = emitters[light_index]
     light_origin = light.sample_surface()
     x, y, z = local_orthonormal_system(light.normal)
     light_direction = random_hemisphere_uniform_weighted(x, y, z)

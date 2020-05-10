@@ -16,6 +16,7 @@ def fastBVH(triangles):
 def flatten_fastBVH(root: TreeBox):
     flat_boxes = numba.typed.List()
     flat_triangles = numba.typed.List()
+    emitters = numba.typed.List()
     box_queue = [root]
     while box_queue:
         box = box_queue[0]
@@ -29,12 +30,14 @@ def flatten_fastBVH(root: TreeBox):
         else:
             fast_box.left = len(flat_triangles)
             for triangle in box.triangles:
+                if triangle.emitter:
+                    emitters.append(triangle)
                 flat_triangles.append(triangle)
             fast_box.right = len(flat_triangles)
             # so now triangles[left:right] is the triangles in this box
         flat_boxes.append(fast_box)
         box_queue = box_queue[1:]
-    return flat_boxes, flat_triangles
+    return flat_boxes, flat_triangles, emitters
 
 
 @numba.njit
@@ -75,8 +78,8 @@ def surface_area_heuristic(l: TreeBox, r: TreeBox):
 
 
 @numba.njit
-def object_split(box: TreeBox, n=8):
-    boxes = [divide_box(box, axis, f) for axis in [UNIT_X, UNIT_Y, UNIT_Z] for f in np.arange(1/n, 1, 1/n)]
+def object_split(box: TreeBox):
+    boxes = [divide_box(box, axis, f) for axis in [UNIT_X, UNIT_Y, UNIT_Z] for f in np.arange(1 / OBJ_SPLITS, 1, 1 / OBJ_SPLITS)]
     bags = []
     # the bag/box metaphor: boxes are rigid and represent the division of space; bags are flexible & grow to fit members
     for left_box, right_box in boxes:
