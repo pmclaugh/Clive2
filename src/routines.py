@@ -140,19 +140,19 @@ def specular_reflection(direction, normal):
 
 
 @numba.njit
-def BRDF_sample(material, incident_direction, incident_normal, path_direction):
+def BRDF_sample(material, input_direction, normal, path_direction):
     # in all BRDF routines, all directions must point away from the point being sampled
     # returns a new direction
-    x, y, z = local_orthonormal_system(incident_normal)
+    x, y, z = local_orthonormal_system(normal)
     if material == Material.DIFFUSE.value:
         if path_direction == Direction.FROM_CAMERA.value:
             return random_hemisphere_cosine_weighted(x, y, z)
         else:
             return random_hemisphere_uniform_weighted(x, y, z)
     elif material == Material.SPECULAR.value:
-        return specular_reflection(incident_direction, incident_normal)
+        return specular_reflection(input_direction, normal)
     else:
-        return incident_normal
+        return normal
 
 
 @numba.njit
@@ -203,12 +203,12 @@ def generate_light_ray(box: Box):
     light = box.lights[light_index]
     light_origin = light.sample_surface()
     x, y, z = local_orthonormal_system(light.normal)
-    light_direction = random_hemisphere_cosine_weighted(x, y, z)
+    light_direction = random_hemisphere_uniform_weighted(x, y, z)
     ray = Ray(light_origin, light_direction)
     ray.color = light.color
     ray.local_color = light.color
     ray.normal = light.normal
-    ray.p = np.dot(light_direction, light.normal) / np.pi
+    ray.p = 1 / (2 * np.pi * light.surface_area)
     return ray
 
 

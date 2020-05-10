@@ -83,7 +83,10 @@ def bvh_hit_leaf(ray: Ray, box: Box, least_t):
 def visibility_test(root: Box, ray_a: Ray, ray_b: Ray):
     delta = ray_b.origin - ray_a.origin
     least_t = np.linalg.norm(delta)
-    test_ray = Ray(ray_a.origin, delta / least_t)
+    direction = delta / least_t
+    if np.dot(ray_a.normal, direction) <= 0 or np.dot(ray_b.normal, -1 * direction) <= 0:
+        return False
+    test_ray = Ray(ray_a.origin, direction)
     stack = BoxStack()
     stack.push(root)
     while stack.size:
