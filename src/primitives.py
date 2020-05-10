@@ -125,6 +125,7 @@ class FastBox:
 @numba.experimental.jitclass([
     ('min', numba.float64[3::1]),
     ('max', numba.float64[3::1]),
+    ('parent', numba.optional(tree_box_type)),
     ('left', numba.optional(tree_box_type)),
     ('right', numba.optional(tree_box_type)),
     ('triangles', numba.optional(numba.types.ListType(Triangle.class_type.instance_type))),
@@ -133,6 +134,7 @@ class TreeBox:
     def __init__(self, least_corner, most_corner):
         self.min = least_corner
         self.max = most_corner
+        self.parent = None
         self.left = None
         self.right = None
         self.triangles = None

@@ -19,8 +19,18 @@ def fastBVH(triangles):
     stack = [start_box]
     while len(stack) > 0:
         box = stack.pop()
+        if (len(box.triangles) <= MAX_MEMBERS) or len(stack) > MAX_DEPTH:
+            continue
         l, r = object_split(box)
-    return None, None
+        if r is not None:
+            box.right = r
+            r.parent = box
+            stack.append(r)
+        if l is not None:
+            box.left = l
+            l.parent = box
+            stack.append(l)
+    return start_box
 
 
 @numba.njit
@@ -38,9 +48,7 @@ def surface_area_heuristic(l: TreeBox, r: TreeBox):
 
 @numba.njit
 def object_split(box: TreeBox, n=8):
-    boxes = [divide_box(box, axis, fraction)
-              for axis in [UNIT_X, UNIT_Y, UNIT_Z]
-              for fraction in np.arange(1/n, 1, 1/n)]
+    boxes = [divide_box(box, axis, f) for axis in [UNIT_X, UNIT_Y, UNIT_Z] for f in np.arange(1/n, 1, 1/n)]
     bags = []
     # the bag/box metaphor: boxes are rigid and represent the division of space; bags are flexible & grow to fit members
     for left_box, right_box in boxes:
@@ -55,14 +63,10 @@ def object_split(box: TreeBox, n=8):
             elif right_box.contains_triangle(triangle):
                 right_tris.append(triangle)
                 right_bag.extend(triangle)
-            else:
-                print('triangle not in either box!')
         if left_tris and right_tris:
             left_bag.triangles = left_tris
             right_bag.triangles = right_tris
             bags.append((left_bag, right_bag))
-        else:
-            print('one-sided split!')
     # pick best one
     best_val = np.inf
     best_ind = 0
@@ -76,5 +80,5 @@ def object_split(box: TreeBox, n=8):
 
 if __name__ == '__main__':
     teapot = load_obj('../resources/teapot.obj')
-    fastBVH(teapot)
+    bvh = fastBVH(teapot)
     print('done')
