@@ -186,4 +186,4 @@ ray_type.define(Ray.class_type.instance_type)
 
 if __name__ == '__main__':
     BoxStackNode(FastBox(ZEROS, ONES))
-    BoxStack()
+    bs = BoxStack()
