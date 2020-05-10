@@ -35,7 +35,6 @@ def extend_path(path: Path, root: FastBox):
             path.hit_light = True
 
         path_push(path, new_ray)
-        # if path_health_check(path):
         return True
     else:
         return False
