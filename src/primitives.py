@@ -108,7 +108,6 @@ class Triangle:
         return self.v0 * u + self.v1 * v + self.v2 * w
 
 
-
 @numba.experimental.jitclass([
     ('min', numba.float64[3::1]),
     ('max', numba.float64[3::1]),
