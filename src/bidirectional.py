@@ -8,10 +8,10 @@ from utils import timed
 
 
 @numba.njit
-def extend_path(path, root, path_direction):
+def extend_path(path, boxes, triangles, path_direction):
     for i in range(MAX_BOUNCES):
         ray = path[-1]
-        triangle, t = traverse_bvh(root, ray)
+        triangle, t = traverse_bvh(boxes, triangles, ray)
         if triangle is not None:
             # generate new ray
             #  new vectors
@@ -58,9 +58,9 @@ def dir(a, b):
 
 
 @numba.njit
-def bidirectional_pixel_sample(camera_path, light_path, root):
-    extend_path(camera_path, root, Direction.FROM_CAMERA.value)
-    extend_path(light_path, root, Direction.FROM_EMITTER.value)
+def bidirectional_pixel_sample(camera_path, light_path, boxes, triangles):
+    extend_path(camera_path, boxes, triangles, Direction.FROM_CAMERA.value)
+    extend_path(light_path, boxes, triangles, Direction.FROM_EMITTER.value)
     samples = [[WHITE * -1 for t in range(len(camera_path) + 1)] for s in range(len(light_path) + 1)]
     for t in range(len(camera_path) + 1):
         for s in range(len(light_path) + 1):
@@ -82,7 +82,7 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
                 light_vertex = light_path[s - 1]
                 camera_vertex = camera_path[t - 1]
                 dir_l_to_c = unit(camera_vertex.origin - light_vertex.origin)
-                if visibility_test(root, camera_vertex, light_vertex):
+                if visibility_test(boxes, triangles, camera_vertex, light_vertex):
                     if t == 1:
                         camera_brdf = 1
                     else:
@@ -148,7 +148,7 @@ def bidirectional_pixel_sample(camera_path, light_path, root):
 
 @timed
 @numba.njit
-def bidirectional_screen_sample(camera: Camera, root: FastBox):
+def bidirectional_screen_sample(camera: Camera, boxes, triangles):
     for i in range(camera.pixel_height):
         for j in range(camera.pixel_width):
             light_path = numba.typed.List()
@@ -156,7 +156,7 @@ def bidirectional_screen_sample(camera: Camera, root: FastBox):
             camera_path = numba.typed.List()
             camera_path.append(camera.make_ray(i, j))
 
-            samples = bidirectional_pixel_sample(camera_path, light_path, root)
+            samples = bidirectional_pixel_sample(camera_path, light_path, boxes, triangles)
             for s, row in enumerate(samples):
                 for t, sample in enumerate(row):
                     if np.greater(sample, 0).all():

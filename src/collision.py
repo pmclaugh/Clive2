@@ -107,7 +107,7 @@ def traverse_bvh(boxes, triangles, ray: Ray):
     least_hit = None
     stack = [boxes[0]]
     while stack:
-        box = stack[0]
+        box = stack.pop()
         if box.right == 0:
             if bvh_hit_inner(ray, box, least_t):
                 stack.append(boxes[box.left])
@@ -117,7 +117,6 @@ def traverse_bvh(boxes, triangles, ray: Ray):
             if hit is not None and t < least_t:
                 least_hit = hit
                 least_t = t
-        stack = stack[1:]
 
     return least_hit, least_t
 

@@ -27,7 +27,7 @@ default_config = {
     'window_height': 90,
     'sample_count': 40,
     'primitives': triangles_for_box(FastBox(point(-10, -3, -10), point(10, 17, 10))),
-    'bvh_constructor': BoundingVolumeHierarchy,
+    'bvh_constructor': fastBVH,
     'sample_function': unidirectional_screen_sample,
     'postprocess_function': lambda x: tone_map(x.image),
 }
@@ -39,7 +39,6 @@ bidirectional_config = {
 
 collision_test_config = {
     'sample_count': 10,
-    'bvh_constructor': fastBVH,
     'sample_function': simple_collision_screen_sample,
     'postprocess_function': lambda x: tone_map(x.image),
 }
@@ -57,7 +56,7 @@ teapot_config = {
 
 
 if __name__ == '__main__':
-    cfg = ChainMap(teapot_config, collision_test_config, default_config)
+    cfg = ChainMap(teapot_config, default_config)
     camera = Camera(cfg['cam_center'], cfg['cam_direction'], pixel_height=cfg['window_height'],
                     pixel_width=cfg['window_width'], phys_width=cfg['window_width'] / cfg['window_height'], phys_height=1.)
     boxes, triangles = cfg['bvh_constructor'](cfg['primitives'])
