@@ -98,12 +98,6 @@ def volume(b: TreeBox):
     return dims[0] * dims[1] * dims[2]
 
 
-@numba.njit
-def overlap(l: TreeBox, r: TreeBox):
-    # NYI
-    return 0
-
-
 @timed
 def object_split(box: TreeBox):
     best_sah = np.inf
@@ -182,15 +176,6 @@ def partition_box(box: TreeBox, axis, num_partitions):
     return partitions
 
 
-@numba.njit
-def triangle_intersects_box(triangle, box, axis):
-    if box.contains_point(triangle.v0) or box.contains_point(triangle.v1) or box.contains_point(triangle.v2):
-        return True
-    else:
-        # need to check here for more complicated intersection
-        return False
-
-
 # @numba.njit
 @timed
 def spatial_split(parent_box: TreeBox):
@@ -201,6 +186,7 @@ def spatial_split(parent_box: TreeBox):
         boxes = partition_box(parent_box, axis, SPATIAL_SPLITS)
         bags = [TreeBox(INF, NEG_INF) for _ in range(len(boxes))]
         ins = np.zeros(len(boxes), dtype=np.int64)
+        # todo: this is really memory inefficient
         in_lists = [[] for _ in range(len(boxes))]
         out_lists = [[] for _ in range(len(boxes))]
         outs = np.zeros_like(ins)

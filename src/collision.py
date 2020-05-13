@@ -62,7 +62,7 @@ def ray_box_intersect(ray: Ray, box: FastBox):
 @numba.jit(nogil=True, fastmath=True)
 def bvh_hit_inner(ray: Ray, box: FastBox, least_t: float):
     hit, t_low, t_high = ray_box_intersect(ray, box)
-    return hit and t_low <= least_t
+    return hit and t_low <= least_t and t_high > 0
 
 
 @numba.jit(nogil=True, fastmath=True)
