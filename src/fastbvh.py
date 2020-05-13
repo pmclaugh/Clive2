@@ -1,7 +1,7 @@
 import numba
 from utils import timed
 from constants import *
-from primitives import TreeBox, FastBox
+from primitives import TreeBox, FastBox, unit
 from load import load_obj
 
 
@@ -161,14 +161,14 @@ def bound_triangles(triangles):
     return box
 
 
-# @numba.njit
+@numba.njit
 def partition_box(box: TreeBox, axis, num_partitions):
     delta = (box.max - box.min) * axis
     partitions = []
     delta_step = delta / num_partitions
     part_min = box.min
     part_max = box.max * (1 - axis) + box.min * axis + delta_step
-    for _ in range(num_partitions - 1):
+    for _ in range(num_partitions):
         partitions.append(TreeBox(part_min, part_max))
         part_min = part_min + delta_step
         part_max = part_max + delta_step
@@ -177,29 +177,105 @@ def partition_box(box: TreeBox, axis, num_partitions):
 
 # @numba.njit
 @timed
-def spatial_split(box: TreeBox):
+def spatial_split(parent_box: TreeBox):
     best_sah = np.inf
     best_split = None
-    for axis in [UNIT_X, UNIT_Y, UNIT_Z]:
-        boxes = partition_box(box, axis, SPATIAL_SPLITS)
+    best_axis = None
+    for axis_index, axis in enumerate([UNIT_X, UNIT_Y, UNIT_Z]):
+        boxes = partition_box(parent_box, axis, SPATIAL_SPLITS)
+        bags = [TreeBox(INF, NEG_INF) for _ in range(len(boxes))]
+        ins = np.zeros(len(boxes), dtype=np.int64)
+        outs = np.zeros_like(ins)
+        left_bound = parent_box.min[axis_index]
+        right_bound = parent_box.max[axis_index]
+        span = right_bound - left_bound
+
+        for triangle in parent_box.triangles:
+            # unit vectors and lengths for each edge (todo: cache these)
+            v0 = triangle.v0
+            v1 = triangle.v1
+            v2 = triangle.v2
+            u0 = unit(v1 - v0)
+            t0 = np.linalg.norm(v1 - v0)
+            u1 = unit(v2 - v1)
+            t1 = np.linalg.norm(v2 - v1)
+            u2 = unit(v0 - v2)
+            t2 = np.linalg.norm(v0 - v2)
+
+            v = [v0[axis_index], v1[axis_index], v2[axis_index]]
+            least = min(int(SPATIAL_SPLITS * (min(v) - left_bound) / span), len(ins) - 1)
+            most = min(int(SPATIAL_SPLITS * (max(v) - left_bound) / span), len(outs) - 1)
+            ins[least] += 1
+            outs[most] += 1
+            for box, bag in zip(boxes[least:most + 1], bags[least:most + 1]):
+                for origin, direction, t_max in zip([v0, v1, v2], [u0, u1, u2], [t0, t1, t2]):
+                    if box.contains_point(origin):
+                        bag.extend_point(origin)
+                    else:
+                        # solve origin + direction * t = bound
+                        # for left and right bounds
+                        o = origin[axis_index]
+                        d = direction[axis_index]
+                        if d == 0:
+                            continue
+                        for bound in [box.min, box.max]:
+                            b = bound[axis_index]
+                            t = (b - o) / d
+                            if 0 <= t <= t_max:
+                                bag.extend_point(origin + direction * t)
+
+        in_sums = np.add.accumulate(ins)
+        out_sums = np.add.accumulate(outs[::-1])[::-1]
+        mins = np.array([b.min for b in bags])
+        maxes = np.array([b.max for b in bags])
+        maxes_ltr = np.maximum.accumulate(maxes)
+        mins_ltr = np.minimum.accumulate(mins)
+        maxes_rtl = np.maximum.accumulate(maxes[::-1])[::-1]
+        mins_rtl = np.maximum.accumulate(mins[::-1])[::-1]
+        for i in range(SPATIAL_SPLITS - 1):
+            # i is the index of the rightmost left bag
+            sah = surface_area(mins_ltr[i], maxes_ltr[i]) * in_sums[i] \
+                  + surface_area(mins_rtl[i + 1], maxes_rtl[i + 1]) * out_sums[i + 1]
+            if sah < best_sah:
+                best_sah = sah
+                best_split = TreeBox(mins_ltr[i], maxes_ltr[i]), TreeBox(mins_rtl[i + 1], maxes_rtl[i + 1])
+                best_axis = axis
+
+    # put the triangles in the boxes
+    left_triangles = numba.typed.List()
+    right_triangles = numba.typed.List()
+    left, right = best_split
+    for triangle in parent_box.triangles:
+        if left.contains_triangle(triangle):
+            left_triangles.append(triangle)
+        if right.contains_triangle(triangle):
+            right_triangles.append(triangle)
+    left.triangles = left_triangles
+    right.triangles = right_triangles
+
+    print(best_axis, 'produced best split:', left.min, left.max, right.min, right.max)
+    print('left vol:', volume(left) / volume(parent_box), 'right vol:', volume(right) / volume(parent_box))
+    print('left count:', len(left.triangles), 'right count:', len(right.triangles))
+
+    return best_sah, left, right
 
 
 if __name__ == '__main__':
     # a = np.array([3, 0, 8, 2])
-    # print(np.maximum.accumulate(a))
-    # print(np.minimum.accumulate(a[::-1])[::-1])
+    # print(np.add.accumulate(a))
+    # print(np.add.accumulate(a[::-1])[::-1])
 
-    # teapot = load_obj('../resources/teapot.obj')
+    teapot = load_obj('../resources/teapot.obj')
 
-    from primitives import Triangle
-    simple_triangles = numba.typed.List()
-    for shift in [0, 2, 5, 12, 32]:
-        delta = UNIT_X * shift
-        t = Triangle(ZEROS + delta, UNIT_X + delta, UNIT_Y + UNIT_Z + delta)
-        print(t.v0, t.v1, t.v2)
-        print(t.maxes, t.mins)
-        simple_triangles.append(t)
+    # from primitives import Triangle
+    # simple_triangles = numba.typed.List()
+    # for shift in [0, 2, 5, 12, 32]:
+    #     delta = UNIT_X * shift
+    #     t = Triangle(ZEROS + delta, UNIT_X + delta, UNIT_Y + UNIT_Z + delta)
+    #     print(t.v0, t.v1, t.v2)
+    #     print(t.maxes, t.mins)
+    #     simple_triangles.append(t)
 
-    test_box = bound_triangles(simple_triangles)
+    test_box = bound_triangles(teapot)
     print('test_box bounds:', test_box.min, test_box.max)
     spatial_split(test_box)

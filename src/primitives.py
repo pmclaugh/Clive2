@@ -154,6 +154,10 @@ class TreeBox:
         self.min = np.minimum(triangle.mins, self.min)
         self.max = np.maximum(triangle.maxes, self.max)
 
+    def extend_point(self, point):
+        self.min = np.minimum(self.min, point)
+        self.max = np.maximum(self.max, point)
+
     def surface_area(self):
         span = self.max - self.min
         return 2 * (span[0] * span[1] + span[1] * span[2] + span[2] * span[0])
