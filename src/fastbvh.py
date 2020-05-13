@@ -50,7 +50,10 @@ def construct_fastBVH(triangles):
         box = stack.pop()
         if (len(box.triangles) <= MAX_MEMBERS) or len(stack) > MAX_DEPTH:
             continue
-        l, r = real_object_split(box)
+        sah_object, l_object, r_object = object_split(box)
+        # sah_spatial, l_spatial, r_spatial = spatial_split(box)
+        # l, r = (l_spatial, r_spatial) if sah_spatial < sah_object else (l_object, r_object)
+        l, r = l_object, r_object
         if r is not None:
             box.right = r
             r.parent = box
@@ -79,38 +82,6 @@ def sah_component(box: TreeBox):
 
 
 @numba.njit
-def object_split(box: TreeBox):
-    boxes = [divide_box(box, axis, f) for axis in [UNIT_X, UNIT_Y, UNIT_Z] for f in np.arange(1 / OBJ_SPLITS, 1, 1 / OBJ_SPLITS)]
-    bags = []
-    # the bag/box metaphor: boxes are rigid and represent the division of space; bags are flexible & grow to fit members
-    for left_box, right_box in boxes:
-        left_bag = TreeBox(INF, NEG_INF)
-        right_bag = TreeBox(INF, NEG_INF)
-        left_tris = numba.typed.List()
-        right_tris = numba.typed.List()
-        for triangle in box.triangles:
-            if left_box.contains_triangle(triangle):
-                left_tris.append(triangle)
-                left_bag.extend(triangle)
-            elif right_box.contains_triangle(triangle):
-                right_tris.append(triangle)
-                right_bag.extend(triangle)
-        if left_tris and right_tris:
-            left_bag.triangles = left_tris
-            right_bag.triangles = right_tris
-            bags.append((left_bag, right_bag))
-    # pick best one
-    best_val = np.inf
-    best_ind = 0
-    for i, (lbag, rbag) in enumerate(bags):
-        sah = surface_area_heuristic(lbag, rbag)
-        if sah < best_val:
-            best_val = sah
-            best_ind = i
-    return bags[best_ind]
-
-
-@numba.njit
 def surface_area(mins, maxes):
     span = maxes - mins
     return 2 * (span[0] * span[1] + span[1] * span[2] + span[2] * span[0])
@@ -129,7 +100,7 @@ def overlap(l: TreeBox, r: TreeBox):
 
 
 @timed
-def real_object_split(box: TreeBox):
+def object_split(box: TreeBox):
     best_sah = np.inf
     best_split = None
     best_axis = None
@@ -166,18 +137,19 @@ def real_object_split(box: TreeBox):
     left_box.triangles = left_triangles
     right_box = TreeBox(right_min, right_max)
     right_box.triangles = right_triangles
+
     print(best_axis, 'produced best split:', best_split)
     print('left vol:', volume(left_box) / volume(box), 'right vol:', volume(right_box) / volume(box))
-    test_left = bound_triangles(left_box.triangles)
-    test_right = bound_triangles(right_box.triangles)
 
     # todo make this a separate test
+    test_left = bound_triangles(left_box.triangles)
+    test_right = bound_triangles(right_box.triangles)
     assert np.equal(test_left.min, left_box.min).all()
     assert np.equal(test_left.max, left_box.max).all()
     assert np.equal(test_right.min, right_box.min).all()
     assert np.equal(test_right.max, right_box.max).all()
 
-    return left_box, right_box
+    return best_sah, left_box, right_box
 
 
 @numba.njit
@@ -189,19 +161,45 @@ def bound_triangles(triangles):
     return box
 
 
+# @numba.njit
+def partition_box(box: TreeBox, axis, num_partitions):
+    delta = (box.max - box.min) * axis
+    partitions = []
+    delta_step = delta / num_partitions
+    part_min = box.min
+    part_max = box.max * (1 - axis) + box.min * axis + delta_step
+    for _ in range(num_partitions - 1):
+        partitions.append(TreeBox(part_min, part_max))
+        part_min = part_min + delta_step
+        part_max = part_max + delta_step
+    return partitions
+
+
+# @numba.njit
+@timed
+def spatial_split(box: TreeBox):
+    best_sah = np.inf
+    best_split = None
+    for axis in [UNIT_X, UNIT_Y, UNIT_Z]:
+        boxes = partition_box(box, axis, SPATIAL_SPLITS)
+
+
 if __name__ == '__main__':
     # a = np.array([3, 0, 8, 2])
     # print(np.maximum.accumulate(a))
     # print(np.minimum.accumulate(a[::-1])[::-1])
-    teapot = load_obj('../resources/teapot.obj')
-    # from primitives import Triangle
-    # simple_triangles = numba.typed.List()
-    # for shift in [0, 2, 5, 12, 32]:
-    #     delta = UNIT_X * shift
-    #     t = Triangle(ZEROS + delta, UNIT_X + delta, UNIT_Y + UNIT_Z + delta)
-    #     print(t.v0, t.v1, t.v2)
-    #     print(t.maxes, t.mins)
-    #     simple_triangles.append(t)
-    test_box = bound_triangles(teapot)
+
+    # teapot = load_obj('../resources/teapot.obj')
+
+    from primitives import Triangle
+    simple_triangles = numba.typed.List()
+    for shift in [0, 2, 5, 12, 32]:
+        delta = UNIT_X * shift
+        t = Triangle(ZEROS + delta, UNIT_X + delta, UNIT_Y + UNIT_Z + delta)
+        print(t.v0, t.v1, t.v2)
+        print(t.maxes, t.mins)
+        simple_triangles.append(t)
+
+    test_box = bound_triangles(simple_triangles)
     print('test_box bounds:', test_box.min, test_box.max)
-    real_object_split(test_box)
+    spatial_split(test_box)
