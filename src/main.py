@@ -57,7 +57,7 @@ teapot_config = {
 
 
 if __name__ == '__main__':
-    cfg = ChainMap(bidirectional_config, teapot_config, default_config)
+    cfg = ChainMap(teapot_config, default_config)
     camera = Camera(cfg['cam_center'], cfg['cam_direction'], pixel_height=cfg['window_height'],
                     pixel_width=cfg['window_width'], phys_width=cfg['window_width'] / cfg['window_height'], phys_height=1.)
     boxes, triangles, emitters = cfg['bvh_constructor'](cfg['primitives'])

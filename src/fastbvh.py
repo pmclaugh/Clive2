@@ -6,7 +6,7 @@ from load import load_obj
 
 
 @timed
-@numba.njit
+# @numba.njit
 def fastBVH(triangles):
     root = construct_fastBVH(triangles)
     return flatten_fastBVH(root)
@@ -40,7 +40,8 @@ def flatten_fastBVH(root: TreeBox):
     return flat_boxes, flat_triangles, emitters
 
 
-@numba.njit
+# @numba.njit
+@timed
 def construct_fastBVH(triangles):
     start_box = bound_triangles(triangles)
 
@@ -49,7 +50,7 @@ def construct_fastBVH(triangles):
         box = stack.pop()
         if (len(box.triangles) <= MAX_MEMBERS) or len(stack) > MAX_DEPTH:
             continue
-        l, r = object_split(box)
+        l, r = real_object_split(box)
         if r is not None:
             box.right = r
             r.parent = box
@@ -175,8 +176,8 @@ def real_object_split(box: TreeBox):
     assert np.equal(test_left.max, left_box.max).all()
     assert np.equal(test_right.min, right_box.min).all()
     assert np.equal(test_right.max, right_box.max).all()
-    
-    return best_sah, left_box, right_box
+
+    return left_box, right_box
 
 
 @numba.njit
