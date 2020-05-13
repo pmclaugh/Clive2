@@ -271,24 +271,3 @@ def spatial_split(parent_box: TreeBox):
 
     return best_sah, left, right
 
-
-if __name__ == '__main__':
-
-    teapot_scene = load_obj('../resources/teapot.obj')
-    for triangle in triangles_for_box(FastBox(point(-10, -3, -10), point(10, 17, 10))):
-        teapot_scene.append(triangle)
-
-    # from primitives import Triangle
-    # simple_triangles = numba.typed.List()
-    # for shift in [0, 2, 5, 12, 32]:
-    #     delta = UNIT_X * shift
-    #     t = Triangle(ZEROS + delta, UNIT_X + delta, UNIT_Y + UNIT_Z + delta)
-    #     print(t.v0, t.v1, t.v2)
-    #     print(t.maxes, t.mins)
-    #     simple_triangles.append(t)
-
-    test_box = bound_triangles(teapot_scene)
-    print('test_box bounds:', test_box.min, test_box.max)
-    _, l, r = spatial_split(test_box)
-    spatial_split(l)
-    # object_split(test_box)
