@@ -1,7 +1,8 @@
 import numba
 from utils import timed
 from constants import *
-from primitives import TreeBox, FastBox, unit
+from primitives import TreeBox, FastBox, unit, point
+from bvh import triangles_for_box
 from load import load_obj
 
 
@@ -51,9 +52,13 @@ def construct_fastBVH(triangles):
         if (len(box.triangles) <= MAX_MEMBERS) or len(stack) > MAX_DEPTH:
             continue
         sah_object, l_object, r_object = object_split(box)
-        # sah_spatial, l_spatial, r_spatial = spatial_split(box)
-        # l, r = (l_spatial, r_spatial) if sah_spatial < sah_object else (l_object, r_object)
-        l, r = l_object, r_object
+        sah_spatial, l_spatial, r_spatial = spatial_split(box)
+        if sah_spatial < sah_object:
+            print('chose spatial')
+            l, r = l_spatial, r_spatial
+        else:
+            print('chose object')
+            l, r = l_object, r_object
         if r is not None:
             box.right = r
             r.parent = box
@@ -139,7 +144,9 @@ def object_split(box: TreeBox):
     right_box.triangles = right_triangles
 
     print(best_axis, 'produced best split:', best_split)
+    print('sah', best_sah)
     print('left vol:', volume(left_box) / volume(box), 'right vol:', volume(right_box) / volume(box))
+    print('left count:', len(left_box.triangles), 'right count:', len(right_box.triangles))
 
     # todo make this a separate test
     test_left = bound_triangles(left_box.triangles)
@@ -175,6 +182,15 @@ def partition_box(box: TreeBox, axis, num_partitions):
     return partitions
 
 
+@numba.njit
+def triangle_intersects_box(triangle, box, axis):
+    if box.contains_point(triangle.v0) or box.contains_point(triangle.v1) or box.contains_point(triangle.v2):
+        return True
+    else:
+        # need to check here for more complicated intersection
+        return False
+
+
 # @numba.njit
 @timed
 def spatial_split(parent_box: TreeBox):
@@ -185,6 +201,8 @@ def spatial_split(parent_box: TreeBox):
         boxes = partition_box(parent_box, axis, SPATIAL_SPLITS)
         bags = [TreeBox(INF, NEG_INF) for _ in range(len(boxes))]
         ins = np.zeros(len(boxes), dtype=np.int64)
+        in_lists = [[] for _ in range(len(boxes))]
+        out_lists = [[] for _ in range(len(boxes))]
         outs = np.zeros_like(ins)
         left_bound = parent_box.min[axis_index]
         right_bound = parent_box.max[axis_index]
@@ -203,10 +221,12 @@ def spatial_split(parent_box: TreeBox):
             t2 = np.linalg.norm(v0 - v2)
 
             v = [v0[axis_index], v1[axis_index], v2[axis_index]]
-            least = min(int(SPATIAL_SPLITS * (min(v) - left_bound) / span), len(ins) - 1)
-            most = min(int(SPATIAL_SPLITS * (max(v) - left_bound) / span), len(outs) - 1)
+            least = max(0, min(int(SPATIAL_SPLITS * (min(v) - left_bound) / span), len(ins) - 1))
+            most = max(0, min(int(SPATIAL_SPLITS * (max(v) - left_bound) / span), len(outs) - 1))
             ins[least] += 1
+            in_lists[least].append(triangle)
             outs[most] += 1
+            out_lists[most].append(triangle)
             for box, bag in zip(boxes[least:most + 1], bags[least:most + 1]):
                 for origin, direction, t_max in zip([v0, v1, v2], [u0, u1, u2], [t0, t1, t2]):
                     if box.contains_point(origin):
@@ -223,7 +243,10 @@ def spatial_split(parent_box: TreeBox):
                             t = (b - o) / d
                             if 0 <= t <= t_max:
                                 clip_point = origin + direction * t
+                                # clamp to this box
+                                clip_point = np.minimum(np.maximum(box.min, clip_point), box.max)
                                 bag.extend_point(clip_point)
+
 
         in_sums = np.add.accumulate(ins)
         out_sums = np.add.accumulate(outs[::-1])[::-1]
@@ -239,22 +262,24 @@ def spatial_split(parent_box: TreeBox):
                   + surface_area(mins_rtl[i + 1], maxes_rtl[i + 1]) * out_sums[i + 1]
             if sah < best_sah:
                 best_sah = sah
-                best_split = TreeBox(mins_ltr[i], maxes_ltr[i]), TreeBox(mins_rtl[i + 1], maxes_rtl[i + 1])
+                best_l, best_r = TreeBox(mins_ltr[i], maxes_ltr[i]), TreeBox(mins_rtl[i + 1], maxes_rtl[i + 1])
+                left_triangles = numba.typed.List()
+                right_triangles = numba.typed.List()
+                for in_list in in_lists[:i + 1]:
+                    for t in in_list:
+                        left_triangles.append(t)
+                for out_list in out_lists[i + 1:]:
+                    for t in out_list:
+                        right_triangles.append(t)
+                best_l.triangles = left_triangles
+                best_r.triangles = right_triangles
+                best_split = best_l, best_r
                 best_axis = axis
 
-    # put the triangles in the boxes
-    left_triangles = numba.typed.List()
-    right_triangles = numba.typed.List()
     left, right = best_split
-    for triangle in parent_box.triangles:
-        if left.contains_triangle(triangle):
-            left_triangles.append(triangle)
-        if right.contains_triangle(triangle):
-            right_triangles.append(triangle)
-    left.triangles = left_triangles
-    right.triangles = right_triangles
 
     print(best_axis, 'produced best split:', left.min, left.max, right.min, right.max)
+    print('sah', best_sah)
     print('left vol:', volume(left) / volume(parent_box), 'right vol:', volume(right) / volume(parent_box))
     print('left count:', len(left.triangles), 'right count:', len(right.triangles))
 
@@ -262,20 +287,22 @@ def spatial_split(parent_box: TreeBox):
 
 
 if __name__ == '__main__':
-    # a = np.array([3, 0, 8, 2])
-    # print(a[1:3 + 1])
 
-    # teapot = load_obj('../resources/teapot.obj')
+    teapot_scene = load_obj('../resources/teapot.obj')
+    for triangle in triangles_for_box(FastBox(point(-10, -3, -10), point(10, 17, 10))):
+        teapot_scene.append(triangle)
 
-    from primitives import Triangle
-    simple_triangles = numba.typed.List()
-    for shift in [0, 2, 5, 12, 32]:
-        delta = UNIT_X * shift
-        t = Triangle(ZEROS + delta, UNIT_X + delta, UNIT_Y + UNIT_Z + delta)
-        print(t.v0, t.v1, t.v2)
-        print(t.maxes, t.mins)
-        simple_triangles.append(t)
+    # from primitives import Triangle
+    # simple_triangles = numba.typed.List()
+    # for shift in [0, 2, 5, 12, 32]:
+    #     delta = UNIT_X * shift
+    #     t = Triangle(ZEROS + delta, UNIT_X + delta, UNIT_Y + UNIT_Z + delta)
+    #     print(t.v0, t.v1, t.v2)
+    #     print(t.maxes, t.mins)
+    #     simple_triangles.append(t)
 
-    test_box = bound_triangles(simple_triangles)
+    test_box = bound_triangles(teapot_scene)
     print('test_box bounds:', test_box.min, test_box.max)
-    spatial_split(test_box)
+    _, l, r = spatial_split(test_box)
+    spatial_split(l)
+    # object_split(test_box)
