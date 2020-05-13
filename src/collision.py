@@ -79,6 +79,18 @@ def bvh_hit_leaf(ray: Ray, box: FastBox, triangles, least_t):
     return least_hit, least_t
 
 
+@numba.jit(nogil=True, fastmath=True)
+def visibility_hit_leaf(ray: Ray, box: FastBox, triangles, least_t):
+    hit, t_low, t_high = ray_box_intersect(ray, box)
+    if not hit:
+        return False
+    for triangle in triangles:
+        t = ray_triangle_intersect(ray, triangle)
+        if t is not None and 0 < t < least_t:
+            return True
+    return False
+
+
 @numba.njit
 def visibility_test(boxes, triangles, ray_a: Ray, ray_b: Ray):
     delta = ray_b.origin - ray_a.origin
@@ -95,8 +107,7 @@ def visibility_test(boxes, triangles, ray_a: Ray, ray_b: Ray):
                 stack.append(boxes[box.left])
                 stack.append(boxes[box.left + 1])
         else:
-            hit, t = bvh_hit_leaf(test_ray, box, triangles[box.left:box.right], least_t)
-            if hit is not None and t < least_t:
+            if visibility_hit_leaf(test_ray, box, triangles[box.left:box.right], least_t):
                 return False
     return True
 
@@ -114,7 +125,7 @@ def traverse_bvh(boxes, triangles, ray: Ray):
                 stack.append(boxes[box.left + 1])
         else:
             hit, t = bvh_hit_leaf(ray, box, triangles[box.left:box.right], least_t)
-            if hit is not None and t < least_t:
+            if hit is not None:
                 least_hit = hit
                 least_t = t
 
