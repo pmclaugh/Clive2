@@ -222,7 +222,8 @@ def spatial_split(parent_box: TreeBox):
                             b = bound[axis_index]
                             t = (b - o) / d
                             if 0 <= t <= t_max:
-                                bag.extend_point(origin + direction * t)
+                                clip_point = origin + direction * t
+                                bag.extend_point(clip_point)
 
         in_sums = np.add.accumulate(ins)
         out_sums = np.add.accumulate(outs[::-1])[::-1]
@@ -231,9 +232,9 @@ def spatial_split(parent_box: TreeBox):
         maxes_ltr = np.maximum.accumulate(maxes)
         mins_ltr = np.minimum.accumulate(mins)
         maxes_rtl = np.maximum.accumulate(maxes[::-1])[::-1]
-        mins_rtl = np.maximum.accumulate(mins[::-1])[::-1]
+        mins_rtl = np.minimum.accumulate(mins[::-1])[::-1]
         for i in range(SPATIAL_SPLITS - 1):
-            # i is the index of the rightmost left bag
+            # i is the index of the rightmost left bag, i + 1 is the leftmost right bag
             sah = surface_area(mins_ltr[i], maxes_ltr[i]) * in_sums[i] \
                   + surface_area(mins_rtl[i + 1], maxes_rtl[i + 1]) * out_sums[i + 1]
             if sah < best_sah:
@@ -262,20 +263,19 @@ def spatial_split(parent_box: TreeBox):
 
 if __name__ == '__main__':
     # a = np.array([3, 0, 8, 2])
-    # print(np.add.accumulate(a))
-    # print(np.add.accumulate(a[::-1])[::-1])
+    # print(a[1:3 + 1])
 
-    teapot = load_obj('../resources/teapot.obj')
+    # teapot = load_obj('../resources/teapot.obj')
 
-    # from primitives import Triangle
-    # simple_triangles = numba.typed.List()
-    # for shift in [0, 2, 5, 12, 32]:
-    #     delta = UNIT_X * shift
-    #     t = Triangle(ZEROS + delta, UNIT_X + delta, UNIT_Y + UNIT_Z + delta)
-    #     print(t.v0, t.v1, t.v2)
-    #     print(t.maxes, t.mins)
-    #     simple_triangles.append(t)
+    from primitives import Triangle
+    simple_triangles = numba.typed.List()
+    for shift in [0, 2, 5, 12, 32]:
+        delta = UNIT_X * shift
+        t = Triangle(ZEROS + delta, UNIT_X + delta, UNIT_Y + UNIT_Z + delta)
+        print(t.v0, t.v1, t.v2)
+        print(t.maxes, t.mins)
+        simple_triangles.append(t)
 
-    test_box = bound_triangles(teapot)
+    test_box = bound_triangles(simple_triangles)
     print('test_box bounds:', test_box.min, test_box.max)
     spatial_split(test_box)
