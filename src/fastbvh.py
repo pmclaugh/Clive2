@@ -116,6 +116,12 @@ def surface_area(mins, maxes):
 
 
 @numba.njit
+def volume(b: TreeBox):
+    dims = b.max - b.min
+    return dims[0] * dims[1] * dims[2]
+
+
+@numba.njit
 def overlap(l: TreeBox, r: TreeBox):
     # NYI
     return 0
@@ -125,6 +131,7 @@ def overlap(l: TreeBox, r: TreeBox):
 def real_object_split(box: TreeBox):
     best_sah = np.inf
     best_split = None
+    best_axis = None
     triangle_mins = np.array([t.mins for t in box.triangles])
     triangle_maxes = np.array([t.maxes for t in box.triangles])
     triangle_centers = (triangle_mins + triangle_maxes) / 2
@@ -133,7 +140,7 @@ def real_object_split(box: TreeBox):
         axis_sorted = np.argsort(axis_only)
         ltr_maxes = np.maximum.accumulate(triangle_maxes[axis_sorted])
         ltr_mins = np.minimum.accumulate(triangle_mins[axis_sorted])
-        rtl_maxes = np.maximum.accumulate(triangle_mins[axis_sorted[::-1]])[::-1]
+        rtl_maxes = np.maximum.accumulate(triangle_maxes[axis_sorted[::-1]])[::-1]
         rtl_mins = np.minimum.accumulate(triangle_mins[axis_sorted[::-1]])[::-1]
         for i, left_max in enumerate(ltr_maxes[:-1]):
             left_min = ltr_mins[i]
@@ -143,17 +150,33 @@ def real_object_split(box: TreeBox):
             if sah < best_sah:
                 best_sah = sah
                 best_split = (i, left_min, left_max, right_min, right_max)
+                best_axis = axis
 
     i, left_min, left_max, right_min, right_max = best_split
+    left_triangles = numba.typed.List()
+    right_triangles = numba.typed.List()
+    sort_keys = np.argsort(np.dot(triangle_centers, best_axis))
+    for j, key in enumerate(sort_keys):
+        if j <= i:
+            left_triangles.append(box.triangles[sort_keys[j]])
+        else:
+            right_triangles.append(box.triangles[sort_keys[j]])
     left_box = TreeBox(left_min, left_max)
-    left_box.triangles = box.triangles[:i]
+    left_box.triangles = left_triangles
     right_box = TreeBox(right_min, right_max)
-    right_box.triangles = box.triangles[i:]
-    print('best split:', best_split, 'overlap:', overlap(left_box, right_box))
+    right_box.triangles = right_triangles
+    print(best_axis, 'produced best split:', best_split)
+    print('left vol:', volume(left_box) / volume(box), 'right vol:', volume(right_box) / volume(box))
+    test_left = bound_triangles(left_box.triangles)
+    test_right = bound_triangles(right_box.triangles)
 
+    # todo make this a separate test
+    assert np.equal(test_left.min, left_box.min).all()
+    assert np.equal(test_left.max, left_box.max).all()
+    assert np.equal(test_right.min, right_box.min).all()
+    assert np.equal(test_right.max, right_box.max).all()
+    
     return best_sah, left_box, right_box
-
-
 
 
 @numba.njit
@@ -170,6 +193,14 @@ if __name__ == '__main__':
     # print(np.maximum.accumulate(a))
     # print(np.minimum.accumulate(a[::-1])[::-1])
     teapot = load_obj('../resources/teapot.obj')
+    # from primitives import Triangle
+    # simple_triangles = numba.typed.List()
+    # for shift in [0, 2, 5, 12, 32]:
+    #     delta = UNIT_X * shift
+    #     t = Triangle(ZEROS + delta, UNIT_X + delta, UNIT_Y + UNIT_Z + delta)
+    #     print(t.v0, t.v1, t.v2)
+    #     print(t.maxes, t.mins)
+    #     simple_triangles.append(t)
     test_box = bound_triangles(teapot)
     print('test_box bounds:', test_box.min, test_box.max)
     real_object_split(test_box)
