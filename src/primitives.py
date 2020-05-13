@@ -74,6 +74,7 @@ class Ray:
     ('normal', numba.float64[3::1]),
     ('mins', numba.float64[3::1]),
     ('maxes', numba.float64[3::1]),
+    ('center', numba.float64[3::1]),
     ('color', numba.float64[3::1]),
     ('emitter', numba.boolean),
     ('material', numba.int64),
@@ -89,6 +90,7 @@ class Triangle:
         self.normal = unit(np.cross(self.e1, self.e2))
         self.mins = np.minimum(np.minimum(v0, v1), v2)
         self.maxes = np.maximum(np.maximum(v0, v1), v2)
+        self.center = (self.mins + self.maxes) / 2
         self.color = color.copy()
         self.emitter = emitter
         self.material = material

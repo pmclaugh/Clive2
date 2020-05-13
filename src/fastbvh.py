@@ -42,10 +42,7 @@ def flatten_fastBVH(root: TreeBox):
 
 @numba.njit
 def construct_fastBVH(triangles):
-    start_box = TreeBox(INF, NEG_INF)
-    for triangle in triangles:
-        start_box.extend(triangle)
-    start_box.triangles = triangles
+    start_box = bound_triangles(triangles)
 
     stack = [start_box]
     while len(stack) > 0:
@@ -72,9 +69,12 @@ def divide_box(box: TreeBox, axis, fraction: float):
 
 @numba.njit
 def surface_area_heuristic(l: TreeBox, r: TreeBox):
-    l_sa = l.surface_area()
-    r_sa = r.surface_area()
-    return TRAVERSAL_COST + l_sa * len(l.triangles) * INTERSECT_COST + r_sa * len(r.triangles) * INTERSECT_COST
+    return TRAVERSAL_COST + sah_component(l) + sah_component(r)
+
+
+@numba.njit
+def sah_component(box: TreeBox):
+    return len(box.triangles) * INTERSECT_COST * box.surface_area()
 
 
 @numba.njit
@@ -109,6 +109,67 @@ def object_split(box: TreeBox):
     return bags[best_ind]
 
 
+@numba.njit
+def surface_area(mins, maxes):
+    span = maxes - mins
+    return 2 * (span[0] * span[1] + span[1] * span[2] + span[2] * span[0])
+
+
+@numba.njit
+def overlap(l: TreeBox, r: TreeBox):
+    # NYI
+    return 0
+
+
+@timed
+def real_object_split(box: TreeBox):
+    best_sah = np.inf
+    best_split = None
+    triangle_mins = np.array([t.mins for t in box.triangles])
+    triangle_maxes = np.array([t.maxes for t in box.triangles])
+    triangle_centers = (triangle_mins + triangle_maxes) / 2
+    for axis in [UNIT_X, UNIT_Y, UNIT_Z]:
+        axis_only = np.dot(triangle_centers, axis)
+        axis_sorted = np.argsort(axis_only)
+        ltr_maxes = np.maximum.accumulate(triangle_maxes[axis_sorted])
+        ltr_mins = np.minimum.accumulate(triangle_mins[axis_sorted])
+        rtl_maxes = np.maximum.accumulate(triangle_mins[axis_sorted[::-1]])[::-1]
+        rtl_mins = np.minimum.accumulate(triangle_mins[axis_sorted[::-1]])[::-1]
+        for i, left_max in enumerate(ltr_maxes[:-1]):
+            left_min = ltr_mins[i]
+            right_max = rtl_maxes[i + 1]
+            right_min = rtl_mins[i + 1]
+            sah = surface_area(left_min, left_max) * i + surface_area(right_min, right_max) * (len(ltr_maxes) - i)
+            if sah < best_sah:
+                best_sah = sah
+                best_split = (i, left_min, left_max, right_min, right_max)
+
+    i, left_min, left_max, right_min, right_max = best_split
+    left_box = TreeBox(left_min, left_max)
+    left_box.triangles = box.triangles[:i]
+    right_box = TreeBox(right_min, right_max)
+    right_box.triangles = box.triangles[i:]
+    print('best split:', best_split, 'overlap:', overlap(left_box, right_box))
+
+    return best_sah, left_box, right_box
+
+
+
+
+@numba.njit
+def bound_triangles(triangles):
+    box = TreeBox(INF, NEG_INF)
+    for triangle in triangles:
+        box.extend(triangle)
+    box.triangles = triangles
+    return box
+
+
 if __name__ == '__main__':
+    # a = np.array([3, 0, 8, 2])
+    # print(np.maximum.accumulate(a))
+    # print(np.minimum.accumulate(a[::-1])[::-1])
     teapot = load_obj('../resources/teapot.obj')
-    flat_boxes, flat_triangles = fastBVH(teapot)
+    test_box = bound_triangles(teapot)
+    print('test_box bounds:', test_box.min, test_box.max)
+    real_object_split(test_box)
