@@ -48,6 +48,9 @@ teapot_config = {
 }
 
 # todo: branch 'bvh_improvements':
+#  - full implementation of nvidia sbvh - done except for some details
+#    - alpha test for spatial
+#    - reference unsplitting
 #  - bvh caching
 #  - bvh performance test
 #  - unit tests for bvh methods
@@ -75,6 +78,7 @@ if __name__ == '__main__':
 
 # todo: Feature Schedule
 #  - BVH improvements
+#  - optimization pass - FastTriangle, parallelization
 #  - t == 0, 1
 #  - glossy brdf
 #  - glossy in bidirectional
