@@ -1,5 +1,5 @@
 import pytest
-from primitives import Ray, Triangle, FastBox, point
+from primitives import Ray, Triangle, FastBox, TreeBox, point
 from constants import UNIT_X, UNIT_Y, UNIT_Z, ZEROS, ONES
 
 
@@ -26,7 +26,7 @@ def z_axis():
 
 @pytest.fixture
 def unit_box():
-    return FastBox(ZEROS, ONES)
+    return TreeBox(ZEROS, ONES)
 
 
 @pytest.fixture

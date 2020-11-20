@@ -6,6 +6,12 @@ from primitives import point, FastBox
 import pickle
 from fastbvh import fastBVH
 from camera import composite_image, tone_map
+from load import load_obj
+
+teapot_scene = load_obj('../resources/teapot.obj')
+# build simple room
+for triangle in triangles_for_box(FastBox(point(-10, -3, -10), point(10, 17, 10))):
+    teapot_scene.append(triangle)
 
 default_config = {
     'cam_center': point(0, 2, 6),

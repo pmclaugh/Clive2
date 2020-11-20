@@ -3,7 +3,34 @@ from utils import timed
 from constants import *
 from primitives import TreeBox, FastBox, unit, point
 from bvh import triangles_for_box
-from load import load_obj
+
+
+@numba.njit
+def divide_box(box: TreeBox, axis, fraction: float):
+    delta = (box.max - box.min) * axis
+    return TreeBox(box.min, box.max - delta * fraction), TreeBox(box.min + delta * (1 - fraction), box.max)
+
+
+@numba.njit
+def surface_area_heuristic(l: TreeBox, r: TreeBox):
+    return TRAVERSAL_COST + sah_component(l) + sah_component(r)
+
+
+@numba.njit
+def sah_component(box: TreeBox):
+    return len(box.triangles) * INTERSECT_COST * box.surface_area()
+
+
+@numba.njit
+def surface_area(mins, maxes):
+    span = maxes - mins
+    return 2 * (span[0] * span[1] + span[1] * span[2] + span[2] * span[0])
+
+
+@numba.njit
+def volume(b: TreeBox):
+    dims = b.max - b.min
+    return dims[0] * dims[1] * dims[2]
 
 
 @timed
@@ -51,14 +78,19 @@ def construct_fastBVH(triangles):
         box = stack.pop()
         if (len(box.triangles) <= MAX_MEMBERS) or len(stack) > MAX_DEPTH:
             continue
+
         sah_object, l_object, r_object = object_split(box)
-        sah_spatial, l_spatial, r_spatial = spatial_split(box)
-        if sah_spatial < sah_object:
-            print('chose spatial')
-            l, r = l_spatial, r_spatial
-        else:
-            print('chose object')
-            l, r = l_object, r_object
+        # todo - alpha test. compare (surface area of intersection of l_object + r_object) / surface area of root
+        #  to some small alpha. if under, don't bother doing (costly) spatial split
+        # sah_spatial, l_spatial, r_spatial = spatial_split(box)
+
+        # if sah_spatial < sah_object:
+        #     l, r = l_spatial, r_spatial
+        # else:
+        #     l, r = l_object, r_object
+
+        l, r = l_object, r_object
+
         if r is not None:
             box.right = r
             r.parent = box
@@ -67,35 +99,8 @@ def construct_fastBVH(triangles):
             box.left = l
             l.parent = box
             stack.append(l)
+
     return start_box
-
-
-@numba.njit
-def divide_box(box: TreeBox, axis, fraction: float):
-    delta = (box.max - box.min) * axis
-    return TreeBox(box.min, box.max - delta * fraction), TreeBox(box.min + delta * (1 - fraction), box.max)
-
-
-@numba.njit
-def surface_area_heuristic(l: TreeBox, r: TreeBox):
-    return TRAVERSAL_COST + sah_component(l) + sah_component(r)
-
-
-@numba.njit
-def sah_component(box: TreeBox):
-    return len(box.triangles) * INTERSECT_COST * box.surface_area()
-
-
-@numba.njit
-def surface_area(mins, maxes):
-    span = maxes - mins
-    return 2 * (span[0] * span[1] + span[1] * span[2] + span[2] * span[0])
-
-
-@numba.njit
-def volume(b: TreeBox):
-    dims = b.max - b.min
-    return dims[0] * dims[1] * dims[2]
 
 
 @timed
@@ -103,16 +108,20 @@ def object_split(box: TreeBox):
     best_sah = np.inf
     best_split = None
     best_axis = None
+
     triangle_mins = np.array([t.mins for t in box.triangles])
     triangle_maxes = np.array([t.maxes for t in box.triangles])
     triangle_centers = (triangle_mins + triangle_maxes) / 2
+
     for axis in [UNIT_X, UNIT_Y, UNIT_Z]:
         axis_only = np.dot(triangle_centers, axis)
         axis_sorted = np.argsort(axis_only)
+
         ltr_maxes = np.maximum.accumulate(triangle_maxes[axis_sorted])
         ltr_mins = np.minimum.accumulate(triangle_mins[axis_sorted])
         rtl_maxes = np.maximum.accumulate(triangle_maxes[axis_sorted[::-1]])[::-1]
         rtl_mins = np.minimum.accumulate(triangle_mins[axis_sorted[::-1]])[::-1]
+
         for i, left_max in enumerate(ltr_maxes[:-1]):
             left_min = ltr_mins[i]
             right_max = rtl_maxes[i + 1]
@@ -132,6 +141,7 @@ def object_split(box: TreeBox):
             left_triangles.append(box.triangles[sort_keys[j]])
         else:
             right_triangles.append(box.triangles[sort_keys[j]])
+
     left_box = TreeBox(left_min, left_max)
     left_box.triangles = left_triangles
     right_box = TreeBox(right_min, right_max)
@@ -182,14 +192,19 @@ def spatial_split(parent_box: TreeBox):
     best_sah = np.inf
     best_split = None
     best_axis = None
+
     for axis_index, axis in enumerate([UNIT_X, UNIT_Y, UNIT_Z]):
+
         boxes = partition_box(parent_box, axis, SPATIAL_SPLITS)
         bags = [TreeBox(INF, NEG_INF) for _ in range(len(boxes))]
+
         ins = np.zeros(len(boxes), dtype=np.int64)
+        outs = np.zeros_like(ins)
+
         # todo: this is really memory inefficient
         in_lists = [[] for _ in range(len(boxes))]
         out_lists = [[] for _ in range(len(boxes))]
-        outs = np.zeros_like(ins)
+
         left_bound = parent_box.min[axis_index]
         right_bound = parent_box.max[axis_index]
         span = right_bound - left_bound

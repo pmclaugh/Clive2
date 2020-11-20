@@ -209,14 +209,3 @@ def generate_light_ray(emitters):
     ray.normal = light.normal
     ray.p = 1 / (2 * np.pi * light.surface_area)
     return ray
-
-
-if __name__ == '__main__':
-    while True:
-        x, y, z, = UNIT_X, UNIT_Y, UNIT_Z
-        rand_in = random_hemisphere_uniform_weighted(x,y,z)
-        print(np.linalg.norm(rand_in))
-        # rand_out = random_hemisphere_cosine_weighted(x,y,z)
-        # brdf = BRDF_function(Material.DIFFUSE.value, rand_in, UNIT_Z, rand_out, path_direction=Direction.FROM_EMITTER.value)
-        # assert brdf >= 0
-        # print('chill')

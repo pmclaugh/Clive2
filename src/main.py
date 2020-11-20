@@ -1,21 +1,13 @@
 import cv2
-from camera import Camera
-from primitives import point, FastBox
 from datetime import datetime
-from bvh import triangles_for_box
-from load import load_obj
 from collections import ChainMap
+
+from camera import Camera
 from config import default_config, bidirectional_config, teapot_config
 
 WINDOW_WIDTH = 160
 WINDOW_HEIGHT = 90
 SAMPLE_COUNT = 40
-
-teapot_scene = load_obj('../resources/teapot.obj')
-
-# build simple room
-for triangle in triangles_for_box(FastBox(point(-10, -3, -10), point(10, 17, 10))):
-    teapot_scene.append(triangle)
 
 if __name__ == '__main__':
     cfg = ChainMap(bidirectional_config, teapot_config, default_config)
