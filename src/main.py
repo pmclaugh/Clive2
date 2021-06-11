@@ -28,7 +28,6 @@ if __name__ == '__main__':
 
 # todo cleanup:
 #  review code and identify cleanup areas
-#  examine uncommitted changes
 #  reassess performance and multithreading in light of newer numba version
 #  fix sample 0 problem
 #  bvh tests (performance and unit)
