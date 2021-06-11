@@ -6,6 +6,7 @@ from utils import timed
 from collision import traverse_bvh
 
 
+# todo these 3 don't need to be split up, and need to be homogenized (ie used the same in bd and ud)
 @numba.njit
 def generate_path(boxes, triangles, ray: Ray, direction, max_bounces=4, rr_chance=0.1, stop_for_light=False):
     path = Path(ray, direction)
@@ -14,7 +15,7 @@ def generate_path(boxes, triangles, ray: Ray, direction, max_bounces=4, rr_chanc
         if not hit:
             break
         if path.ray.prev.bounces >= max_bounces:
-            path.ray.p *= rr_chance # todo double check this
+            path.ray.p *= rr_chance
         if stop_for_light and path.hit_light:
             return path
     return path
@@ -26,7 +27,7 @@ def extend_path(path: Path, boxes, triangles):
     if triangle is not None:
         # generate new ray
         new_origin = path.ray.origin + path.ray.direction * t
-        new_direction = BRDF_sample(triangle.material, -1 * path.ray.direction, triangle.normal, path.direction)
+        new_direction = brdf_sample(triangle.material, -1 * path.ray.direction, triangle.normal, path.direction)
         new_ray = Ray(new_origin, new_direction)
         new_ray.normal = triangle.normal
         new_ray.material = triangle.material
@@ -40,63 +41,27 @@ def extend_path(path: Path, boxes, triangles):
         return False
 
 
-def path_health_check(path: Path):
-    ray = path.ray
-    after = None
-    try:
-        while ray is not None:
-            if after is not None:
-                # ray should point toward after
-                assert np.equal(ray.direction, unit(after.origin - ray.origin)).all()
-                # ray direction should point with ray.normal
-                assert np.dot(ray.direction, ray.normal) > 0
-                # ray direction should point against after.normal
-                assert np.dot(ray.direction, after.normal) < 0
-            after = ray
-            ray = ray.prev
-    except AssertionError:
-        return False
-    else:
-        return True
-
-
 @numba.njit
 def path_push(path: Path, ray: Ray):
     # update stuff appropriately
-    if path.direction == Direction.STORAGE.value:
-        # don't change anything, this is just a stack. this reduces wasted calculation and preserves first-vertex values
-        pass
-    elif path.ray is None:
-        # this shouldn't come up
-        pass
+    G = geometry_term(path.ray, ray)
+    path.ray.direction = unit(ray.origin - path.ray.origin)
+    if path.ray.prev is None:
+        # pushing onto stack of 1, just propagate p and color (?)
+        ray.color = path.ray.color * G
+        ray.p = path.ray.p * G
     else:
-        G = geometry_term(path.ray, ray)
-        path.ray.direction = unit(ray.origin - path.ray.origin)
-        if path.ray.prev is None:
-            # pushing onto stack of 1, just propagate p and color (?)
-            ray.color = path.ray.color * G
-            ray.p = path.ray.p * G
-        else:
-            # pushing onto stack of 2 or more, do some work
-            brdf = BRDF_function(path.ray.material, -1 * path.ray.prev.direction, path.ray.normal, path.ray.direction,
-                                       path.direction)
-            ray.color = path.ray.local_color * path.ray.color * brdf * G
-            ray.p = path.ray.p * G * BRDF_pdf(path.ray.material, -1 * path.ray.prev.direction, path.ray.normal, path.ray.direction,
+        # pushing onto stack of 2 or more, do some work
+        brdf = brdf_function(path.ray.material, -1 * path.ray.prev.direction, path.ray.normal, path.ray.direction,
+                             path.direction)
+        ray.color = path.ray.local_color * path.ray.color * brdf * G
+        ray.p = path.ray.p * G * brdf_pdf(path.ray.material, -1 * path.ray.prev.direction, path.ray.normal, path.ray.direction,
                                           path.direction)
-        ray.bounces = path.ray.bounces + 1
+    ray.bounces = path.ray.bounces + 1
 
     # store new ray
     ray.prev = path.ray
     path.ray = ray
-
-
-@numba.njit
-def path_pop(path: Path):
-    # path_push directly overrides all important fields, so pop is just a straight pop
-    ray = path.ray
-    path.ray = path.ray.prev
-    ray.prev = None
-    return ray
 
 
 @numba.njit
@@ -139,7 +104,7 @@ def specular_reflection(direction, normal):
 
 
 @numba.njit
-def BRDF_sample(material, input_direction, normal, path_direction):
+def brdf_sample(material, input_direction, normal, path_direction):
     # in all BRDF routines, all directions must point away from the point being sampled
     # returns a new direction
     x, y, z = local_orthonormal_system(normal)
@@ -155,7 +120,7 @@ def BRDF_sample(material, input_direction, normal, path_direction):
 
 
 @numba.njit
-def BRDF_function(material, incident_direction, incident_normal, exitant_direction, path_direction):
+def brdf_function(material, incident_direction, incident_normal, exitant_direction, path_direction):
     # in all BRDF routines, all directions must point away from the point being sampled
     # returns albedo mask of this bounce
     if material == Material.DIFFUSE.value:
@@ -168,7 +133,7 @@ def BRDF_function(material, incident_direction, incident_normal, exitant_directi
 
 
 @numba.njit
-def BRDF_pdf(material, incident_direction, incident_normal, exitant_direction, path_direction):
+def brdf_pdf(material, incident_direction, incident_normal, exitant_direction, path_direction):
     # in all BRDF routines, all directions must point away from the point being sampled
     # returns probability density of choosing exitant direction
     if material == Material.DIFFUSE.value:
@@ -198,14 +163,19 @@ def geometry_term(a: Ray, b: Ray):
 
 @numba.njit
 def generate_light_ray(emitters):
-    light_index = np.random.randint(0, len(emitters))
-    light = emitters[light_index]
+
+    light = emitters[np.random.randint(0, len(emitters))]
     light_origin = light.sample_surface()
+
     x, y, z = local_orthonormal_system(light.normal)
     light_direction = random_hemisphere_uniform_weighted(x, y, z)
     ray = Ray(light_origin, light_direction)
+
     ray.color = light.color
     ray.local_color = light.color
     ray.normal = light.normal
+
+    # this seems made up
     ray.p = 1 / (2 * np.pi * light.surface_area)
+
     return ray

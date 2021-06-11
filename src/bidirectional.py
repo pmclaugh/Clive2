@@ -1,12 +1,12 @@
 from camera import Camera
 from primitives import Ray, FastBox, unit, point
-from routines import generate_light_ray, BRDF_sample, BRDF_function, BRDF_pdf, geometry_term
+from routines import generate_light_ray, brdf_sample, brdf_function, brdf_pdf, geometry_term
 from collision import visibility_test, traverse_bvh
 from constants import *
 import numba
 from utils import timed
 
-
+# todo this mostly duplicates routines.extend_path. should unify.
 @numba.njit
 def extend_path(path, boxes, triangles, path_direction):
     for i in range(MAX_BOUNCES):
@@ -16,7 +16,7 @@ def extend_path(path, boxes, triangles, path_direction):
             # generate new ray
             #  new vectors
             origin = ray.origin + ray.direction * t
-            direction = BRDF_sample(triangle.material, -1 * ray.direction, triangle.normal, path_direction)
+            direction = brdf_sample(triangle.material, -1 * ray.direction, triangle.normal, path_direction)
             new_ray = Ray(origin, direction)
 
             #  store info from triangle
@@ -38,9 +38,9 @@ def extend_path(path, boxes, triangles, path_direction):
             else:
                 # so the idea here is that each vertex has information about everything up to it but not including it,
                 # because we can't be sure of anything about the final bounce until we know the joining vertex
-                bounce_p = BRDF_pdf(ray.material, -1 * path[-2].direction, ray.normal, ray.direction, path_direction)
+                bounce_p = brdf_pdf(ray.material, -1 * path[-2].direction, ray.normal, ray.direction, path_direction)
                 new_ray.p = ray.p * G * bounce_p
-                new_ray.color = ray.color * ray.local_color * G * BRDF_function(ray.material, -1 * path[-2].direction,
+                new_ray.color = ray.color * ray.local_color * G * brdf_function(ray.material, -1 * path[-2].direction,
                                                                                 ray.normal, ray.direction, path_direction)
                 new_ray.G = G
                 ray.local_p = bounce_p
@@ -86,13 +86,13 @@ def bidirectional_pixel_sample(camera_path, light_path, boxes, triangles):
                     if t == 1:
                         camera_brdf = 1
                     else:
-                        camera_brdf = BRDF_function(camera_vertex.material, -1 * camera_path[t - 2].direction,
+                        camera_brdf = brdf_function(camera_vertex.material, -1 * camera_path[t - 2].direction,
                                                     camera_vertex.normal, -1 * dir_l_to_c, Direction.FROM_CAMERA.value)
                     if s == 1:
                         light_brdf = np.dot(dir_l_to_c, light_vertex.normal)
                     else:
-                        light_brdf = BRDF_function(light_vertex.material, -1 * light_path[s - 2].direction,
-                                                    light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
+                        light_brdf = brdf_function(light_vertex.material, -1 * light_path[s - 2].direction,
+                                                   light_vertex.normal, dir_l_to_c, Direction.FROM_EMITTER.value)
                     camera_f = camera_vertex.color * camera_vertex.local_color * camera_brdf
                     camera_p = camera_vertex.p
                     light_f = light_vertex.color * light_vertex.local_color * light_brdf
@@ -115,14 +115,14 @@ def bidirectional_pixel_sample(camera_path, light_path, boxes, triangles):
                 elif i == 1:
                     num = path[0].p
                 else:
-                    num = BRDF_pdf(path[i - 1].material, dir(path[i - 1], path[i - 2]), path[i - 1].normal,
-                               dir(path[i - 1], path[i]), Direction.FROM_CAMERA.value) * geometry_term(path[i - 1], path[i])
+                    num = brdf_pdf(path[i - 1].material, dir(path[i - 1], path[i - 2]), path[i - 1].normal,
+                                   dir(path[i - 1], path[i]), Direction.FROM_CAMERA.value) * geometry_term(path[i - 1], path[i])
                 if i == s + t - 1:
                     denom = 1
                 elif i == s + t - 2:
                     denom = path[-1].p
                 else:
-                    denom = BRDF_pdf(path[i + 1].material, dir(path[i + 1], path[i + 2]), path[i + 1].normal,
+                    denom = brdf_pdf(path[i + 1].material, dir(path[i + 1], path[i + 2]), path[i + 1].normal,
                                      dir(path[i + 1], path[i]), Direction.FROM_EMITTER.value) * geometry_term(path[i + 1], path[i])
                 p_ratios[i] = num / denom
 
@@ -163,4 +163,3 @@ def bidirectional_screen_sample(camera: Camera, boxes, triangles, emitters):
                         camera.images[s][t][i][j] += sample
                         camera.sample_counts[s][t] += 1
                     camera.image[i][j] += sample
-    camera.samples += 1

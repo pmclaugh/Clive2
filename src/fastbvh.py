@@ -2,7 +2,6 @@ import numba
 from utils import timed
 from constants import *
 from primitives import TreeBox, FastBox, unit, point
-from bvh import triangles_for_box
 
 
 @numba.njit

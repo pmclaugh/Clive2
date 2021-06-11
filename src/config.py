@@ -25,6 +25,12 @@ default_config = {
     'postprocess_function': lambda x: tone_map(x.image),
 }
 
+deluxe_config = {
+    'window_width': 640,
+    'window_height': 480,
+    'sample_count': 100,
+}
+
 bidirectional_config = {
     'sample_function': bidirectional_screen_sample,
     'postprocess_function': composite_image,

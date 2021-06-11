@@ -27,12 +27,12 @@ tree_box_type = numba.deferred_type()
 
 
 @numba.experimental.jitclass([
-    ('origin', numba.float64[3::1]),
-    ('direction', numba.float64[3::1]),
-    ('inv_direction', numba.float64[3::1]),
-    ('sign', numba.uint8[3::1]),
-    ('color', numba.float64[3::1]),
-    ('local_color', numba.float64[3::1]),
+    ('origin', numba.types.Array(numba.float64, 1, layout='C')),
+    ('direction', numba.types.Array(numba.float64, 1, layout='C')),
+    ('inv_direction', numba.types.Array(numba.float64, 1, layout='C')),
+    ('sign', numba.uint8[:]),
+    ('color', numba.types.Array(numba.float64, 1, layout='C')),
+    ('local_color', numba.types.Array(numba.float64, 1, layout='C')),
     ('i', numba.int32),
     ('j', numba.int32),
     ('bounces', numba.int32),
@@ -40,7 +40,7 @@ tree_box_type = numba.deferred_type()
     ('local_p', numba.float64),
     ('G', numba.float64),
     ('prev', numba.optional(ray_type)),
-    ('normal', numba.float64[3::1]),
+    ('normal', numba.types.Array(numba.float64, 1, layout='C')),
     ('material', numba.int64),
     ('hit_light', numba.boolean),
 ])
@@ -66,19 +66,19 @@ class Ray:
 
 
 @numba.experimental.jitclass([
-    ('v0', numba.float64[3::1]),
-    ('v1', numba.float64[3::1]),
-    ('v2', numba.float64[3::1]),
-    ('e1', numba.float64[3::1]),
-    ('e2', numba.float64[3::1]),
-    ('normal', numba.float64[3::1]),
-    ('mins', numba.float64[3::1]),
-    ('maxes', numba.float64[3::1]),
-    ('center', numba.float64[3::1]),
-    ('color', numba.float64[3::1]),
-    ('emitter', numba.boolean),
-    ('material', numba.int64),
-    ('surface_area', numba.float64)
+    ('v0', numba.types.Array(numba.float64, 1, layout='C')),
+    ('v1', numba.types.Array(numba.float64, 1, layout='C')),
+    ('v2', numba.types.Array(numba.float64, 1, layout='C')),
+    ('e1', numba.types.Array(numba.float64, 1, layout='C')),
+    ('e2', numba.types.Array(numba.float64, 1, layout='C')),
+    ('normal', numba.types.Array(numba.float64, 1, layout='C')),
+    ('mins', numba.types.Array(numba.float64, 1, layout='C')),
+    ('maxes', numba.types.Array(numba.float64, 1, layout='C')),
+    ('center', numba.types.Array(numba.float64, 1, layout='C')),
+    ('color', numba.types.Array(numba.float64, 1, layout='C')),
+    ('emitter', numba.types.boolean),
+    ('material', numba.types.int64),
+    ('surface_area', numba.types.float64)
 ])
 class Triangle:
     def __init__(self, v0, v1, v2, color=WHITE, emitter=False, material=Material.DIFFUSE.value):
@@ -111,8 +111,8 @@ class Triangle:
 
 # todo this could be a struct at this point. so could most of the other jit classes.
 @numba.experimental.jitclass([
-    ('min', numba.float64[3::1]),
-    ('max', numba.float64[3::1]),
+    ('min', numba.types.Array(numba.float64, 1, layout='C')),
+    ('max', numba.types.Array(numba.float64, 1, layout='C')),
     ('left', numba.int64),
     ('right', numba.int64),
 ])
@@ -125,8 +125,8 @@ class FastBox:
 
 
 @numba.experimental.jitclass([
-    ('min', numba.float64[3::1]),
-    ('max', numba.float64[3::1]),
+    ('min', numba.types.Array(numba.float64, 1, layout='C')),
+    ('max', numba.types.Array(numba.float64, 1, layout='C')),
     ('parent', numba.optional(tree_box_type)),
     ('left', numba.optional(tree_box_type)),
     ('right', numba.optional(tree_box_type)),
@@ -141,7 +141,7 @@ class TreeBox:
         self.right = None
         self.triangles = None
 
-    def contains_point(self, point: numba.float64[3]):
+    def contains_point(self, point: numba.types.Array(numba.float64, 1, layout='C')):
         return (point >= self.min).all() and (point <= self.max).all()
 
     def contains_triangle(self, triangle: Triangle):

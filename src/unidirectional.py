@@ -1,5 +1,5 @@
 from camera import Camera
-from primitives import FastBox, Path
+from primitives import Path
 from routines import generate_path
 from constants import *
 import numba
