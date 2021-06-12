@@ -4,10 +4,12 @@ import numpy as np
 from primitives import point, Triangle
 from utils import timed
 from constants import Material
+import numba
 
 logger = logging.getLogger('rtv3-loader')
 logger.addHandler(logging.StreamHandler())
 logger.setLevel(logging.INFO)
+
 
 @timed
 def load_obj(path, material=Material.DIFFUSE.value):
@@ -18,9 +20,12 @@ def load_obj(path, material=Material.DIFFUSE.value):
     if obj.text:
         logger.info('model %s is texture-mapped', path)
     # build the vertices and triangles
-    verts = [point(*vert) for vert in obj.vert]
-    triangles = [Triangle(verts[v0 - 1], verts[v1 - 1], verts[v2 - 1], material=material)
-                 for (v0, _, _), (v1, _, _), (v2, _, _) in zip(*[iter(obj.face)]*3)]
+    vertices = numba.typed.List()
+    for vertex in obj.vert:
+        vertices.append(point(*vertex))
+    triangles = numba.typed.List()
+    for (v0, _, _), (v1, _, _), (v2, _, _) in zip(*[iter(obj.face)]*3):
+        triangles.append(Triangle(vertices[v0 - 1], vertices[v1 - 1], vertices[v2 - 1], material=material))
     return triangles
 
 

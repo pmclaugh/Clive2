@@ -6,19 +6,19 @@ import cv2
 
 
 @numba.experimental.jitclass([
-    ('center', numba.float64[3]),
-    ('direction', numba.float64[3]),
+    ('center', numba.float64[:]),
+    ('direction', numba.float64[:]),
     ('phys_width', numba.float64),
     ('phys_height', numba.float64),
     ('focal_dist', numba.float64),
-    ('focal_point', numba.float64[3]),
+    ('focal_point', numba.float64[:]),
     ('pixel_width', numba.int32),
     ('pixel_height', numba.int32),
-    ('dx', numba.float64[3]),
-    ('dy', numba.float64[3]),
-    ('dx_dp', numba.float64[3]),
-    ('dy_dp', numba.float64[3]),
-    ('origin', numba.float64[3]),
+    ('dx', numba.float64[:]),
+    ('dy', numba.float64[:]),
+    ('dx_dp', numba.float64[:]),
+    ('dy_dp', numba.float64[:]),
+    ('origin', numba.float64[:]),
     ('image', numba.float64[:, :, :]),
     ('samples', numba.int64),
     ('sample_counts', numba.int64[:, :]),
@@ -72,9 +72,11 @@ def composite_image(camera):
     total_image = camera.image * 0
     for s, row in enumerate(camera.images):
         for t, sub_image in enumerate(row):
-            weighted_sub_image = np.nan_to_num(sub_image) * camera.sample_counts[s][t] / np.sum(camera.sample_counts)
-            total_image += weighted_sub_image
-            cv2.imwrite('../renders/components/%ds_%dt.jpg' % (s, t), tone_map(weighted_sub_image))
+            sample_counts = np.sum(camera.sample_counts)
+            if sample_counts > 0:
+                weighted_sub_image = np.nan_to_num(sub_image) * camera.sample_counts[s][t] / sample_counts
+                total_image += weighted_sub_image
+                cv2.imwrite('../renders/components/%ds_%dt.jpg' % (s, t), tone_map(weighted_sub_image))
     return tone_map(total_image)
 
 

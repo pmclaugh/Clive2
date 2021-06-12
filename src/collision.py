@@ -1,4 +1,4 @@
-from primitives import Ray, Triangle, Box, BoxStack
+from primitives import Ray, Triangle, FastBox
 import numpy as np
 import numba
 from constants import COLLISION_SHIFT
@@ -35,43 +35,43 @@ def ray_triangle_intersect(ray: Ray, triangle: Triangle):
 
 
 @numba.jit(nogil=True, fastmath=True)
-def ray_box_intersect(ray: Ray, box: Box):
-    txmin = (box.bounds[ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
-    txmax = (box.bounds[1 - ray.sign[0]][0] - ray.origin[0]) * ray.inv_direction[0]
-    tymin = (box.bounds[ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
-    tymax = (box.bounds[1 - ray.sign[1]][1] - ray.origin[1]) * ray.inv_direction[1]
+def ray_box_intersect(ray: Ray, box: FastBox):
+    min_minus = (box.min - ray.origin) * ray.inv_direction
+    max_minus = (box.max - ray.origin) * ray.inv_direction
+    mins = np.minimum(min_minus, max_minus)
+    maxes = np.maximum(min_minus, max_minus)
 
-    if txmin > tymax or tymin > txmax:
+    if mins[0] > maxes[1] or mins[1] > maxes[0]:
         return False, 0., 0.
-    tmin = max(txmin, tymin)
-    tmax = min(txmax, tymax)
 
-    tzmin = (box.bounds[ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
-    tzmax = (box.bounds[1 - ray.sign[2]][2] - ray.origin[2]) * ray.inv_direction[2]
+    tmin = max(mins[0], mins[1])
+    tmax = min(maxes[0], maxes[1])
 
-    if tmin > tzmax or tzmin > tmax:
+    if tmin > maxes[2] or mins[2] > tmax:
         return False, 0., 0.
-    tmin = max(tmin, tzmin)
-    tmax = min(tmax, tzmax)
-    if tmax > COLLISION_SHIFT:
+
+    tmin = max(tmin, mins[2])
+    tmax = min(tmax, maxes[2])
+
+    if tmax > 0:
         return True, tmin, tmax
     else:
         return False, 0., 0.
 
 
 @numba.jit(nogil=True, fastmath=True)
-def bvh_hit_inner(ray: Ray, box: Box, least_t: float):
+def bvh_hit_inner(ray: Ray, box: FastBox, least_t: float):
     hit, t_low, t_high = ray_box_intersect(ray, box)
-    return hit and t_low <= least_t
+    return hit and t_low <= least_t and t_high > 0
 
 
 @numba.jit(nogil=True, fastmath=True)
-def bvh_hit_leaf(ray: Ray, box: Box, least_t):
+def bvh_hit_leaf(ray: Ray, box: FastBox, triangles, least_t):
     hit, t_low, t_high = ray_box_intersect(ray, box)
     if not hit:
         return None, least_t
     least_hit = None
-    for triangle in box.triangles:
+    for triangle in triangles:
         t = ray_triangle_intersect(ray, triangle)
         if t is not None and 0 < t < least_t:
             least_t = t
@@ -79,45 +79,65 @@ def bvh_hit_leaf(ray: Ray, box: Box, least_t):
     return least_hit, least_t
 
 
+@numba.jit(nogil=True, fastmath=True)
+def visibility_hit_leaf(ray: Ray, box: FastBox, triangles, least_t):
+    hit, t_low, t_high = ray_box_intersect(ray, box)
+    if not hit:
+        return False
+    for triangle in triangles:
+        t = ray_triangle_intersect(ray, triangle)
+        if t is not None and 0 < t < least_t:
+            return True
+    return False
+
+
 @numba.njit
-def visibility_test(root: Box, ray_a: Ray, ray_b: Ray):
+def visibility_test(boxes, triangles, ray_a: Ray, ray_b: Ray):
     delta = ray_b.origin - ray_a.origin
     least_t = np.linalg.norm(delta)
     direction = delta / least_t
     if np.dot(ray_a.normal, direction) <= 0 or np.dot(ray_b.normal, -1 * direction) <= 0:
         return False
     test_ray = Ray(ray_a.origin, direction)
-    stack = BoxStack()
-    stack.push(root)
-    while stack.size:
+    stack = [boxes[0]]
+    while stack:
         box = stack.pop()
-        if box.left is not None and box.right is not None:
+        if box.right == 0:
             if bvh_hit_inner(test_ray, box, least_t):
-                stack.push(box.left)
-                stack.push(box.right)
+                stack.append(boxes[box.left])
+                stack.append(boxes[box.left + 1])
         else:
-            hit, t = bvh_hit_leaf(test_ray, box, least_t)
-            if hit is not None and t < least_t:
+            if visibility_hit_leaf(test_ray, box, triangles[box.left:box.right], least_t):
                 return False
     return True
 
 
 @numba.njit
-def traverse_bvh(root: Box, ray: Ray):
+def traverse_bvh(boxes, triangles, ray: Ray):
     least_t = np.inf
     least_hit = None
-    stack = BoxStack()
-    stack.push(root)
-    while stack.size:
+    stack = [boxes[0]]
+    while stack:
         box = stack.pop()
-        if box.left is not None and box.right is not None:
+        if box.right == 0:
             if bvh_hit_inner(ray, box, least_t):
-                stack.push(box.left)
-                stack.push(box.right)
+                stack.append(boxes[box.left])
+                stack.append(boxes[box.left + 1])
         else:
-            hit, t = bvh_hit_leaf(ray, box, least_t)
-            if hit is not None and t < least_t:
+            hit, t = bvh_hit_leaf(ray, box, triangles[box.left:box.right], least_t)
+            if hit is not None:
                 least_hit = hit
                 least_t = t
 
     return least_hit, least_t
+
+
+def simple_collision_screen_sample(camera, boxes, triangles):
+    for i in range(camera.pixel_height):
+        for j in range(camera.pixel_width):
+            camera_ray = camera.make_ray(i, j)
+            triangle, t = traverse_bvh(boxes, triangles, camera_ray)
+            if triangle is not None:
+                camera.image[i][j] += triangle.color
+    camera.sample_counts += 1
+    camera.samples += 1

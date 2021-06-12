@@ -5,7 +5,7 @@ from primitives import *
 
 
 @numba.experimental.jitclass([
-    ('boxes', numba.types.ListType(Box.class_type.instance_type))
+    ('boxes', numba.types.ListType(FastBox.class_type.instance_type))
 ])
 class SimpleScene:
     def __init__(self, boxes):
@@ -24,8 +24,8 @@ class SimpleScene:
 
 def dummy_scene():
     l = numba.typed.List()
-    l.append(Box(point(0, 0, 4), point(1, 1, 5), color=RED))
-    l.append(Box(point(-1, 0, 4), point(0, 1, 5), color=GREEN))
-    l.append(Box(point(-1, -1, 4), point(0, 0, 5), color=BLUE))
-    l.append(Box(point(0, -1, 4), point(1, 0, 5), color=WHITE))
+    l.append(FastBox(point(0, 0, 4), point(1, 1, 5), color=RED))
+    l.append(FastBox(point(-1, 0, 4), point(0, 1, 5), color=GREEN))
+    l.append(FastBox(point(-1, -1, 4), point(0, 0, 5), color=BLUE))
+    l.append(FastBox(point(0, -1, 4), point(1, 0, 5), color=WHITE))
     return SimpleScene(l)
