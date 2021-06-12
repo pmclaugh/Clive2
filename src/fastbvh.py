@@ -46,23 +46,32 @@ def flatten_fastBVH(root: TreeBox):
     emitters = numba.typed.List()
     box_queue = [root]
     while box_queue:
+        # pop
         box = box_queue[0]
+        # transform TreeBox to FastBox
         fast_box = FastBox(box.min, box.max)
         if box.right is not None and box.left is not None:
+            # if inner node (non-leaf), left is an index in flat_boxes
             fast_box.left = len(flat_boxes) + len(box_queue)
+            # right will always be at left + 1, so use right as inner-vs-leaf flag
+            fast_box.right = 0
+            # push children to queue
             box_queue.append(box.left)
             box_queue.append(box.right)
-            # right will always be left + 1, this is how we signal inner node in fast traverse
-            fast_box.right = 0
         else:
+            # if leaf, left is index into flat_triangles
             fast_box.left = len(flat_triangles)
+
             for triangle in box.triangles:
                 if triangle.emitter:
                     emitters.append(triangle)
                 flat_triangles.append(triangle)
+
+            # so now flat_triangles[left:right] is the triangles in this box. nonzero right signals leaf in traverse.
             fast_box.right = len(flat_triangles)
-            # so now triangles[left:right] is the triangles in this box
+
         flat_boxes.append(fast_box)
+        # todo: is this queue efficient? the pointer moves arbitrarily forward in memory...
         box_queue = box_queue[1:]
     return flat_boxes, flat_triangles, emitters
 
