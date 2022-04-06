@@ -1,18 +1,9 @@
-import cv2
-from datetime import datetime
-from collections import ChainMap
-from primitives import FastBox, Triangle
-from camera import Camera
-from config import default_config, bidirectional_config, teapot_config, deluxe_config
+import numpy as np
+from struct_primitives import load_obj
 
-WINDOW_WIDTH = 160
-WINDOW_HEIGHT = 90
-SAMPLE_COUNT = 40
 
 if __name__ == '__main__':
-    cfg = ChainMap(bidirectional_config, teapot_config, default_config)
-    camera = Camera(cfg['cam_center'], cfg['cam_direction'], pixel_height=cfg['window_height'],
-                    pixel_width=cfg['window_width'], phys_width=cfg['window_width'] / cfg['window_height'], phys_height=1.)
+    camera = np.zeros
     boxes = cfg['bvh_constructor'](cfg['primitives'])
     print("OK")
     # try:

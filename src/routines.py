@@ -1,10 +1,46 @@
 import numba
 import numpy as np
 from constants import *
-from primitives import Ray, Path, Triangle, FastBox, unit
+from primitives import Ray, Path, Triangle, FastBox
 from utils import timed
 from collision import traverse_bvh
 
+
+@numba.njit
+def point(x, y, z):
+    return np.array([x, y, z], dtype=np.float64)
+
+
+@numba.njit
+def vec(x, y, z):
+    return np.array([x, y, z], dtype=np.float64)
+
+
+@numba.njit
+def unit(v):
+    return v / np.linalg.norm(v)
+
+def composite_image(camera):
+    total_image = camera.image * 0
+    for s, row in enumerate(camera.images):
+        for t, sub_image in enumerate(row):
+            sample_counts = np.sum(camera.sample_counts)
+            if sample_counts > 0:
+                weighted_sub_image = np.nan_to_num(sub_image) * camera.sample_counts[s][t] / sample_counts
+                total_image += weighted_sub_image
+                cv2.imwrite('../renders/components/%ds_%dt.jpg' % (s, t), tone_map(weighted_sub_image))
+    return tone_map(total_image)
+
+
+def tone_map(image):
+    # tone_vector = point(0.0722, 0.7152, 0.2126)
+    tone_vector = ONES
+    tone_sums = np.sum(image * tone_vector, axis=2)
+    log_tone_sums = np.log(0.1 + tone_sums)
+    per_pixel_lts = np.sum(log_tone_sums) / np.product(image.shape[:2])
+    Lw = np.exp(per_pixel_lts)
+    result = image * 2. / Lw
+    return (255 * result / (result + 1)).astype(np.uint8)
 
 # todo these 3 don't need to be split up, and need to be homogenized (ie used the same in bd and ud)
 @numba.njit

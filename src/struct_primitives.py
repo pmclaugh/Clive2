@@ -1,11 +1,14 @@
 import numpy as np
 import objloader
 from constants import INVALID
+from routines import unit
 
 # todo: the goal here is to make much, much more compact data types that use numpy structured arrays.
 #  jitclass is really cool but it creates a lot of overhead and headaches. Most of the code is just loops and static math,
 #  turns out there isn't actually a huge need/motive for OO like I thought there would be.
 #  instead of keeping material, color, etc in Triangle or Ray, there should just be other arrays for those, with matching indexes.
+
+# todo: same deal with Camera. camera should not manage image, it should just be a set of values for make_ray.
 
 Triangle = np.dtype([
     ('v0', (float, 3)),
@@ -28,6 +31,12 @@ Box = np.dtype([
     ('left', int),
     ('right', int)])
 
+Camera = np.dtype([
+    ('origin', (float, 3)),
+    ('dx_dp', (float, 3)),
+    ('dy_dp', (float, 3)),
+    ('focal_point', (float, 3)),
+])
 
 def load_obj(obj_path):
     obj = objloader.Obj.open(obj_path)
@@ -52,4 +61,4 @@ def load_obj(obj_path):
 
 
 if __name__ == '__main__':
-    load_obj('resources/teapot.obj')
+    load_obj('resources/capsule/capsule.obj')
