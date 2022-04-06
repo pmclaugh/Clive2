@@ -1,6 +1,5 @@
 import numpy as np
 from constants import FLOAT_TOLERANCE, UNIT_Y, UNIT_Z, UNIT_X, H_FOV
-from routines import unit
 
 WINDOW_WIDTH = 160
 WINDOW_HEIGHT = 90
@@ -19,6 +18,9 @@ Camera = np.dtype([
     ('focal_point', (float, 3)),
 ])
 
+def unit(v):
+    return v / np.linalg.norm(v)
+
 def setup_camera():
     if abs(CAM_DIRECTION[0]) < FLOAT_TOLERANCE:
         dx = UNIT_X if CAM_DIRECTION[2] > 0 else UNIT_X * -1
@@ -30,7 +32,7 @@ def setup_camera():
     else:
         dy = unit(np.cross(CAM_DIRECTION, dx))
 
-    camera = np.zeros(1, dtype=Camera)
+    camera = np.zeros(1, dtype=Camera)[0]
     focal_dist = (CAM_PHYS_WIDTH / 2.) / np.tan(H_FOV / 2.0)
     camera['focal_point']  = CAM_CENTER + focal_dist * CAM_DIRECTION
     camera['dx_dp'] = dx * CAM_PHYS_WIDTH / CAM_PIX_WIDTH

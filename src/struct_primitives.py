@@ -1,7 +1,6 @@
 import numpy as np
 import objloader
 from constants import INVALID
-from routines import unit
 
 # todo: the goal here is to make much, much more compact data types that use numpy structured arrays.
 #  jitclass is really cool but it creates a lot of overhead and headaches. Most of the code is just loops and static math,

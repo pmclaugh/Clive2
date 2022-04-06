@@ -1,7 +1,6 @@
 import numba
 import numpy as np
 from constants import *
-from primitives import Ray, Path, Triangle, FastBox
 from utils import timed
 from collision import traverse_bvh
 
