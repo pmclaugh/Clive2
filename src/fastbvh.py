@@ -1,7 +1,8 @@
 import numba
 from utils import timed
 from constants import *
-from primitives import TreeBox, FastBox, unit, point
+from primitives import TreeBox, FastBox, unit, point, Triangle
+from typing import List
 
 
 @numba.njit
@@ -36,14 +37,15 @@ def volume(b: TreeBox):
 # @numba.njit
 def fastBVH(triangles):
     root = construct_fastBVH(triangles)
-    return flatten_fastBVH(root)
+    boxes = flatten_fastBVH(root)
+    return boxes
 
-
+@timed
 @numba.njit
 def flatten_fastBVH(root: TreeBox):
-    flat_boxes = numba.typed.List()
-    flat_triangles = numba.typed.List()
-    emitters = numba.typed.List()
+    flat_boxes = [FastBox(ZEROS, ZEROS) for _ in range(0)]
+    flat_triangles = [Triangle(ZEROS, ZEROS, ZEROS, WHITE, False, Material.DIFFUSE.value) for _ in range(0)]
+    emitters = [Triangle(ZEROS, ZEROS, ZEROS, WHITE, False, Material.DIFFUSE.value) for _ in range(0)]
     box_queue = [root]
     while box_queue:
         # pop
@@ -73,7 +75,8 @@ def flatten_fastBVH(root: TreeBox):
         flat_boxes.append(fast_box)
         # todo: is this queue efficient? the pointer moves arbitrarily forward in memory...
         box_queue = box_queue[1:]
-    return flat_boxes, flat_triangles, emitters
+    return flat_boxes
+        #, flat_triangles, emitters
 
 
 # @numba.njit

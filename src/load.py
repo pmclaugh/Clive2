@@ -19,6 +19,8 @@ def load_obj(path, material=Material.DIFFUSE.value):
         logger.info('model %s specifies normal vectors', path)
     if obj.text:
         logger.info('model %s is texture-mapped', path)
+
+    packed_model = obj.pack()
     # build the vertices and triangles
     vertices = numba.typed.List()
     for vertex in obj.vert:
