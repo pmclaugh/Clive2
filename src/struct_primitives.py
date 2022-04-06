@@ -16,8 +16,7 @@ Triangle = np.dtype([
     ('n2', (float, 3)),
     ('t0', (float, 3)),
     ('t1', (float, 3)),
-    ('t2', (float, 3)),
-])
+    ('t2', (float, 3))])
 
 Ray = np.dtype([
     ('origin', (float, 3)),

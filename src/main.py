@@ -27,17 +27,9 @@ if __name__ == '__main__':
     #     print('done')
     # cv2.imwrite('../renders/%s.jpg' % datetime.now(), cfg['postprocess_function'](camera))
 
-# todo cleanup:
-#  review code and identify cleanup areas
-#  reassess performance and multithreading in light of newer numba version
-#  fix sample 0 problem
-#  bvh tests (performance and unit)
-
-# todo features:
-#  bvh caching
-#  bvh details: reference unsplitting, alpha test in spatial
-#  normal smoothing
-#  simple textures
-#  GGX BRDF
-#  s == 0, 1
-#  t == 0, 1
+# todo, returning to this after a year:
+#  eliminate jitclass entirely, use numpy structured arrays
+#  revisit multithreading
+#  I hate this chainmap-config pattern, main should be clearer, maybe bring it back much later on
+#  finish bvh implementation
+#  integration tests
