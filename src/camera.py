@@ -37,12 +37,21 @@ class Camera:
         self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float64)
         self.images = np.zeros((MAX_BOUNCES + 2, MAX_BOUNCES + 2, pixel_height, pixel_width, 3), dtype=np.float64)
 
+
+    def make_ray(self, i, j):
+        n1 = np.random.random()
+        n2 = np.random.random()
+        origin = self.origin + self.dx_dp * (j + n1) + self.dy_dp * (i + n2)
+        ray = Ray(origin, unit(self.focal_point - origin))
+        ray.i = i
+        ray.j = j
+        return ray
+
     def ray_batch(self):
         print(f"making a {self.pixel_width}x{self.pixel_height} batch of rays")
-        directions = np.zeros((self.pixel_height, self.pixel_width, 3), dtype=np.float64)
         pixels = np.meshgrid(np.arange(self.pixel_height), np.arange(self.pixel_width))
-        x_vectors = np.expand_dims(pixels[1] + np.random.random(pixels[1].shape), axis=2) * self.dx_dp
-        y_vectors = np.expand_dims(pixels[0] + np.random.random(pixels[0].shape), axis=2) * self.dy_dp
+        x_vectors = np.expand_dims(pixels[1], axis=2) * self.dx_dp
+        y_vectors = np.expand_dims(pixels[0], axis=2) * self.dy_dp
         origins = self.origin + x_vectors + y_vectors
         directions = self.focal_point - origins
         directions = directions / np.linalg.norm(directions, axis=2)[:, :, np.newaxis]

@@ -28,36 +28,6 @@ class RayGroup:
         return cls(raygroup.origin, raygroup.direction)
 
 
-def flatten_triangles(triangles):
-    v0 = np.zeros((len(triangles), 3), dtype=np.float64)
-    v1 = np.zeros_like(v0)
-    v2 = np.zeros_like(v0)
-    n0 = np.zeros_like(v0)
-    n1 = np.zeros_like(v0)
-    n2 = np.zeros_like(v0)
-    t0 = np.zeros_like(v0)
-    t1 = np.zeros_like(v0)
-    t2 = np.zeros_like(v0)
-
-    for i, triangle in enumerate(triangles):
-        # vertices
-        v0[i] = triangle.v0
-        v1[i] = triangle.v1
-        v2[i] = triangle.v2
-
-        # normals
-        n0[i] = triangle.n0
-        n1[i] = triangle.n1
-        n2[i] = triangle.n2
-
-        # texture UVs
-        t0[i] = triangle.t0
-        t1[i] = triangle.t1
-        t2[i] = triangle.t2
-
-    return TriangleGroup(v0, v1, v2, n0, n1, n2, t0, t1, t2)
-
-
 class Triangle:
     v0 = np.zeros(3, dtype=np.float64)
     v1 = np.zeros(3, dtype=np.float64)
@@ -76,6 +46,10 @@ class Triangle:
     @property
     def max(self):
         return np.maximum(self.v0, np.maximum(self.v1, self.v2))
+
+    @property
+    def n(self):
+        return cross(self.v1 - self.v0, self.v2 - self.v0)
 
 
 def load_obj(obj_path):
@@ -166,7 +140,7 @@ def ray_triangle_intersect(ray_origin, ray_direction, triangle_v0, triangle_e1, 
 
 
 @numba.njit(nogil=True, fastmath=True)
-def hit_bvh(origin, direction, box_mins, box_maxes, box_lefts, box_rights, v0, v1, v2, n0, n1, n2, t0, t1, t2):
+def hit_bvh(origin, direction, box_mins, box_maxes, box_lefts, box_rights, v0, v1, v2):
     best_t = np.inf
     best_i = -1
     stack = [0]
@@ -188,12 +162,24 @@ def hit_bvh(origin, direction, box_mins, box_maxes, box_lefts, box_rights, v0, v
     return best_t, best_i
 
 
+@numba.njit(nogil=True, fastmath=True)
+def hit_basic(origin, direction, v0, v1, v2):
+    best_t = np.inf
+    best_i = -1
+    for i in range(v0.shape[0]):
+        t = ray_triangle_intersect(origin, direction, v0[i], v1[i] - v0[i], v2[i] - v0[i])
+        if 0 < t < best_t:
+            best_t = t
+            best_i = i
+    return best_t, best_i
+
+
 @numba.njit(parallel=True, nogil=True, fastmath=True)
 def _bounce(ray_origins, ray_directions, box_mins, box_maxes, box_lefts, box_rights, v0, v1, v2, n0, n1, n2, t0, t1, t2):
     output_color = np.zeros_like(ray_origins)
     for i in numba.prange(ray_origins.shape[0]):
-        for j in numba.prange(ray_origins.shape[1]):
-            best_t, best_i = hit_bvh(ray_origins[i][j], ray_directions[i][j], box_mins, box_maxes, box_lefts, box_rights, v0, v1, v2, n0, n1, n2, t0, t1, t2)
+        for j in range(ray_origins.shape[1]):
+            best_t, best_i = hit_bvh(ray_origins[i][j], ray_directions[i][j], box_mins, box_maxes, box_lefts, box_rights, v0, v1, v2)
             if best_i != -1:
                 output_color[i][j] = np.array([1., 1., 1.])
 
@@ -209,7 +195,10 @@ def bounce(raygroup: RayGroup, bvh: BoxGroup, triangles: TriangleGroup):
 if __name__ == '__main__':
     tris = load_obj('../resources/teapot.obj')
     bvh = construct_BVH(tris)
-    c = Camera()
+    c = Camera(
+        center=np.array([0, 0, 0]),
+        direction=np.array([1, 0, 0]),
+    )
     rg = RayGroup.from_camera(c)
     bvh, triangles = flatten_BVH(bvh)
     image = bounce(rg, bvh, triangles)
