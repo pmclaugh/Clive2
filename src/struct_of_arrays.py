@@ -3,9 +3,11 @@ from camera import Camera
 import numba
 import objloader
 from constants import *
-from bvh import construct_BVH, flatten_BVH, BoxGroup, TriangleGroup
+from bvh import construct_BVH, np_flatten_bvh, BoxGroup, TriangleGroup
 import cv2
 from utils import timed, dir_to_color
+import metalcompute as mc
+from struct_types import Ray
 
 
 class RayGroup:
@@ -197,14 +199,30 @@ if __name__ == '__main__':
     tris = load_obj('../resources/teapot.obj')
     bvh = construct_BVH(tris)
     c = Camera(
-        center=np.array([10, 0, 0]),
-        direction=np.array([-1, 0, 0]),
+        center=np.array([0, 0, -5]),
+        direction=np.array([0, 0, 1]),
     )
-    rg = RayGroup.from_camera(c)
-    bvh, triangles = flatten_BVH(bvh)
-    image = bounce(rg, bvh, triangles)
+    rays = c.ray_batch_numpy()
+
+    boxes, triangles = np_flatten_bvh(bvh)
+
+    dev = mc.Device()
+    with open("trace.metal", "r") as f:
+        kernel = f.read()
+
+    kernel_fn = dev.kernel(kernel).function("bounce")
+    buf_0 = rays.flatten()
+    buf_1 = boxes.flatten()
+    buf_2 = triangles.flatten()
+    buf_3 = dev.buffer(np.size(rays) * 16)
+
+    kernel_fn(rays.size, buf_0, buf_1, buf_2, buf_3)
+
+    retrieved_image = np.frombuffer(buf_3, dtype=np.float32).reshape(rays.shape[0], rays.shape[1], 4)
+
     print("ok")
+    print(retrieved_image.shape)
 
     # open a window to display the image
-    cv2.imshow('image', image)
+    cv2.imshow('image', retrieved_image[:, :, :3])
     cv2.waitKey(0)

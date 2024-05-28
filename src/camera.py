@@ -1,8 +1,11 @@
 import numpy as np
 import numba
 from constants import *
-from primitives import unit, point, vec, Ray
+from primitives import unit, point, vec
 import cv2
+from struct_types import Ray
+
+
 
 
 class Camera:
@@ -49,14 +52,21 @@ class Camera:
 
     def ray_batch(self):
         print(f"making a {self.pixel_width}x{self.pixel_height} batch of rays")
-        pixels = np.meshgrid(np.arange(self.pixel_height), np.arange(self.pixel_width))
-        x_vectors = np.expand_dims(pixels[1], axis=2) * self.dx_dp
-        y_vectors = np.expand_dims(pixels[0], axis=2) * self.dy_dp
+        pixels = np.meshgrid(np.arange(self.pixel_width), np.arange(self.pixel_height))
+        x_vectors = np.expand_dims(pixels[0], axis=2) * self.dx_dp
+        y_vectors = np.expand_dims(pixels[1], axis=2) * self.dy_dp
         origins = self.origin + x_vectors + y_vectors
         directions = self.focal_point - origins
         directions = directions / np.linalg.norm(directions, axis=2)[:, :, np.newaxis]
         # directions = np.ones_like(origins) * UNIT_X
         return origins, directions
+
+    def ray_batch_numpy(self):
+        batch = np.zeros((self.pixel_height, self.pixel_width), dtype=Ray)
+        origins, directions = self.ray_batch()
+        batch['origin'][:, :, :3] = origins
+        batch['direction'][:, :, :3] = directions
+        return batch
 
 
 def composite_image(camera):
