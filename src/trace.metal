@@ -106,20 +106,6 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
 }
 
 
-void brute_force_triangles(const thread Ray &ray, const device Triangle *triangles, thread int &best_i, thread float &best_t) {
-    for (int i = 0; i < 6320; i++) {
-        Triangle triangle = triangles[i];
-        bool hit = false;
-        float t = INFINITY;
-        ray_triangle_intersect(ray, triangle, hit, t);
-        if (hit && t < best_t) {
-            best_i = i;
-            best_t = t;
-        }
-    }
-}
-
-
 kernel void bounce(const device Ray *rays [[ buffer(0) ]],
                    const device Box *boxes [[ buffer(1) ]],
                    const device Triangle *triangles [[ buffer(2) ]],
