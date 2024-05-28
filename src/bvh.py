@@ -245,6 +245,8 @@ def np_flatten_bvh(root: TreeBox):
                 triangle_arr[triangle_index]['v1'][:3] = triangle.v1
                 triangle_arr[triangle_index]['v2'][:3] = triangle.v2
                 triangle_arr[triangle_index]['normal'][:3] = triangle.n
+                triangle_arr[triangle_index]['material'] = triangle.material
+                triangle_arr[triangle_index]['is_light'] = triangle.emitter
                 triangle_index += 1
 
             # so now flat_triangles[left:right] is the triangles in this box. nonzero right signals leaf in traverse.

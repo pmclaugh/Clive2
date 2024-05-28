@@ -51,7 +51,6 @@ class Camera:
         return ray
 
     def ray_batch(self):
-        print(f"making a {self.pixel_width}x{self.pixel_height} batch of rays")
         pixels = np.meshgrid(np.arange(self.pixel_width), np.arange(self.pixel_height))
         x_vectors = np.expand_dims(pixels[0], axis=2) * self.dx_dp
         y_vectors = np.expand_dims(pixels[1], axis=2) * self.dy_dp
@@ -66,6 +65,10 @@ class Camera:
         origins, directions = self.ray_batch()
         batch['origin'][:, :, :3] = origins
         batch['direction'][:, :, :3] = directions
+        batch['i'] = np.arange(self.pixel_height)[..., np.newaxis]
+        batch['j'] = np.arange(self.pixel_width)
+        batch['color'] = np.ones((self.pixel_height, self.pixel_width, 4), dtype=np.float32)
+        batch['importance'] = 1
         return batch
 
 

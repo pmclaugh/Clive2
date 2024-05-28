@@ -1,9 +1,24 @@
 #include <metal_stdlib>
 using namespace metal;
 
+#define PI 3.14159265359
+
+
 struct Ray {
     float3 origin;
     float3 direction;
+    float3 inv_direction;
+    float3 color;
+    float importance;
+    int hit_light;
+    int i;
+    int j;
+};
+
+struct Path {
+    Ray rays[16];
+    int32_t length;
+    int32_t pad[3];
 };
 
 struct Box {
@@ -20,6 +35,17 @@ struct Triangle {
     float3 v1;
     float3 v2;
     float3 normal;
+    int32_t material;
+    int32_t is_light;
+    int32_t pad[2];
+};
+
+
+struct Material {
+    float3 color;
+    float3 emission;
+    int32_t type;
+    int32_t pad[3];
 };
 
 
@@ -106,27 +132,82 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
 }
 
 
-kernel void bounce(const device Ray *rays [[ buffer(0) ]],
+void local_orthonormal_basis(const thread float3 &n, thread float3 &x, thread float3 &y) {
+    if (abs(n.x) > abs(n.y)) {
+        x = float3(-n.z, 0, n.x) / sqrt(n.x * n.x + n.z * n.z);
+    } else {
+        x = float3(0, n.z, -n.y) / sqrt(n.y * n.y + n.z * n.z);
+    }
+    y = cross(n, x);
+}
+
+
+float3 random_hemisphere_cosine_weighted(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
+    float r = sqrt(rand.x);
+    float theta = 2 * PI * rand.y;
+    float x = r * cos(theta);
+    float y = r * sin(theta);
+    float z = sqrt(1 - rand.x);
+    return x * x_axis + y * y_axis + z * z_axis;
+}
+
+
+kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    const device Box *boxes [[ buffer(1) ]],
                    const device Triangle *triangles [[ buffer(2) ]],
-                   device float4 *out [[ buffer(3) ]],
-                   device int *debug [[ buffer(4) ]],
+                   const device Material *materials [[ buffer(3) ]],
+                   const device float2 *random [[ buffer(4) ]],
+                   device float4 *out [[ buffer(5) ]],
+                   device Path *output_paths [[ buffer(6) ]],
+                   device int *debug [[ buffer(7) ]],
                    uint id [[ thread_position_in_grid ]]) {
-    Ray ray = rays[id];
+    Path path;
+    path.rays[0] = rays[id];
+    path.length = 1;
 
-    debug[0] = sizeof(Box);
-    debug[1] = boxes[0].pad[0];
-    debug[2] = boxes[0].pad[1];
+    for (int i = 0; i < 16; i++) {
+        int best_i = -1;
+        float best_t = INFINITY;
+        Ray ray = path.rays[i];
+        traverse_bvh(ray, boxes, triangles, best_i, best_t);
 
-    float best_t = INFINITY;
-    int best_i = -1;
+        if (best_i == -1) {
+            break;
+        }
 
-    traverse_bvh(ray, boxes, triangles, best_i, best_t);
+        Triangle triangle = triangles[best_i];
+        Material material = materials[triangle.material];
+        float2 rand = random[id];
 
-    if (best_i == -1) {
-        out[id] = float4(0, 0, 0, 1);
+        Ray new_ray;
+        new_ray.origin = ray.origin + ray.direction * best_t;
+        new_ray.i = ray.i;
+        new_ray.j = ray.j;
+
+        float3 x, y;
+        local_orthonormal_basis(triangle.normal, x, y);
+
+        new_ray.direction = random_hemisphere_cosine_weighted(x, y, triangle.normal, rand);
+        new_ray.color = material.color * ray.color;
+        if (triangle.is_light) {
+            new_ray.hit_light = best_i;
+            new_ray.color *= material.emission;
+        } else {
+            new_ray.hit_light = -1;
+        }
+
+        path.rays[i + 1] = new_ray;
+        path.length = i + 2;
+
+        if (new_ray.hit_light >= 0) {
+            break;
+        }
     }
-    else {
-        out[id] = float4(triangles[best_i].normal * 0.5f + 0.5f, 1);
+    output_paths[id] = path;
+    if (path.length > 1) {
+        Ray final_ray = path.rays[path.length - 1];
+        if (final_ray.hit_light) {
+            out[id] = float4(final_ray.color, 1);
+        }
     }
 }
