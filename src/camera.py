@@ -5,25 +5,6 @@ from primitives import unit, point, vec, Ray
 import cv2
 
 
-@numba.experimental.jitclass([
-    ('center', numba.float64[:]),
-    ('direction', numba.float64[:]),
-    ('phys_width', numba.float64),
-    ('phys_height', numba.float64),
-    ('focal_dist', numba.float64),
-    ('focal_point', numba.float64[:]),
-    ('pixel_width', numba.int32),
-    ('pixel_height', numba.int32),
-    ('dx', numba.float64[:]),
-    ('dy', numba.float64[:]),
-    ('dx_dp', numba.float64[:]),
-    ('dy_dp', numba.float64[:]),
-    ('origin', numba.float64[:]),
-    ('image', numba.float64[:, :, :]),
-    ('samples', numba.int64),
-    ('sample_counts', numba.int64[:, :]),
-    ('images', numba.float64[:, :, :, :, :]),
-])
 class Camera:
     def __init__(self, center=point(0, 0, 0), direction=vec(1, 0, 0), phys_width=1.0, phys_height=1.0,
                  pixel_width=1280, pixel_height=720):
@@ -56,16 +37,16 @@ class Camera:
         self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float64)
         self.images = np.zeros((MAX_BOUNCES + 2, MAX_BOUNCES + 2, pixel_height, pixel_width, 3), dtype=np.float64)
 
-    def make_ray(self, i, j):
-        # was having difficulty making a good mass-ray-generation routine, settled on on-demand
-        # speed is fine and it'll be good for future adaptive sampling stuff
-        n1 = np.random.random()
-        n2 = np.random.random()
-        origin = self.origin + self.dx_dp * (j + n1) + self.dy_dp * (i + n2)
-        ray = Ray(origin, unit(self.focal_point - origin))
-        ray.i = i
-        ray.j = j
-        return ray
+    def ray_batch(self):
+        print(f"making a {self.pixel_width}x{self.pixel_height} batch of rays")
+        directions = np.zeros((self.pixel_height, self.pixel_width, 3), dtype=np.float64)
+        pixels = np.meshgrid(np.arange(self.pixel_height), np.arange(self.pixel_width))
+        x_vectors = np.expand_dims(pixels[1] + np.random.random(pixels[1].shape), axis=2) * self.dx_dp
+        y_vectors = np.expand_dims(pixels[0] + np.random.random(pixels[0].shape), axis=2) * self.dy_dp
+        origins = self.origin + x_vectors + y_vectors
+        directions = self.focal_point - origins
+        directions = directions / np.linalg.norm(directions, axis=2)[:, :, np.newaxis]
+        return origins, directions
 
 
 def composite_image(camera):
@@ -81,8 +62,8 @@ def composite_image(camera):
 
 
 def tone_map(image):
-    # tone_vector = point(0.0722, 0.7152, 0.2126)
-    tone_vector = ONES
+    tone_vector = point(0.0722, 0.7152, 0.2126)
+    # tone_vector = ONES
     tone_sums = np.sum(image * tone_vector, axis=2)
     log_tone_sums = np.log(0.1 + tone_sums)
     per_pixel_lts = np.sum(log_tone_sums) / np.product(image.shape[:2])

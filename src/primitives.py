@@ -15,7 +15,6 @@ def vec(x, y, z):
     return np.array([x, y, z], dtype=np.float64)
 
 
-@numba.njit
 def unit(v):
     return v / np.linalg.norm(v)
 
