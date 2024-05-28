@@ -55,6 +55,7 @@ class Camera:
         origins = self.origin + x_vectors + y_vectors
         directions = self.focal_point - origins
         directions = directions / np.linalg.norm(directions, axis=2)[:, :, np.newaxis]
+        # directions = np.ones_like(origins) * UNIT_X
         return origins, directions
 
 

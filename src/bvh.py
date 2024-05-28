@@ -16,10 +16,11 @@ class Box:
 
 
 class TriangleGroup:
-    def __init__(self, v0, v1, v2, n0, n1, n2, t0, t1, t2):
+    def __init__(self, v0, v1, v2, n, n0, n1, n2, t0, t1, t2):
         self.v0 = v0
         self.v1 = v1
         self.v2 = v2
+        self.n = n
         self.n0 = n0
         self.n1 = n1
         self.n2 = n2
@@ -156,6 +157,7 @@ def flatten_BVH(root: Box):
     v0 = np.zeros((len(root.triangles), 3), dtype=np.float64)
     v1 = np.zeros_like(v0)
     v2 = np.zeros_like(v0)
+    n = np.zeros_like(v0)
     n0 = np.zeros_like(v0)
     n1 = np.zeros_like(v0)
     n2 = np.zeros_like(v0)
@@ -188,6 +190,7 @@ def flatten_BVH(root: Box):
                 v0[triangle_index] = triangle.v0
                 v1[triangle_index] = triangle.v1
                 v2[triangle_index] = triangle.v2
+                n[triangle_index] = triangle.n
                 n0[triangle_index] = triangle.n0
                 n1[triangle_index] = triangle.n1
                 n2[triangle_index] = triangle.n2
@@ -203,6 +206,6 @@ def flatten_BVH(root: Box):
         box_queue = box_queue[1:]
 
     boxes = BoxGroup(mins, maxes, lefts, rights)
-    triangles = TriangleGroup(v0, v1, v2, n0, n1, n2, t0, t1, t2)
+    triangles = TriangleGroup(v0, v1, v2, n, n0, n1, n2, t0, t1, t2)
 
     return boxes, triangles

@@ -5,7 +5,7 @@ import objloader
 from constants import *
 from bvh import construct_BVH, flatten_BVH, BoxGroup, TriangleGroup
 import cv2
-from utils import timed
+from utils import timed, dir_to_color
 
 
 class RayGroup:
@@ -14,7 +14,7 @@ class RayGroup:
                  ray_directions):
         self.origin = ray_origins
         self.direction = ray_directions
-        self.inv_direction = np.nan_to_num(1 / self.direction)
+        self.inv_direction = 1 / self.direction
         self.sign = (self.inv_direction < 0).astype(np.uint8)
         self.color = np.ones_like(ray_origins)
         self.importance = np.ones(ray_origins.shape[0])
@@ -49,7 +49,8 @@ class Triangle:
 
     @property
     def n(self):
-        return cross(self.v1 - self.v0, self.v2 - self.v0)
+        a = cross(self.v1 - self.v0, self.v2 - self.v0)
+        return a / np.linalg.norm(a)
 
 
 def load_obj(obj_path):
@@ -58,19 +59,19 @@ def load_obj(obj_path):
     for i, ((v0, n0, t0), (v1, n1, t1), (v2, n2, t2)) in enumerate(zip(*[iter(obj.face)] * 3)):
         triangle = Triangle()
         # vertices
-        triangle.v0 = obj.vert[v0 - 1]
-        triangle.v1 = obj.vert[v1 - 1]
-        triangle.v2 = obj.vert[v2 - 1]
+        triangle.v0 = np.array(obj.vert[v0 - 1])
+        triangle.v1 = np.array(obj.vert[v1 - 1])
+        triangle.v2 = np.array(obj.vert[v2 - 1])
 
         # normals
-        triangle.n0 = obj.norm[n0 - 1] if n0 is not None else INVALID
-        triangle.n1 = obj.norm[n1 - 1] if n1 is not None else INVALID
-        triangle.n2 = obj.norm[n2 - 1] if n2 is not None else INVALID
+        triangle.n0 = np.array(obj.norm[n0 - 1]) if n0 is not None else INVALID
+        triangle.n1 = np.array(obj.norm[n1 - 1]) if n1 is not None else INVALID
+        triangle.n2 = np.array(obj.norm[n2 - 1]) if n2 is not None else INVALID
 
         # texture UVs
-        triangle.t0 = obj.text[t0 - 1] if t0 is not None else INVALID
-        triangle.t1 = obj.text[t1 - 1] if t1 is not None else INVALID
-        triangle.t2 = obj.text[t2 - 1] if t2 is not None else INVALID
+        triangle.t0 = np.array(obj.text[t0 - 1]) if t0 is not None else INVALID
+        triangle.t1 = np.array(obj.text[t1 - 1]) if t1 is not None else INVALID
+        triangle.t2 = np.array(obj.text[t2 - 1]) if t2 is not None else INVALID
 
         triangles.append(triangle)
     return triangles
@@ -109,10 +110,10 @@ def cross(a, b):
 
 
 @numba.jit(nogil=True, fastmath=True)
-def ray_triangle_intersect(ray_origin, ray_direction, triangle_v0, triangle_e1, triangle_e2):
-    # todo: backface culling
-    # if np.dot(ray_direction, triangle_normal) >= 0:
-    #     return None
+def ray_triangle_intersect(ray_origin, ray_direction, triangle_n, triangle_v0, triangle_e1, triangle_e2):
+
+    if np.dot(ray_direction, triangle_n) >= 0:
+        return -1.
 
     h = cross(ray_direction, triangle_e2)
     a = np.dot(h, triangle_e1)
@@ -140,13 +141,13 @@ def ray_triangle_intersect(ray_origin, ray_direction, triangle_v0, triangle_e1, 
 
 
 @numba.njit(nogil=True, fastmath=True)
-def hit_bvh(origin, direction, box_mins, box_maxes, box_lefts, box_rights, v0, v1, v2):
+def hit_bvh(origin, direction, inv_direction, box_mins, box_maxes, box_lefts, box_rights, n, v0, v1, v2):
     best_t = np.inf
     best_i = -1
     stack = [0]
     while stack:
         box_index = stack.pop()
-        hit, t_min, t_max = ray_box_intersect(box_mins[box_index], box_maxes[box_index], origin, direction)
+        hit, t_min, t_max = ray_box_intersect(box_mins[box_index], box_maxes[box_index], origin, inv_direction)
         if not hit or t_min > best_t:
             continue
         if box_rights[box_index] == 0:
@@ -155,7 +156,7 @@ def hit_bvh(origin, direction, box_mins, box_maxes, box_lefts, box_rights, v0, v
             stack.append(box_lefts[box_index] + 1)
         else:
             for i in range(box_lefts[box_index], box_rights[box_index]):
-                t = ray_triangle_intersect(origin, direction, v0[i], v1[i] - v0[i], v2[i] - v0[i])
+                t = ray_triangle_intersect(origin, direction, n[i], v0[i], v1[i] - v0[i], v2[i] - v0[i])
                 if 0 < t < best_t:
                     best_t = t
                     best_i = i
@@ -175,20 +176,20 @@ def hit_basic(origin, direction, v0, v1, v2):
 
 
 @numba.njit(parallel=True, nogil=True, fastmath=True)
-def _bounce(ray_origins, ray_directions, box_mins, box_maxes, box_lefts, box_rights, v0, v1, v2, n0, n1, n2, t0, t1, t2):
+def _bounce(ray_origins, ray_directions, ray_inv_directions, box_mins, box_maxes, box_lefts, box_rights, v0, v1, v2, n, n0, n1, n2, t0, t1, t2):
     output_color = np.zeros_like(ray_origins)
     for i in numba.prange(ray_origins.shape[0]):
         for j in range(ray_origins.shape[1]):
-            best_t, best_i = hit_bvh(ray_origins[i][j], ray_directions[i][j], box_mins, box_maxes, box_lefts, box_rights, v0, v1, v2)
+            best_t, best_i = hit_bvh(ray_origins[i][j], ray_directions[i][j], ray_inv_directions[i][j], box_mins, box_maxes, box_lefts, box_rights, n, v0, v1, v2)
             if best_i != -1:
-                output_color[i][j] = np.array([1., 1., 1.])
+                output_color[i][j] = n[best_i] / 2 + .5
 
     return output_color
 
 
 @timed
 def bounce(raygroup: RayGroup, bvh: BoxGroup, triangles: TriangleGroup):
-    colors = _bounce(raygroup.origin, raygroup.direction, bvh.min, bvh.max, bvh.left, bvh.right, triangles.v0, triangles.v1, triangles.v2, triangles.n0, triangles.n1, triangles.n2, triangles.t0, triangles.t1, triangles.t2)
+    colors = _bounce(raygroup.origin, raygroup.direction, raygroup.inv_direction, bvh.min, bvh.max, bvh.left, bvh.right, triangles.v0, triangles.v1, triangles.v2, triangles.n, triangles.n0, triangles.n1, triangles.n2, triangles.t0, triangles.t1, triangles.t2)
     return colors
 
 
@@ -196,8 +197,8 @@ if __name__ == '__main__':
     tris = load_obj('../resources/teapot.obj')
     bvh = construct_BVH(tris)
     c = Camera(
-        center=np.array([0, 0, 0]),
-        direction=np.array([1, 0, 0]),
+        center=np.array([10, 0, 0]),
+        direction=np.array([-1, 0, 0]),
     )
     rg = RayGroup.from_camera(c)
     bvh, triangles = flatten_BVH(bvh)
