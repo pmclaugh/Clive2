@@ -215,13 +215,16 @@ if __name__ == '__main__':
     buf_1 = boxes.flatten()
     buf_2 = triangles.flatten()
     buf_3 = dev.buffer(np.size(rays) * 16)
+    buf_4 = dev.buffer(16)
 
-    kernel_fn(rays.size, buf_0, buf_1, buf_2, buf_3)
+    kernel_fn(rays.size, buf_0, buf_1, buf_2, buf_3, buf_4)
 
     retrieved_image = np.frombuffer(buf_3, dtype=np.float32).reshape(rays.shape[0], rays.shape[1], 4)
+    retrieved_values = np.frombuffer(buf_4, dtype=np.int32)
 
     print("ok")
     print(retrieved_image.shape)
+    print(retrieved_values)
 
     # open a window to display the image
     cv2.imshow('image', retrieved_image[:, :, :3])

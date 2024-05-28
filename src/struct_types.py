@@ -11,6 +11,7 @@ Box = np.dtype([
     ('max', np.float32, 4),
     ('left', np.int32),
     ('right', np.int32),
+    ('pad', np.int32, 2),
 ])
 
 Triangle = np.dtype([

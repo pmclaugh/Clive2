@@ -9,8 +9,9 @@ struct Ray {
 struct Box {
     float3 min;
     float3 max;
-    int left;
-    int right;
+    int32_t left;
+    int32_t right;
+    int32_t pad[2];
 };
 
 
@@ -23,20 +24,15 @@ struct Triangle {
 
 
 void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool &hit, thread float &t) {
-    float3 inv_direction = 1.0f / ray.direction;
-    float3 min_minus = (box.min - ray.origin) * inv_direction;
-    float3 max_minus = (box.max - ray.origin) * inv_direction;
-    float3 mins = min(min_minus, max_minus);
-    float3 maxes = max(min_minus, max_minus);
-    float tmin = max(mins[0], mins[1]);
-    float tmax = min(maxes[0], maxes[1]);
-
-    if (tmax > 0) {
-        hit = true;
-        t = tmin;
-    } else {
-        hit = false;
-    }
+    float3 inv_direction = 1.0 / ray.direction;
+    float3 t0s = (box.min - ray.origin) * inv_direction;
+    float3 t1s = (box.max - ray.origin) * inv_direction;
+    float3 tsmaller = min(t0s, t1s);
+    float3 tbigger = max(t0s, t1s);
+    float tmin = max(max(tsmaller.x, tsmaller.y), tsmaller.z);
+    float tmax = min(min(tbigger.x, tbigger.y), tbigger.z);
+    hit = tmin <= tmax;
+    t = tmin;
 }
 
 
@@ -83,15 +79,28 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
     int stack_ptr = 0;
     stack[stack_ptr++] = 0;
 
-    while (stack_ptr > 0) {
+    while (stack_ptr > 0 && stack_ptr < 64) {
         int box_id = stack[--stack_ptr];
         Box box = boxes[box_id];
         bool hit = false;
-        float t = best_t;
+        float t = INFINITY;
         ray_box_intersect(ray, box, hit, t);
         if (hit) {
-            best_i = 0;
-            return;
+            if (box.right == 0) {
+                stack[stack_ptr++] = box.left;
+                stack[stack_ptr++] = box.left + 1;
+            } else {
+                for (int i = box.left; i < box.right; i++) {
+                    Triangle triangle = triangles[i];
+                    bool hit = false;
+                    float t = INFINITY;
+                    ray_triangle_intersect(ray, triangle, hit, t);
+                    if (hit && t < best_t) {
+                        best_i = i;
+                        best_t = t;
+                    }
+                }
+            }
         }
     }
 }
@@ -115,18 +124,23 @@ kernel void bounce(const device Ray *rays [[ buffer(0) ]],
                    const device Box *boxes [[ buffer(1) ]],
                    const device Triangle *triangles [[ buffer(2) ]],
                    device float4 *out [[ buffer(3) ]],
+                   device int *debug [[ buffer(4) ]],
                    uint id [[ thread_position_in_grid ]]) {
     Ray ray = rays[id];
 
-    int best_i = -1;
-    float best_t = INFINITY;
-    brute_force_triangles(ray, triangles, best_i, best_t);
-    if (best_i > -1) {
-        Triangle triangle = triangles[best_i];
-        float3 out_color = triangle.normal * 0.5f + 0.5f;
-        out[id] = float4(out_color.x, out_color.y, out_color.z, 1.0);
-    } else {
-        out[id] = float4(0.0, 0.0, 0.0, 1.0);
-    }
+    debug[0] = sizeof(Box);
+    debug[1] = boxes[0].pad[0];
+    debug[2] = boxes[0].pad[1];
 
+    float best_t = INFINITY;
+    int best_i = -1;
+
+    traverse_bvh(ray, boxes, triangles, best_i, best_t);
+
+    if (best_i == -1) {
+        out[id] = float4(0, 0, 0, 1);
+    }
+    else {
+        out[id] = float4(triangles[best_i].normal * 0.5f + 0.5f, 1);
+    }
 }
