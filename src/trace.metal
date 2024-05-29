@@ -18,7 +18,8 @@ struct Ray {
 struct Path {
     Ray rays[16];
     int32_t length;
-    int32_t pad[3];
+    int32_t from_camera;
+    int32_t pad[2];
 };
 
 struct Box {
@@ -56,7 +57,7 @@ void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool
     float3 tsmaller = min(t0s, t1s);
     float3 tbigger = max(t0s, t1s);
     float tmin = max(max(tsmaller.x, tsmaller.y), tsmaller.z);
-    float tmax = min(min(tbigger.x, tbigger.y), tbigger.z);
+    float tmax = min(min(min(tbigger.x, tbigger.y), tbigger.z), t);
     hit = tmin <= tmax;
     t = tmin;
 }
@@ -132,6 +133,16 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
 }
 
 
+bool visibility_test(const thread Ray &ray, const thread float3 target, const device Box *boxes, const device Triangle *triangles) {
+    float3 direction = target - ray.origin;
+    float t_max = length(direction);
+    int best_i = -1;
+    float best_t = INFINITY;
+    traverse_bvh(ray, boxes, triangles, best_i, best_t);
+    return best_t >= t_max;
+}
+
+
 void local_orthonormal_basis(const thread float3 &n, thread float3 &x, thread float3 &y) {
     if (abs(n.x) > abs(n.y)) {
         x = float3(-n.z, 0, n.x) / sqrt(n.x * n.x + n.z * n.z);
@@ -147,8 +158,22 @@ float3 random_hemisphere_cosine_weighted(const thread float3 &x_axis, const thre
     float theta = 2 * PI * rand.y;
     float x = r * cos(theta);
     float y = r * sin(theta);
-    float z = sqrt(1 - rand.x);
+    return x * x_axis + y * y_axis + sqrt(max(0., 1 - rand.x)) * z_axis;
+}
+
+
+float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
+    float r = sqrt(1 - rand.x * rand.x);
+    float theta = 2 * PI * rand.y;
+    float x = r * cos(theta);
+    float y = r * sin(theta);
+    float z = sqrt(1 - r * r);
     return x * x_axis + y * y_axis + z * z_axis;
+}
+
+
+float3 specular_reflection(const thread float3 &direction, const thread float3 &normal) {
+    return direction - 2 * dot(direction, normal) * normal;
 }
 
 
@@ -164,6 +189,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     Path path;
     path.rays[0] = rays[id];
     path.length = 1;
+    if (path.rays[0].i >= 0) {
+        path.from_camera = 1;
+    } else {
+        path.from_camera = 0;
+    }
 
     for (int i = 0; i < 16; i++) {
         int best_i = -1;
@@ -186,15 +216,34 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         float3 x, y;
         local_orthonormal_basis(triangle.normal, x, y);
-
-        new_ray.direction = random_hemisphere_cosine_weighted(x, y, triangle.normal, rand);
-        new_ray.color = material.color * ray.color;
         if (triangle.is_light) {
             new_ray.hit_light = best_i;
-            new_ray.color *= material.emission;
+            new_ray.color = ray.color * material.emission;
+            new_ray.importance = ray.importance;
         } else {
             new_ray.hit_light = -1;
         }
+
+        float f, p;
+        if (material.type == 0) {
+            if (path.from_camera) {
+                    new_ray.direction = random_hemisphere_cosine_weighted(x, y, triangle.normal, rand);
+                    f = dot(triangle.normal, new_ray.direction);
+                    p = f;
+                }
+            else {
+                new_ray.direction = random_hemisphere_uniform(x, y, triangle.normal, rand);
+                f = dot(triangle.normal, ray.direction);
+                p = 1.0f / (2 * PI);
+            }
+        } else {
+            new_ray.direction = specular_reflection(ray.direction, triangle.normal);
+            f = 1.0f;
+            p = 1.0f;
+        }
+
+        new_ray.color = material.color * f * ray.color;
+        new_ray.importance = ray.importance * p;
 
         path.rays[i + 1] = new_ray;
         path.length = i + 2;
@@ -207,7 +256,34 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     if (path.length > 1) {
         Ray final_ray = path.rays[path.length - 1];
         if (final_ray.hit_light) {
-            out[id] = float4(final_ray.color, 1);
+            out[id] = float4(final_ray.color / final_ray.importance, 1);
         }
+    }
+}
+
+
+kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
+                          const device Path *light_paths [[ buffer(1) ]],
+                          const device Triangle *triangles [[ buffer(2) ]],
+                          const device Material *materials [[ buffer(3) ]],
+                          const device Box *boxes [[ buffer(4) ]],
+                          device float4 *out [[ buffer(5) ]],
+                          device int *debug [[ buffer(6) ]],
+                          uint id [[ thread_position_in_grid ]]) {
+    Path camera_path = camera_paths[id];
+    Path light_path = light_paths[id % 1000];
+    float3 sample = float3(0, 0, 0);
+    int samples = 0;
+    for (int t = 1; t < camera_path.length; t++) {
+        Ray camera_ray = camera_path.rays[t];
+        Ray light_ray = light_path.rays[0];
+        if (visibility_test(camera_ray, light_ray.origin, boxes, triangles)) {
+            float3 color = camera_ray.color * light_ray.color;
+            sample = sample + color / camera_ray.importance;
+            samples++;
+        }
+    }
+    if (samples > 0){
+        out[id] = float4(sample, 1) / samples;
     }
 }

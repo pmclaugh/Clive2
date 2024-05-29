@@ -85,6 +85,7 @@ def get_materials():
     materials['emission'] = np.zeros((7, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
     materials['type'] = 0
+    # materials['type'][0] = 1
     return materials
 
 
@@ -127,15 +128,49 @@ def triangles_for_box(box_min, box_max):
     return tris
 
 
-def tone_map(image):
-    tone_vector = np.array([0.0722, 0.7152, 0.2126])
-    # tone_vector = ONES
-    tone_sums = np.sum(image * tone_vector, axis=2)
-    log_tone_sums = np.log(0.1 + tone_sums)
-    per_pixel_lts = np.sum(log_tone_sums) / np.prod(image.shape[:2])
-    Lw = np.exp(per_pixel_lts)
-    result = image * 2. / Lw
-    return (255 * result / (result + 1)).astype(np.uint8)
+def local_orthonormal_system(z):
+    if np.abs(z[0]) > np.abs(z[1]):
+        axis = UNIT_Y
+    else:
+        axis = UNIT_X
+    x = np.cross(axis, z)
+    y = np.cross(z, x)
+    return x, y, z
+
+
+def random_hemisphere_uniform_weighted(x_axis, y_axis, z_axis):
+    u1 = np.random.random()
+    u2 = np.random.random()
+    r = np.sqrt(1 - u1 * u1)
+    theta = 2 * np.pi * u2
+    x = r * np.cos(theta)
+    y = r * np.sin(theta)
+    return x_axis * x + y_axis * y + z_axis * u1
+
+
+def generate_light_rays(triangles, num_rays):
+    emitters = [t for t in triangles if t['is_light']]
+    rays = np.zeros(num_rays, dtype=Ray)
+    for i in range(num_rays):
+        # randomly choose an emitter
+        emitter = np.random.choice(emitters)
+        # randomly choose a point on the emitter
+        u = np.random.rand()
+        v = np.random.rand()
+        w = 1 - u - v
+        point = u * emitter['v0'] + v * emitter['v1'] + w * emitter['v2']
+        x, y, z = local_orthonormal_system(emitter['normal'][:3])
+        dir = random_hemisphere_uniform_weighted(x, y, z)
+        rays[i]['origin'] = point
+        rays[i]['direction'][:3] = dir
+    rays['color'] = np.array([1, 1, 1, 1])
+    rays['importance'] = 1
+    return rays
+
+
+def basic_tone_map(image):
+    image = np.clip(image, 0, 1)
+    return (255 * image).astype(np.uint8)
 
 
 if __name__ == '__main__':
@@ -155,31 +190,50 @@ if __name__ == '__main__':
     dev = mc.Device()
     with open("trace.metal", "r") as f:
         kernel = f.read()
-    kernel_fn = dev.kernel(kernel).function("generate_paths")
-    summed_image = np.zeros((c.pixel_height, c.pixel_width, 4), dtype=np.float32)
-    samples = 25
+    trace_fn = dev.kernel(kernel).function("generate_paths")
+    join_fn = dev.kernel(kernel).function("connect_paths")
+    summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
+    samples = 10
+    to_display = np.zeros(summed_image.shape, dtype=np.uint8)
     for i in range(samples):
-        rays = c.ray_batch_numpy()
-        rays = rays.flatten()
+        camera_rays = c.ray_batch_numpy()
+        camera_rays = camera_rays.flatten()
         boxes = boxes.flatten()
         triangles = triangles.flatten()
-        rands = np.random.rand(np.size(rays) * 2).astype(np.float32)
-        out_image = dev.buffer(np.size(rays) * 16)
-        out_paths = dev.buffer(rays.size * Path.itemsize)
-        out_debug = dev.buffer(16)
+        rands = np.random.rand(np.size(camera_rays) * 2).astype(np.float32)
+        out_camera_image = dev.buffer(np.size(camera_rays) * 16)
+        out_camera_paths = dev.buffer(camera_rays.size * Path.itemsize)
+        out_camera_debug = dev.buffer(16)
 
         start_time = time.time()
-        kernel_fn(rays.size, rays, boxes, triangles, mats, rands, out_image, out_paths, out_debug)
-        print(f"Sample {i} render time: {time.time() - start_time}")
+        trace_fn(camera_rays.size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug)
+        print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
-        retrieved_image = np.frombuffer(out_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)
-        retrieved_rays = np.frombuffer(out_paths, dtype=Path)
-        retrieved_values = np.frombuffer(out_debug, dtype=np.int32)
+        light_rays = generate_light_rays(triangles, 1000)
+        light_rays = light_rays.flatten()
+        out_light_image = dev.buffer(np.size(light_rays) * 16)
+        out_light_paths = dev.buffer(light_rays.size * Path.itemsize)
+        out_light_debug = dev.buffer(16)
 
-        summed_image += retrieved_image
+        start_time = time.time()
+        trace_fn(light_rays.size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug)
+        print(f"Sample {i} light trace time: {time.time() - start_time}")
+
+        final_out_samples = dev.buffer(camera_rays.size * 16)
+        final_out_debug = dev.buffer(16)
+
+        start_time = time.time()
+        join_fn(camera_rays.size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples, final_out_debug)
+        print(f"Sample {i} join time: {time.time() - start_time}")
+
+        retrieved_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+        retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
+
+        summed_image += np.nan_to_num(retrieved_image, nan=0)
+
+        to_display = basic_tone_map(summed_image / (i + 1))
 
         # open a window to display the image
-        cv2.imshow('image', tone_map(summed_image[:, :, :3] / (i + 1)))
+        cv2.imshow('image', to_display)
         cv2.waitKey(1)
-    cv2.waitKey(0)
-    cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', tone_map(summed_image[:, :, :3] / samples))
+    cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)

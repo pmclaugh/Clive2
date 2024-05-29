@@ -40,7 +40,6 @@ class Camera:
         self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float64)
         self.images = np.zeros((MAX_BOUNCES + 2, MAX_BOUNCES + 2, pixel_height, pixel_width, 3), dtype=np.float64)
 
-
     def make_ray(self, i, j):
         n1 = np.random.random()
         n2 = np.random.random()
@@ -69,6 +68,7 @@ class Camera:
         batch['j'] = np.arange(self.pixel_width)
         batch['color'] = np.ones((self.pixel_height, self.pixel_width, 4), dtype=np.float32)
         batch['importance'] = 1
+        batch['hit_light'] = 0
         return batch
 
 

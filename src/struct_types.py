@@ -15,7 +15,8 @@ Ray = np.dtype([
 Path = np.dtype([
     ('rays', Ray, 16),
     ('length', np.int32),
-    ('pad', np.int32, 3),
+    ('from_camera', np.int32),
+    ('pad', np.int32, 2),
 ])
 
 Box = np.dtype([
