@@ -253,11 +253,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         }
     }
     output_paths[id] = path;
-    if (path.length > 1) {
-        Ray final_ray = path.rays[path.length - 1];
-        if (final_ray.hit_light) {
-            out[id] = float4(final_ray.color / final_ray.importance, 1);
-        }
+    Ray final_ray = path.rays[path.length - 1];
+    if (final_ray.hit_light) {
+        out[id] = float4(final_ray.color / final_ray.importance, 1);
+    }
+    else {
+        out[id] = float4(0, 0, 0, 1);
     }
 }
 
@@ -271,7 +272,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           device int *debug [[ buffer(6) ]],
                           uint id [[ thread_position_in_grid ]]) {
     Path camera_path = camera_paths[id];
-    Path light_path = light_paths[id % 1000];
+    Path light_path = light_paths[id % 1024];
     float3 sample = float3(0, 0, 0);
     int samples = 0;
     for (int t = 1; t < camera_path.length; t++) {
@@ -285,5 +286,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     }
     if (samples > 0){
         out[id] = float4(sample, 1) / samples;
+    }
+    else {
+        out[id] = float4(0, 0, 0, 1);
     }
 }

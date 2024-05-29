@@ -209,7 +209,7 @@ if __name__ == '__main__':
         trace_fn(camera_rays.size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug)
         print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
-        light_rays = generate_light_rays(triangles, 1000)
+        light_rays = generate_light_rays(triangles, 1024)
         light_rays = light_rays.flatten()
         out_light_image = dev.buffer(np.size(light_rays) * 16)
         out_light_paths = dev.buffer(light_rays.size * Path.itemsize)
