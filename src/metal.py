@@ -212,14 +212,14 @@ if __name__ == '__main__':
     trace_fn = dev.kernel(kernel).function("generate_paths")
     join_fn = dev.kernel(kernel).function("connect_paths")
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 15
+    samples = 20
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
     for i in range(samples):
         camera_rays = c.ray_batch_numpy()
         camera_rays = camera_rays.flatten()
         boxes = boxes.flatten()
         triangles = triangles.flatten()
-        rands = np.random.rand(np.size(camera_rays) * 4).astype(np.float32)
+        rands = np.random.rand(np.size(camera_rays) * 32).astype(np.float32)
         out_camera_image = dev.buffer(np.size(camera_rays) * 16)
         out_camera_paths = dev.buffer(camera_rays.size * Path.itemsize)
         out_camera_debug = dev.buffer(16)
@@ -253,7 +253,7 @@ if __name__ == '__main__':
             print("NaNs in summed image!!!")
             break
 
-        to_display = tone_map(summed_image / (i + 1))
+        to_display = basic_tone_map(summed_image / (i + 1))
 
         # open a window to display the image
         cv2.imshow('image', to_display)

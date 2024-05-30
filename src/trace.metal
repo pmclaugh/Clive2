@@ -195,7 +195,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         path.from_camera = 0;
     }
 
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 8; i++) {
         int best_i = -1;
         float best_t = INFINITY;
         Ray ray = path.rays[i];
@@ -207,7 +207,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         Triangle triangle = triangles[best_i];
         Material material = materials[triangle.material];
-        float2 rand = random[id];
+        float2 rand = random[id + i];
 
         Ray new_ray;
         new_ray.origin = ray.origin + ray.direction * best_t;
@@ -221,8 +221,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (material.type == 0) {
             if (path.from_camera) {
                     new_ray.direction = random_hemisphere_uniform(x, y, triangle.normal, rand);
-                    f = dot(triangle.normal, new_ray.direction);
-                    p = f;
+                    f = 1.0f;
+                    p = 1.0f;
                 }
             else {
                 new_ray.direction = random_hemisphere_uniform(x, y, triangle.normal, rand);
