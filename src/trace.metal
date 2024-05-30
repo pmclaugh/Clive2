@@ -295,6 +295,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float3 light_f = float3(1.0f);
             float3 camera_f = float3(1.0f);
 
+            sample_count++;
+
             if (t == 0){
                 // this is where a light ray hits the camera plane. not yet supported.
                 continue;
@@ -321,10 +323,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
                 if (visibility_test(light_ray.origin, camera_ray.origin, boxes, triangles)){
-                    light_p = light_ray.importance;
-                    light_f = light_ray.color;
-                    camera_p = camera_ray.importance;
-                    camera_f = camera_ray.color;
+                    light_p = 1.0f;
+                    light_f = 1.0f;
+                    camera_p = 1.0f;
+                    camera_f = 1.0f;
                 }
                 else {
                     continue;
@@ -332,7 +334,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
 
             sample = sample + light_f * camera_f / (light_p * camera_p);
-            sample_count++;
         }
     }
     out[id] = float4(sample, 1);

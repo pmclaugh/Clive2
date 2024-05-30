@@ -231,6 +231,7 @@ if __name__ == '__main__':
 
         light_rays = generate_light_rays(triangles, 1024)
         light_rays = light_rays.flatten()
+        rands = np.random.rand(light_rays.size * 32).astype(np.float32)
         out_light_image = dev.buffer(light_rays.size * 16)
         out_light_paths = dev.buffer(light_rays.size * Path.itemsize)
         out_light_debug = dev.buffer(16)
@@ -246,7 +247,7 @@ if __name__ == '__main__':
         join_fn(camera_rays.size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples, final_out_debug)
         print(f"Sample {i} join time: {time.time() - start_time}")
 
-        retrieved_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+        retrieved_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
         retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
 
         print(retrieved_values)
