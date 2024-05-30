@@ -9,10 +9,11 @@ struct Ray {
     float3 direction;
     float3 inv_direction;
     float3 color;
+    float3 normal;
+    int32_t material;
     float importance;
-    int hit_light;
-    int i;
-    int j;
+    int32_t hit_light;
+    int32_t from_camera;
 };
 
 struct Path {
@@ -101,6 +102,40 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
 }
 
 
+void local_orthonormal_basis(const thread float3 &n, thread float3 &x, thread float3 &y) {
+    if (abs(n.x) > abs(n.y)) {
+        x = float3(-n.z, 0, n.x) / sqrt(n.x * n.x + n.z * n.z);
+    } else {
+        x = float3(0, n.z, -n.y) / sqrt(n.y * n.y + n.z * n.z);
+    }
+    y = cross(n, x);
+}
+
+
+float3 random_hemisphere_cosine_weighted(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
+    float r = sqrt(rand.x);
+    float theta = 2 * PI * rand.y;
+    float x = r * cos(theta);
+    float y = r * sin(theta);
+    return x * x_axis + y * y_axis + sqrt(max(0., 1 - rand.x)) * z_axis;
+}
+
+
+float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
+    float r = sqrt(1 - rand.x * rand.x);
+    float theta = 2 * PI * rand.y;
+    float x = r * cos(theta);
+    float y = r * sin(theta);
+    float z = sqrt(1 - r * r);
+    return x * x_axis + y * y_axis + z * z_axis;
+}
+
+
+float3 specular_reflection(const thread float3 &direction, const thread float3 &normal) {
+    return direction - 2 * dot(direction, normal) * normal;
+}
+
+
 void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device Triangle *triangles, thread int &best_i, thread float &best_t) {
     int stack[64];
     int stack_ptr = 0;
@@ -148,40 +183,6 @@ bool visibility_test(const thread float3 origin, const thread float3 target, con
 }
 
 
-void local_orthonormal_basis(const thread float3 &n, thread float3 &x, thread float3 &y) {
-    if (abs(n.x) > abs(n.y)) {
-        x = float3(-n.z, 0, n.x) / sqrt(n.x * n.x + n.z * n.z);
-    } else {
-        x = float3(0, n.z, -n.y) / sqrt(n.y * n.y + n.z * n.z);
-    }
-    y = cross(n, x);
-}
-
-
-float3 random_hemisphere_cosine_weighted(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
-    float r = sqrt(rand.x);
-    float theta = 2 * PI * rand.y;
-    float x = r * cos(theta);
-    float y = r * sin(theta);
-    return x * x_axis + y * y_axis + sqrt(max(0., 1 - rand.x)) * z_axis;
-}
-
-
-float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
-    float r = sqrt(1 - rand.x * rand.x);
-    float theta = 2 * PI * rand.y;
-    float x = r * cos(theta);
-    float y = r * sin(theta);
-    float z = sqrt(1 - r * r);
-    return x * x_axis + y * y_axis + z * z_axis;
-}
-
-
-float3 specular_reflection(const thread float3 &direction, const thread float3 &normal) {
-    return direction - 2 * dot(direction, normal) * normal;
-}
-
-
 kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    const device Box *boxes [[ buffer(1) ]],
                    const device Triangle *triangles [[ buffer(2) ]],
@@ -192,13 +193,10 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    device int *debug [[ buffer(7) ]],
                    uint id [[ thread_position_in_grid ]]) {
     Path path;
-    path.rays[0] = rays[id];
+    Ray ray = rays[id];
+    path.rays[0] = ray;
     path.length = 1;
-    if (path.rays[0].i >= 0) {
-        path.from_camera = 1;
-    } else {
-        path.from_camera = 0;
-    }
+    path.from_camera = ray.from_camera;
 
     for (int i = 0; i < 8; i++) {
         int best_i = -1;
@@ -216,8 +214,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         Ray new_ray;
         new_ray.origin = ray.origin + ray.direction * best_t;
-        new_ray.i = ray.i;
-        new_ray.j = ray.j;
+        new_ray.normal = triangle.normal;
+        new_ray.material = triangle.material;
 
         float3 x, y;
         local_orthonormal_basis(triangle.normal, x, y);
@@ -295,13 +293,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float3 light_f = float3(1.0f);
             float3 camera_f = float3(1.0f);
 
-            sample_count++;
-
             if (t == 0){
                 // this is where a light ray hits the camera plane. not yet supported.
                 continue;
             }
             else if (s == 0){
+                continue;
                 if (camera_path.rays[t - 1].hit_light >= 0){
                     // regular unidirectional, the camera ray hit the light source.
                     light_p = 1.0f;
@@ -316,17 +313,21 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
             else {
                 Ray light_ray = light_path.rays[s - 1];
+                Ray prior_light_ray = s > 1 ? light_path.rays[s - 2] : light_ray;
                 Ray camera_ray = camera_path.rays[t - 1];
+                Ray prior_camera_ray = t > 1 ? camera_path.rays[t - 2] : camera_ray;
 
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                if (visibility_test(light_ray.origin, camera_ray.origin, boxes, triangles)){
-                    light_p = 1.0f;
-                    light_f = 1.0f;
-                    camera_p = 1.0f;
-                    camera_f = 1.0f;
+                if (dot(light_ray.normal, dir_l_to_c) > 0 && dot(camera_ray.normal, -dir_l_to_c) > 0 &&
+                    visibility_test(light_ray.origin, camera_ray.origin, boxes, triangles)){
+                    light_p = prior_light_ray.importance;
+                    light_f = prior_light_ray.color * dot(light_ray.normal, dir_l_to_c);
+
+                    camera_p = prior_camera_ray.importance;
+                    camera_f = prior_camera_ray.color * dot(camera_ray.normal, -dir_l_to_c);
                 }
                 else {
                     continue;

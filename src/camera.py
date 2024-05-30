@@ -64,11 +64,12 @@ class Camera:
         origins, directions = self.ray_batch()
         batch['origin'][:, :, :3] = origins
         batch['direction'][:, :, :3] = directions
-        batch['i'] = np.arange(self.pixel_height)[..., np.newaxis]
-        batch['j'] = np.arange(self.pixel_width)
         batch['color'] = np.ones(4)
         batch['importance'] = 1
         batch['hit_light'] = -1
+        batch['material'] = -1
+        batch['normal'][:, :, :3] = directions
+        batch['from_camera'] = 1
         return batch
 
 

@@ -165,7 +165,7 @@ def generate_light_rays(triangles, num_rays):
         rays[i]['direction'][:3] = dir
         rays[i]['color'] = np.array([1, 1, 1, 1]) * np.dot(dir, emitter['normal'][:3])
     rays['importance'] = 1
-    rays['i'] = -1
+    rays['from_camera'] = 0
     return rays
 
 
@@ -213,7 +213,7 @@ if __name__ == '__main__':
     trace_fn = dev.kernel(kernel).function("generate_paths")
     join_fn = dev.kernel(kernel).function("connect_paths")
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 20
+    samples = 15
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
     for i in range(samples):
         camera_rays = c.ray_batch_numpy()
