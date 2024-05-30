@@ -51,12 +51,12 @@ class Camera:
 
     def ray_batch(self):
         pixels = np.meshgrid(np.arange(self.pixel_width), np.arange(self.pixel_height))
-        x_vectors = np.expand_dims(pixels[0], axis=2) * self.dx_dp
-        y_vectors = np.expand_dims(pixels[1], axis=2) * self.dy_dp
+        offsets = np.random.rand(2, self.pixel_height, self.pixel_width)
+        x_vectors = np.expand_dims(pixels[0] + offsets[0], axis=2) * self.dx_dp
+        y_vectors = np.expand_dims(pixels[1] + offsets[1], axis=2) * self.dy_dp
         origins = self.origin + x_vectors + y_vectors
         directions = self.focal_point - origins
         directions = directions / np.linalg.norm(directions, axis=2)[:, :, np.newaxis]
-        # directions = np.ones_like(origins) * UNIT_X
         return origins, directions
 
     def ray_batch_numpy(self):
@@ -66,9 +66,9 @@ class Camera:
         batch['direction'][:, :, :3] = directions
         batch['i'] = np.arange(self.pixel_height)[..., np.newaxis]
         batch['j'] = np.arange(self.pixel_width)
-        batch['color'] = np.ones((self.pixel_height, self.pixel_width, 4), dtype=np.float32)
+        batch['color'] = np.ones(4)
         batch['importance'] = 1
-        batch['hit_light'] = 0
+        batch['hit_light'] = -1
         return batch
 
 
@@ -89,7 +89,7 @@ def tone_map(image):
     # tone_vector = ONES
     tone_sums = np.sum(image * tone_vector, axis=2)
     log_tone_sums = np.log(0.1 + tone_sums)
-    per_pixel_lts = np.sum(log_tone_sums) / np.product(image.shape[:2])
+    per_pixel_lts = np.sum(log_tone_sums) / np.prod(image.shape[:2])
     Lw = np.exp(per_pixel_lts)
     result = image * 2. / Lw
     return (255 * result / (result + 1)).astype(np.uint8)

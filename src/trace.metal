@@ -195,7 +195,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         path.from_camera = 0;
     }
 
-    for (int i = 0; i < 16; i++) {
+    for (int i = 0; i < 4; i++) {
         int best_i = -1;
         float best_t = INFINITY;
         Ray ray = path.rays[i];
@@ -216,24 +216,17 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         float3 x, y;
         local_orthonormal_basis(triangle.normal, x, y);
-        if (triangle.is_light) {
-            new_ray.hit_light = best_i;
-            new_ray.color = ray.color * material.emission;
-            new_ray.importance = ray.importance;
-        } else {
-            new_ray.hit_light = -1;
-        }
 
         float f, p;
         if (material.type == 0) {
             if (path.from_camera) {
-                    new_ray.direction = random_hemisphere_cosine_weighted(x, y, triangle.normal, rand);
+                    new_ray.direction = random_hemisphere_uniform(x, y, triangle.normal, rand);
                     f = dot(triangle.normal, new_ray.direction);
                     p = f;
                 }
             else {
                 new_ray.direction = random_hemisphere_uniform(x, y, triangle.normal, rand);
-                f = dot(triangle.normal, ray.direction);
+                f = dot(triangle.normal, -ray.direction);
                 p = 1.0f / (2 * PI);
             }
         } else {
@@ -242,8 +235,20 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             p = 1.0f;
         }
 
+        if (f == 0) {
+            break;
+        }
+
         new_ray.color = material.color * f * ray.color;
         new_ray.importance = ray.importance * p;
+
+        if (triangle.is_light) {
+            new_ray.hit_light = best_i;
+            new_ray.color = ray.color * material.emission;
+            new_ray.importance = ray.importance;
+        } else {
+            new_ray.hit_light = -1;
+        }
 
         path.rays[i + 1] = new_ray;
         path.length = i + 2;
@@ -254,7 +259,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     }
     output_paths[id] = path;
     Ray final_ray = path.rays[path.length - 1];
-    if (final_ray.hit_light) {
+    if (final_ray.hit_light >= 0) {
         out[id] = float4(final_ray.color / final_ray.importance, 1);
     }
     else {
@@ -280,12 +285,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
         Ray light_ray = light_path.rays[0];
         if (visibility_test(camera_ray, light_ray.origin, boxes, triangles)) {
             float3 color = camera_ray.color * light_ray.color;
-            sample = sample + color / camera_ray.importance;
+            sample = sample + color / (camera_ray.importance * light_ray.importance);
             samples++;
         }
     }
     if (samples > 0){
-        out[id] = float4(sample, 1) / samples;
+        out[id] = float4(sample, 1);
     }
     else {
         out[id] = float4(0, 0, 0, 1);
