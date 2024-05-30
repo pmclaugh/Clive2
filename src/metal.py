@@ -178,6 +178,7 @@ def basic_tone_map(image):
 
 
 def tone_map(image):
+    print(f"min {np.min(image)} max {np.max(image)}")
     tone_vector = np.array([0.0722, 0.7152, 0.2126])
     # tone_vector = ONES
     tone_sums = np.sum(image * tone_vector, axis=2)
@@ -255,7 +256,7 @@ if __name__ == '__main__':
             print("NaNs in summed image!!!")
             break
 
-        to_display = tone_map(summed_image / (i + 1))
+        to_display = tone_map(summed_image / max(i, 1))
 
         # open a window to display the image
         cv2.imshow('image', to_display)

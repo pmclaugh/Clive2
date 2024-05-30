@@ -286,9 +286,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     float3 samples[64];
 
     float3 sample = float3(0.0f);
-
-    debug[0] = camera_path.length;
-    debug[1] = light_path.length;
+    int sample_count = 0;
 
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -333,7 +331,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            sample = sample + light_f * camera_f / (light_p + camera_p);
+            sample = sample + light_f * camera_f / (light_p * camera_p);
+            sample_count++;
         }
     }
     out[id] = float4(sample, 1);
