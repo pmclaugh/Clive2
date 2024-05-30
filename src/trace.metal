@@ -133,12 +133,17 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
 }
 
 
-bool visibility_test(const thread Ray &ray, const thread float3 target, const device Box *boxes, const device Triangle *triangles) {
-    float3 direction = target - ray.origin;
+bool visibility_test(const thread float3 origin, const thread float3 target, const device Box *boxes, const device Triangle *triangles) {
+    Ray test_ray;
+    test_ray.origin = origin;
+    float3 direction = target - origin;
     float t_max = length(direction);
+    direction = direction / t_max;
+    test_ray.direction = direction;
+
     int best_i = -1;
-    float best_t = INFINITY;
-    traverse_bvh(ray, boxes, triangles, best_i, best_t);
+    float best_t = t_max;
+    traverse_bvh(test_ray, boxes, triangles, best_i, best_t);
     return best_t >= t_max;
 }
 
@@ -278,21 +283,58 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           uint id [[ thread_position_in_grid ]]) {
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id % 1024];
-    float3 sample = float3(0, 0, 0);
-    int samples = 0;
-    for (int t = 1; t < camera_path.length; t++) {
-        Ray camera_ray = camera_path.rays[t];
-        Ray light_ray = light_path.rays[0];
-        if (visibility_test(camera_ray, light_ray.origin, boxes, triangles)) {
-            float3 color = camera_ray.color * light_ray.color;
-            sample = sample + color / (camera_ray.importance * light_ray.importance);
-            samples++;
+    float3 samples[64];
+
+    float3 sample = float3(0.0f);
+
+    debug[0] = camera_path.length;
+    debug[1] = light_path.length;
+
+    for (int t = 0; t < camera_path.length + 1; t++){
+        for (int s = 0; s < light_path.length + 1; s++){
+            float light_p = 1.0f;
+            float camera_p = 1.0f;
+            float3 light_f = float3(1.0f);
+            float3 camera_f = float3(1.0f);
+
+            if (t == 0){
+                // this is where a light ray hits the camera plane. not yet supported.
+                continue;
+            }
+            else if (s == 0){
+                if (camera_path.rays[t - 1].hit_light >= 0){
+                    // regular unidirectional, the camera ray hit the light source.
+                    light_p = 1.0f;
+                    light_f = float3(1.0f);
+                    camera_p = camera_path.rays[t - 1].importance;
+                    camera_f = camera_path.rays[t - 1].color;
+                }
+            }
+            else if (t == 1){
+                // this is visibility from camera plane to light ray. not yet supported.
+                continue;
+            }
+            else {
+                Ray light_ray = light_path.rays[s - 1];
+                Ray camera_ray = camera_path.rays[t - 1];
+
+                float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
+                float dist_l_to_c = length(dir_l_to_c);
+                dir_l_to_c = dir_l_to_c / dist_l_to_c;
+
+                if (visibility_test(light_ray.origin, camera_ray.origin, boxes, triangles)){
+                    light_p = light_ray.importance;
+                    light_f = light_ray.color;
+                    camera_p = camera_ray.importance;
+                    camera_f = camera_ray.color;
+                }
+                else {
+                    continue;
+                }
+            }
+
+            sample = sample + light_f * camera_f / (light_p + camera_p);
         }
     }
-    if (samples > 0){
-        out[id] = float4(sample, 1);
-    }
-    else {
-        out[id] = float4(0, 0, 0, 1);
-    }
+    out[id] = float4(sample, 1);
 }

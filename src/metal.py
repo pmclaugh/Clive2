@@ -245,15 +245,17 @@ if __name__ == '__main__':
         join_fn(camera_rays.size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples, final_out_debug)
         print(f"Sample {i} join time: {time.time() - start_time}")
 
-        retrieved_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+        retrieved_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
         retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
+
+        print(retrieved_values)
 
         summed_image += retrieved_image
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
             break
 
-        to_display = basic_tone_map(summed_image / (i + 1))
+        to_display = tone_map(summed_image / (i + 1))
 
         # open a window to display the image
         cv2.imshow('image', to_display)
