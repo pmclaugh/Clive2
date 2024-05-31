@@ -256,7 +256,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         path.rays[i + 1] = new_ray;
         path.length = i + 2;
 
-        if (new_ray.hit_light >= 0) {
+        if (new_ray.hit_light >= 0 && path.from_camera) {
             break;
         }
     }
@@ -280,11 +280,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           device int *debug [[ buffer(6) ]],
                           uint id [[ thread_position_in_grid ]]) {
     Path camera_path = camera_paths[id];
-    Path light_path = light_paths[id % 1024];
-    float3 samples[64];
-
+    Path light_path = light_paths[id];
     float3 sample = float3(0.0f);
-    int sample_count = 0;
 
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -298,7 +295,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 continue;
             }
             else if (s == 0){
-                continue;
                 if (camera_path.rays[t - 1].hit_light >= 0){
                     // regular unidirectional, the camera ray hit the light source.
                     light_p = 1.0f;
@@ -334,7 +330,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            sample = sample + light_f * camera_f / (light_p * camera_p);
+            sample = light_f * camera_f / (light_p * camera_p);
         }
     }
     out[id] = float4(sample, 1);

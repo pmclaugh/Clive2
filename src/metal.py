@@ -148,24 +148,19 @@ def random_hemisphere_uniform_weighted(x_axis, y_axis, z_axis):
     return x_axis * x + y_axis * y + z_axis * u1
 
 
-def generate_light_rays(triangles, num_rays):
-    emitters = [t for t in triangles if t['is_light']]
+def fast_generate_light_rays(triangles, num_rays):
+    emitters = np.array([[t['v0'], t['v1'], t['v2']] for t in triangles if t['is_light']])
     rays = np.zeros(num_rays, dtype=Ray)
-    for i in range(num_rays):
-        # randomly choose an emitter
-        emitter = np.random.choice(emitters)
-        # randomly choose a point on the emitter
-        u = np.random.rand()
-        v = np.random.rand()
-        w = 1 - u - v
-        point = u * emitter['v0'] + v * emitter['v1'] + w * emitter['v2']
-        x, y, z = local_orthonormal_system(emitter['normal'][:3])
-        dir = random_hemisphere_uniform_weighted(x, y, z)
-        rays[i]['origin'] = point
-        rays[i]['direction'][:3] = dir
-        rays[i]['color'] = np.array([1, 1, 1, 1]) * np.dot(dir, emitter['normal'][:3])
+    choices = np.random.randint(0, len(emitters), num_rays)
+    rand_us = np.random.rand(num_rays)
+    rand_vs = np.random.rand(num_rays)
+    rand_ws = 1 - rand_us - rand_vs
+    points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:, 2] * rand_ws[:, None]
+    rays['origin'] = points
+    rays['direction'] = np.array([0, -1, 0, 0])
     rays['importance'] = 1
     rays['from_camera'] = 0
+    rays['color'] = np.array([1, 1, 1, 1])
     return rays
 
 
@@ -229,7 +224,7 @@ if __name__ == '__main__':
         trace_fn(camera_rays.size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug)
         print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
-        light_rays = generate_light_rays(triangles, 1024)
+        light_rays = fast_generate_light_rays(triangles, camera_rays.size)
         light_rays = light_rays.flatten()
         rands = np.random.rand(light_rays.size * 32).astype(np.float32)
         out_light_image = dev.buffer(light_rays.size * 16)
@@ -247,7 +242,7 @@ if __name__ == '__main__':
         join_fn(camera_rays.size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples, final_out_debug)
         print(f"Sample {i} join time: {time.time() - start_time}")
 
-        retrieved_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+        retrieved_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
         retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
 
         print(retrieved_values)
@@ -258,6 +253,10 @@ if __name__ == '__main__':
             break
 
         to_display = tone_map(summed_image / max(i, 1))
+
+        if np.any(np.isnan(to_display)):
+            print("NaNs in to_display!!!")
+            break
 
         # open a window to display the image
         cv2.imshow('image', to_display)
