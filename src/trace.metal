@@ -52,9 +52,8 @@ struct Material {
 
 
 void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool &hit, thread float &t) {
-    float3 inv_direction = 1.0 / ray.direction;
-    float3 t0s = (box.min - ray.origin) * inv_direction;
-    float3 t1s = (box.max - ray.origin) * inv_direction;
+    float3 t0s = (box.min - ray.origin) * ray.inv_direction;
+    float3 t1s = (box.max - ray.origin) * ray.inv_direction;
     float3 tsmaller = min(t0s, t1s);
     float3 tbigger = max(t0s, t1s);
     float tmin = max(max(tsmaller.x, tsmaller.y), tsmaller.z);
@@ -147,7 +146,7 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
         bool hit = false;
         float t = INFINITY;
         ray_box_intersect(ray, box, hit, t);
-        if (hit) {
+        if (hit && (t < best_t)) {
             if (box.right == 0) {
                 stack[stack_ptr++] = box.left;
                 stack[stack_ptr++] = box.left + 1;
@@ -175,6 +174,7 @@ bool visibility_test(const thread float3 origin, const thread float3 target, con
     float t_max = length(direction);
     direction = direction / t_max;
     test_ray.direction = direction;
+    test_ray.inv_direction = 1.0 / direction;
 
     int best_i = -1;
     float best_t = t_max;
@@ -238,6 +238,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             p = 1.0f;
         }
 
+        new_ray.inv_direction = 1.0 / new_ray.direction;
+
         if (f == 0) {
             break;
         }
@@ -282,6 +284,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
     float3 sample = float3(0.0f);
+    int sample_count = 0;
 
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -317,8 +320,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                if (dot(light_ray.normal, dir_l_to_c) > 0 && dot(camera_ray.normal, -dir_l_to_c) > 0 &&
-                    visibility_test(light_ray.origin, camera_ray.origin, boxes, triangles)){
+                // todo visibility check should be here but it causes huge confusing issues
+                if (dot(light_ray.normal, dir_l_to_c) > 0 && dot(camera_ray.normal, -dir_l_to_c) > 0){
                     light_p = prior_light_ray.importance;
                     light_f = prior_light_ray.color * dot(light_ray.normal, dir_l_to_c);
 
@@ -330,8 +333,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            sample = light_f * camera_f / (light_p * camera_p);
+            sample = (light_f * camera_f) / (light_p * camera_p);
+            sample_count++;
         }
     }
-    out[id] = float4(sample, 1);
+    out[id] = float4(sample / max(sample_count, 1), 1);
 }

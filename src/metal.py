@@ -158,6 +158,7 @@ def fast_generate_light_rays(triangles, num_rays):
     points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:, 2] * rand_ws[:, None]
     rays['origin'] = points
     rays['direction'] = np.array([0, -1, 0, 0])
+    rays['inv_direction'] = 1 / rays['direction']
     rays['importance'] = 1
     rays['from_camera'] = 0
     rays['color'] = np.array([1, 1, 1, 1])

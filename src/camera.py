@@ -64,6 +64,7 @@ class Camera:
         origins, directions = self.ray_batch()
         batch['origin'][:, :, :3] = origins
         batch['direction'][:, :, :3] = directions
+        batch['inv_direction'][:, :, :3] = 1 / directions
         batch['color'] = np.ones(4)
         batch['importance'] = 1
         batch['hit_light'] = -1
