@@ -165,6 +165,7 @@ def fast_generate_light_rays(triangles, num_rays):
     rays['tot_importance'] = 1.0
     rays['from_camera'] = 0
     rays['color'] = np.array([1, 1, 1, 1])
+    rays['hit_light'] = -1
     return rays
 
 
@@ -222,11 +223,11 @@ if __name__ == '__main__':
 
     batch_size = c.pixel_width * c.pixel_height
     out_camera_image = dev.buffer(batch_size * 16)
-    out_camera_paths = dev.buffer(batch_size * Path.itemsize)
+    out_camera_paths = dev.buffer(batch_size * Path.itemsize * 2)
     out_camera_debug = dev.buffer(batch_size * 4)
 
     out_light_image = dev.buffer(batch_size * 16)
-    out_light_paths = dev.buffer(batch_size * Path.itemsize)
+    out_light_paths = dev.buffer(batch_size * Path.itemsize * 2)
     out_light_debug = dev.buffer(batch_size * 4)
 
     final_out_samples = dev.buffer(batch_size * 16)
@@ -259,14 +260,17 @@ if __name__ == '__main__':
         print(f"Sample {i} join time: {time.time() - start_time}")
 
         # retrieved_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:,:, :3]
-        # retrieved_values = np.frombuffer(out_camera_debug, dtype=np.int32)
+        retrieved_camera_debug = np.frombuffer(out_camera_debug, dtype=np.int32)
 
         # retrieved_image = np.frombuffer(out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-        # retrieved_values = np.frombuffer(out_light_debug, dtype=np.int32)
+        retrieved_light_debug = np.frombuffer(out_light_debug, dtype=np.int32)
 
         retrieved_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
         retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
         retrieved_floats = np.frombuffer(final_out_float_debug, dtype=np.float32)
+
+        print("camera", retrieved_camera_debug, np.min(retrieved_camera_debug), np.max(retrieved_camera_debug))
+        print("light", retrieved_light_debug, np.min(retrieved_light_debug), np.max(retrieved_light_debug))
 
         print(retrieved_values)
         print(np.min(retrieved_values))

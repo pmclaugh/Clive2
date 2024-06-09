@@ -134,15 +134,17 @@ float2 sample_disk_concentric(const thread float2 &rand) {
 float3 random_hemisphere_cosine(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
     float2 d = sample_disk_concentric(rand);
     float z = sqrt(max(0., 1 - d.x * d.x - d.y * d.y));
-    return d.x * x_axis + d.y * y_axis + z * z_axis;
+    float3 vec = d.x * x_axis + d.y * y_axis + z * z_axis;
+    return vec / length(vec);
 }
 
 
 float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
     float z = rand.x;
-    float r = sqrt(max(0., 1 - z * z));
+    float r = sqrt(max(0., 1. - z * z));
     float phi = 2 * PI * rand.y;
-    return r * cos(phi) * x_axis + r * sin(phi) * y_axis + z * z_axis;
+    float3 vec = r * cos(phi) * x_axis + r * sin(phi) * y_axis + z * z_axis;
+    return vec / length(vec);
 }
 
 
@@ -212,7 +214,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     path.length = 0;
     Ray ray = rays[id];
     path.from_camera = ray.from_camera;
-    debug[id] = 0;
 
     for (int i = 0; i < 8; i++) {
         path.rays[i] = ray;
@@ -293,6 +294,11 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
     float3 delta = b.origin - a.origin;
     float dist = length(delta);
     delta = delta / dist;
+
+    // hack to eliminate fireflies
+    if (dist < 1.0f){
+        return 0.0f;
+    }
 
     float camera_cos = dot(a.normal, delta);
     float light_cos = dot(b.normal, -delta);
