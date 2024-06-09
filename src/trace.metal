@@ -338,7 +338,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 continue;
             }
             else if (s == 0) {
-                continue;
                 // this is where a camera ray hits the light source.
                 camera_ray = camera_path.rays[t - 1];
                 if (camera_ray.hit_light < 0) {
@@ -406,8 +405,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
 
             if (s == 0) {
-                float3 prior_camera_color = t > 1 ? camera_path.rays[t - 2].color : float3(1.0f);
-                sample += prior_camera_color / (w * camera_ray.tot_importance * 0.01f);
+                sample += camera_ray.color / (w * camera_ray.tot_importance);
             }
             else {
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
