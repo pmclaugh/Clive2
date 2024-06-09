@@ -265,7 +265,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         } else {
             new_ray.hit_light = -1;
         }
-
         ray = new_ray;
     }
     output_paths[id] = path;

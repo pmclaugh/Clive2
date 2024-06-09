@@ -241,6 +241,7 @@ def np_flatten_bvh(root: TreeBox):
             box_arr[box_index]['left'] = triangle_index
 
             for triangle in box.triangles:
+                triangle_arr[triangle_index] = 0
                 triangle_arr[triangle_index]['v0'][:3] = triangle.v0
                 triangle_arr[triangle_index]['v1'][:3] = triangle.v1
                 triangle_arr[triangle_index]['v2'][:3] = triangle.v2
