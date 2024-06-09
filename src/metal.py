@@ -252,12 +252,12 @@ if __name__ == '__main__':
 
         print(retrieved_values)
 
-        summed_image += retrieved_image
-        if np.any(np.isnan(summed_image)):
-            print("NaNs in summed image!!!")
-            break
+        summed_image += np.nan_to_num(retrieved_image)
+        # if np.any(np.isnan(summed_image)):
+        #     print("NaNs in summed image!!!")
+        #     break
 
-        to_display = tone_map(summed_image / max(i, 1))
+        to_display = tone_map(summed_image / (i + 1))
 
         if np.any(np.isnan(to_display)):
             print("NaNs in to_display!!!")
