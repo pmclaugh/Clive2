@@ -223,16 +223,16 @@ if __name__ == '__main__':
 
     batch_size = c.pixel_width * c.pixel_height
     out_camera_image = dev.buffer(batch_size * 16)
-    out_camera_paths = dev.buffer(batch_size * Path.itemsize)
+    out_camera_paths = dev.buffer(batch_size * Path.itemsize * 2)
     out_camera_debug = dev.buffer(batch_size * 4)
 
     out_light_image = dev.buffer(batch_size * 16)
-    out_light_paths = dev.buffer(batch_size * Path.itemsize)
+    out_light_paths = dev.buffer(batch_size * Path.itemsize * 2)
     out_light_debug = dev.buffer(batch_size * 4)
 
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_debug = dev.buffer(batch_size * 4)
-    final_out_float_debug = dev.buffer(batch_size * 4)
+    final_out_float_debug = dev.buffer(batch_size * 16)
 
     boxes = boxes.flatten()
     triangles = triangles.flatten()
@@ -256,7 +256,6 @@ if __name__ == '__main__':
         print(f"Sample {i} light trace time: {time.time() - start_time}")
 
         start_time = time.time()
-
         join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples, final_out_debug, final_out_float_debug)
         print(f"Sample {i} join time: {time.time() - start_time}")
 

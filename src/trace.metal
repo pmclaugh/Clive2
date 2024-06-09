@@ -114,7 +114,7 @@ void local_orthonormal_basis(const thread float3 &n, thread float3 &x, thread fl
 }
 
 
-float3 random_hemisphere_cosine_weighted(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
+float3 random_hemisphere_cosine(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
     float r = sqrt(rand.x);
     float theta = 2 * PI * rand.y;
     float x = r * cos(theta);
@@ -124,12 +124,10 @@ float3 random_hemisphere_cosine_weighted(const thread float3 &x_axis, const thre
 
 
 float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
-    float r = sqrt(1 - rand.x * rand.x);
-    float theta = 2 * PI * rand.y;
-    float x = r * cos(theta);
-    float y = r * sin(theta);
-    float z = sqrt(1 - r * r);
-    return x * x_axis + y * y_axis + z * z_axis;
+    float z = rand.x;
+    float r = sqrt(max(0., 1 - z * z));
+    float phi = 2 * PI * rand.y;
+    return r * cos(phi) * x_axis + r * sin(phi) * y_axis + z * z_axis;
 }
 
 
@@ -232,7 +230,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float f, c_p, l_p;
         if (material.type == 0) {
             if (path.from_camera) {
-                    new_ray.direction = random_hemisphere_uniform(x, y, triangle.normal, rand);
+                    new_ray.direction = random_hemisphere_cosine(x, y, triangle.normal, rand);
                     f = dot(triangle.normal, new_ray.direction);
                     c_p = dot(triangle.normal, new_ray.direction);
                     l_p = 1.0f / (2 * PI);
@@ -309,7 +307,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Box *boxes [[ buffer(4) ]],
                           device float4 *out [[ buffer(5) ]],
                           device int *debug [[ buffer(6) ]],
-                          device float* float_debug [[ buffer(7) ]],
+                          device float4 *float_debug [[ buffer(7) ]],
                           uint id [[ thread_position_in_grid ]]) {
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
@@ -381,8 +379,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     a = get_ray(camera_path, light_path, t, s, i - 1);
                     b = get_ray(camera_path, light_path, t, s, i);
                     c = get_ray(camera_path, light_path, t, s, i + 1);
-                    num = geometry_term(a, b) * a.c_importance;
-                    denom = geometry_term(b, c) * c.l_importance;
+                    num = a.c_importance * geometry_term(a, b);
+                    denom = c.l_importance * geometry_term(b, c);
                 }
                 p_ratios[i] = num / denom;
             }
@@ -405,10 +403,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float new_camera_f = dot(camera_ray.normal, -dir_l_to_c);
             float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
-            float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
-            float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : 1.0f;
+            float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].tot_importance;
+            float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : light_path.rays[0].tot_importance;
 
-            sample += (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (w * prior_camera_importance * prior_light_importance);
+            sample += (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (prior_camera_importance * prior_light_importance * w);
         }
     }
     out[id] = float4(sample, 1.0f);
