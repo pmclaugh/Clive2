@@ -159,7 +159,7 @@ def fast_generate_light_rays(triangles, num_rays):
     rays['origin'] = points
     rays['direction'] = np.array([0, -1, 0, 0])
     rays['inv_direction'] = 1 / rays['direction']
-    rays['importance'] = 1
+    rays['importance'] = 1.0
     rays['from_camera'] = 0
     rays['color'] = np.array([1, 1, 1, 1])
     return rays
@@ -200,62 +200,77 @@ if __name__ == '__main__':
     c = Camera(
         center=np.array([0, 2, -8]),
         direction=unit(np.array([0, 0, 1])),
+        pixel_width=640,
+        pixel_height=480,
     )
     mats = get_materials()
     boxes, triangles = np_flatten_bvh(bvh)
     dev = mc.Device()
     with open("trace.metal", "r") as f:
         kernel = f.read()
-    trace_fn = dev.kernel(kernel).function("generate_paths")
-    join_fn = dev.kernel(kernel).function("connect_paths")
+
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
     samples = 15
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
-    print(Path.itemsize)
+
     for i in range(samples):
         camera_rays = c.ray_batch_numpy()
         camera_rays = camera_rays.flatten()
         boxes = boxes.flatten()
         triangles = triangles.flatten()
-        rands = np.random.rand(camera_rays.size * 16).astype(np.float32)
+        rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
         out_camera_image = dev.buffer(camera_rays.size * 16)
         out_camera_paths = dev.buffer(camera_rays.size * Path.itemsize)
         out_camera_debug = dev.buffer(16)
 
         start_time = time.time()
+        trace_fn = dev.kernel(kernel).function("generate_paths")
         trace_fn(camera_rays.size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug)
         print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
-        light_rays = fast_generate_light_rays(triangles, camera_rays.size)
-        light_rays = light_rays.flatten()
-        rands = np.random.rand(light_rays.size * 32).astype(np.float32)
-        out_light_image = dev.buffer(light_rays.size * 16)
-        out_light_paths = dev.buffer(light_rays.size * Path.itemsize)
-        out_light_debug = dev.buffer(16)
+        camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
 
-        start_time = time.time()
-        trace_fn(light_rays.size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug)
-        print(f"Sample {i} light trace time: {time.time() - start_time}")
+        # light_rays = fast_generate_light_rays(triangles, camera_rays.size)
+        # rands = np.random.rand(light_rays.size * 32).astype(np.float32)
+        # out_light_image = dev.buffer(light_rays.size * 16)
+        # out_light_paths = dev.buffer(light_rays.size * Path.itemsize)
+        # out_light_debug = dev.buffer(16)
+        #
+        # start_time = time.time()
+        # trace_fn = dev.kernel(kernel).function("generate_paths")
+        # trace_fn(light_rays.size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug)
+        # print(f"Sample {i} light trace time: {time.time() - start_time}")
+        # light_paths = np.frombuffer(out_light_paths, dtype=Path)
+        #
+        # assert camera_paths.size == light_paths.size
+        #
+        # final_out_samples = dev.buffer(camera_rays.size * 16)
+        # final_out_debug = dev.buffer(camera_rays.size * 4)
+        # final_out_float_debug = dev.buffer(camera_rays.size * 4)
+        #
+        # start_time = time.time()
+        # join_fn = dev.kernel(kernel).function("connect_paths")
+        # join_fn(camera_paths.size, camera_paths, light_paths, triangles, mats, boxes, final_out_samples, final_out_debug, final_out_float_debug)
+        # print(f"Sample {i} join time: {time.time() - start_time}")
 
-        final_out_samples = dev.buffer(camera_rays.size * 16)
-        final_out_debug = dev.buffer(16)
+        retrieved_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:,:, :3]
+        retrieved_values = np.frombuffer(out_camera_debug, dtype=np.int32)
 
-        start_time = time.time()
-        join_fn(camera_rays.size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples, final_out_debug)
-        print(f"Sample {i} join time: {time.time() - start_time}")
+        # retrieved_image = np.frombuffer(out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+        # retrieved_values = np.frombuffer(out_light_debug, dtype=np.int32)
 
-        # retrieved_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-        # retrieved_values = np.frombuffer(out_camera_debug, dtype=np.int32)
-
-        retrieved_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-        retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
+        # retrieved_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+        # retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
+        # retrieved_floats = np.frombuffer(final_out_float_debug, dtype=np.float32)
 
         print(retrieved_values)
+        # print(np.min(retrieved_floats))
+        # print(np.max(retrieved_floats))
 
-        summed_image += np.nan_to_num(retrieved_image)
-        # if np.any(np.isnan(summed_image)):
-        #     print("NaNs in summed image!!!")
-        #     break
+        summed_image += retrieved_image
+        if np.any(np.isnan(summed_image)):
+            print("NaNs in summed image!!!")
+            break
 
         to_display = tone_map(summed_image / (i + 1))
 
