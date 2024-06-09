@@ -85,7 +85,6 @@ def get_materials():
     materials['emission'] = np.zeros((7, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
     materials['type'] = 0
-    # materials['type'][0] = 1
     return materials
 
 
@@ -218,16 +217,16 @@ if __name__ == '__main__':
         kernel = f.read()
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 15
+    samples = 10
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
 
     batch_size = c.pixel_width * c.pixel_height
     out_camera_image = dev.buffer(batch_size * 16)
-    out_camera_paths = dev.buffer(batch_size * Path.itemsize * 2)
+    out_camera_paths = dev.buffer(batch_size * Path.itemsize)
     out_camera_debug = dev.buffer(batch_size * 4)
 
     out_light_image = dev.buffer(batch_size * 16)
-    out_light_paths = dev.buffer(batch_size * Path.itemsize * 2)
+    out_light_paths = dev.buffer(batch_size * Path.itemsize)
     out_light_debug = dev.buffer(batch_size * 4)
 
     final_out_samples = dev.buffer(batch_size * 16)

@@ -218,10 +218,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         path.rays[i] = ray;
         path.length = i + 1;
 
-        if (ray.hit_light >= 0 && path.from_camera == 1) {
-            break;
-        }
-
         int best_i = -1;
         float best_t = INFINITY;
         traverse_bvh(ray, boxes, triangles, best_i, best_t);
@@ -329,8 +325,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     float3 sample = float3(0.0f);
     int sample_count = 0;
     float p_ratios[16];
-
-    debug[id] = camera_path.length;
+    debug[id] = 0;
 
     for (int t = 0; t < camera_path.length; t++){
         for (int s = 0; s < light_path.length; s++){
@@ -342,13 +337,14 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 // this is where a light ray hits the camera plane. not yet supported.
                 continue;
             }
-            else if (s == 0){
-                // this is where a camera ray hits the light source. not yet supported.
+            else if (s == 0) {
                 continue;
-            }
-            else if (t == 1){
-                // this is visibility from camera plane to light ray. not yet supported.
-                continue;
+                // this is where a camera ray hits the light source.
+                camera_ray = camera_path.rays[t - 1];
+                if (camera_ray.hit_light < 0) {
+                    continue;
+                }
+                debug[id] += 1;
             }
             else {
                 light_ray = light_path.rays[s - 1];
@@ -409,19 +405,25 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 w += (p_ratios[s - 1] * p_ratios[s - 1]) / (p_ratios[i] * p_ratios[i]);
             }
 
-            float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
-            float dist_l_to_c = length(dir_l_to_c);
-            dir_l_to_c = dir_l_to_c / dist_l_to_c;
+            if (s == 0) {
+                float3 prior_camera_color = t > 1 ? camera_path.rays[t - 2].color : float3(1.0f);
+                sample += prior_camera_color / (w * camera_ray.tot_importance * 0.01f);
+            }
+            else {
+                float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
+                float dist_l_to_c = length(dir_l_to_c);
+                dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-            float3 prior_camera_color = t > 1 ? camera_path.rays[t - 2].color : float3(1.0f);
-            Material camera_material = materials[camera_ray.material];
-            float new_camera_f = dot(camera_ray.normal, -dir_l_to_c);
-            float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
+                float3 prior_camera_color = t > 1 ? camera_path.rays[t - 2].color : float3(1.0f);
+                Material camera_material = materials[camera_ray.material];
+                float new_camera_f = dot(camera_ray.normal, -dir_l_to_c);
+                float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
-            float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].tot_importance;
-            float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : light_path.rays[0].tot_importance;
+                float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
+                float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : 1.0f;
 
-            sample += (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (prior_camera_importance * prior_light_importance * w);
+                sample += (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (prior_camera_importance * prior_light_importance * w);
+            }
             sample_count++;
         }
     }
