@@ -8,9 +8,12 @@ Ray = np.dtype([
     ('color', np.float32, 4),
     ('normal', np.float32, 4),
     ('material', np.int32),
-    ('importance', np.float32),
+    ('c_importance', np.float32),
+    ('l_importance', np.float32),
+    ('tot_importance', np.float32),
     ('hit_light', np.int32),
     ('from_camera', np.int32),
+    ('pad', np.int32, 2),
 ])
 
 Path = np.dtype([

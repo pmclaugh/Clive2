@@ -66,7 +66,9 @@ class Camera:
         batch['direction'][:, :, :3] = directions
         batch['inv_direction'][:, :, :3] = 1 / directions
         batch['color'] = np.ones(4)
-        batch['importance'] = 1.0
+        batch['c_importance'] = 1.0
+        batch['l_importance'] = 1.0
+        batch['tot_importance'] = 1.0
         batch['hit_light'] = -1
         batch['material'] = -1
         batch['normal'][:, :, :3] = directions
