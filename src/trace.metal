@@ -17,7 +17,7 @@ struct Ray {
 };
 
 struct Path {
-    Ray rays[16];
+    Ray rays[8];
     int32_t length;
     int32_t from_camera;
     int32_t pad[2];
@@ -193,15 +193,20 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    device int *debug [[ buffer(7) ]],
                    uint id [[ thread_position_in_grid ]]) {
     Path path;
+    path.length = 0;
     Ray ray = rays[id];
-    path.rays[0] = ray;
-    path.length = 1;
     path.from_camera = ray.from_camera;
 
     for (int i = 0; i < 8; i++) {
+        path.rays[i] = ray;
+        path.length = i + 1;
+
+        if (ray.hit_light >= 0 && path.from_camera) {
+            break;
+        }
+
         int best_i = -1;
         float best_t = INFINITY;
-        Ray ray = path.rays[i];
         traverse_bvh(ray, boxes, triangles, best_i, best_t);
 
         if (best_i == -1) {
@@ -240,7 +245,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
 
-        if (f == 0) {
+        if (f <= 0.0f) {
             break;
         }
 
@@ -255,12 +260,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.hit_light = -1;
         }
 
-        path.rays[i + 1] = new_ray;
-        path.length = i + 2;
-
-        if (new_ray.hit_light >= 0 && path.from_camera) {
-            break;
-        }
+        ray = new_ray;
     }
     output_paths[id] = path;
     Ray final_ray = path.rays[path.length - 1];
@@ -271,6 +271,29 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         out[id] = float4(0, 0, 0, 1);
     }
 }
+
+
+float geometry_term(const thread Ray &a, const thread Ray &b){
+    float3 delta = b.origin - a.origin;
+    float dist = length(delta);
+    delta = delta / dist;
+
+    float camera_cos = dot(a.normal, delta);
+    float light_cos = dot(b.normal, -delta);
+
+    return abs(camera_cos * light_cos) / (dist * dist);
+}
+
+
+Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const thread int t, const thread int s, const thread int i){
+    if (i < s){
+        return light_path.rays[i];
+    }
+    else {
+        return camera_path.rays[t + s - i - 1];
+    }
+}
+
 
 
 kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
@@ -286,55 +309,79 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     float3 sample = float3(0.0f);
     int sample_count = 0;
 
-    for (int t = 0; t < camera_path.length + 1; t++){
-        for (int s = 0; s < light_path.length + 1; s++){
-            float light_p = 1.0f;
-            float camera_p = 1.0f;
-            float3 light_f = float3(1.0f);
-            float3 camera_f = float3(1.0f);
-
+    for (int t = 0; t < camera_path.length; t++){
+        for (int s = 0; s < light_path.length; s++){
+            float3 dir_l_to_c = float3(0.0f);
+            Ray light_ray;
+            Ray camera_ray;
+            
             if (t == 0){
                 // this is where a light ray hits the camera plane. not yet supported.
                 continue;
             }
             else if (s == 0){
-                if (camera_path.rays[t - 1].hit_light >= 0){
-                    // regular unidirectional, the camera ray hit the light source.
-                    light_p = 1.0f;
-                    light_f = float3(1.0f);
-                    camera_p = camera_path.rays[t - 1].importance;
-                    camera_f = camera_path.rays[t - 1].color;
-                }
+                // this is where a camera ray hits the light source. not yet supported.
+                continue;
             }
             else if (t == 1){
                 // this is visibility from camera plane to light ray. not yet supported.
                 continue;
             }
             else {
-                Ray light_ray = light_path.rays[s - 1];
-                Ray prior_light_ray = s > 1 ? light_path.rays[s - 2] : light_ray;
-                Ray camera_ray = camera_path.rays[t - 1];
-                Ray prior_camera_ray = t > 1 ? camera_path.rays[t - 2] : camera_ray;
+                light_ray = light_path.rays[s - 1];
+                camera_ray = camera_path.rays[t - 1];
 
-                float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
+                dir_l_to_c = camera_ray.origin - light_ray.origin;
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                // todo visibility check should be here but it causes huge confusing issues
-                if (dot(light_ray.normal, dir_l_to_c) > 0 && dot(camera_ray.normal, -dir_l_to_c) > 0){
-                    light_p = prior_light_ray.importance;
-                    light_f = prior_light_ray.color * dot(light_ray.normal, dir_l_to_c);
-
-                    camera_p = prior_camera_ray.importance;
-                    camera_f = prior_camera_ray.color * dot(camera_ray.normal, -dir_l_to_c);
+                if (dot(light_ray.normal, dir_l_to_c) <= 0){
+                    continue;
                 }
-                else {
+                if (dot(camera_ray.normal, -dir_l_to_c) <= 0){
+                    continue;
+                }
+                if (not visibility_test(light_ray.origin, camera_ray.origin, boxes, triangles)){
                     continue;
                 }
             }
 
-            sample = (light_f * camera_f) / (light_p * camera_p);
-            sample_count++;
+            float p_ratios[32];
+
+            for (int i; i < 32; i++){
+                p_ratios[i] = 1.0f;
+            }
+
+            for (int i = 0; i < s + t; i++){
+                float num;
+                float denom;
+                if (i == 0){
+                    num = 1.0f;
+                    denom = light_ray.importance;
+                }
+                else if (i == s + t - 1) {
+                    num = camera_ray.importance;
+                    denom = 1.0f;
+                }
+                else {
+                    num = dot(camera_ray.normal, -dir_l_to_c) * geometry_term(camera_ray, light_ray);
+                    denom = dot(light_ray.normal, dir_l_to_c) * geometry_term(camera_ray, light_ray);
+                }
+                p_ratios[i] = num / denom;
+                p_ratios[1] = 1.0f;
+            }
+
+            for (int i = 1; i < s + t; i++){
+                p_ratios[i] = p_ratios[i] * p_ratios[i - 1];
+            }
+
+            float w = 0.0f;
+            for (int i = 0; i < s + t; i++){
+                w += p_ratios[s - 1] / p_ratios[i];
+            }
+
+            sample += (camera_ray.color * light_ray.color) / (light_ray.importance * camera_ray.importance);
+            sample_count += 1;
         }
     }
     out[id] = float4(sample / max(sample_count, 1), 1);

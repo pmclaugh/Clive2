@@ -14,7 +14,7 @@ Ray = np.dtype([
 ])
 
 Path = np.dtype([
-    ('rays', Ray, 16),
+    ('rays', Ray, 8),
     ('length', np.int32),
     ('from_camera', np.int32),
     ('pad', np.int32, 2),
