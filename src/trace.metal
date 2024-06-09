@@ -114,12 +114,27 @@ void local_orthonormal_basis(const thread float3 &n, thread float3 &x, thread fl
 }
 
 
+float2 sample_disk_concentric(const thread float2 &rand) {
+    float2 offset = 2.0 * rand - float2(1.0, 1.0);
+    if (offset.x == 0 && offset.y == 0) {
+        return float2(0, 0);
+    }
+    float theta, r;
+    if (abs(offset.x) > abs(offset.y)) {
+        r = offset.x;
+        theta = PI / 4 * (offset.y / offset.x);
+    } else {
+        r = offset.y;
+        theta = PI / 2 - PI / 4 * (offset.x / offset.y);
+    }
+    return r * float2(cos(theta), sin(theta));
+}
+
+
 float3 random_hemisphere_cosine(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
-    float r = sqrt(rand.x);
-    float theta = 2 * PI * rand.y;
-    float x = r * cos(theta);
-    float y = r * sin(theta);
-    return x * x_axis + y * y_axis + sqrt(max(0., 1 - rand.x)) * z_axis;
+    float2 d = sample_disk_concentric(rand);
+    float z = sqrt(max(0., 1 - d.x * d.x - d.y * d.y));
+    return d.x * x_axis + d.y * y_axis + z * z_axis;
 }
 
 
@@ -231,14 +246,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (material.type == 0) {
             if (path.from_camera) {
                     new_ray.direction = random_hemisphere_cosine(x, y, triangle.normal, rand);
-                    f = dot(triangle.normal, new_ray.direction);
-                    c_p = dot(triangle.normal, new_ray.direction);
+                    f = dot(triangle.normal, new_ray.direction) / PI;
+                    c_p = dot(triangle.normal, new_ray.direction) / PI;
                     l_p = 1.0f / (2 * PI);
                 }
             else {
                 new_ray.direction = random_hemisphere_uniform(x, y, triangle.normal, rand);
-                f = dot(triangle.normal, -ray.direction);
-                c_p = dot(triangle.normal, -ray.direction);
+                f = dot(triangle.normal, -ray.direction) / PI;
+                c_p = dot(triangle.normal, -ray.direction) / PI;
                 l_p = 1.0f / (2 * PI);
             }
         } else {
@@ -315,7 +330,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     int sample_count = 0;
     float p_ratios[16];
 
-    debug[id] = light_path.length;
+    debug[id] = camera_path.length;
 
     for (int t = 0; t < camera_path.length; t++){
         for (int s = 0; s < light_path.length; s++){
@@ -407,6 +422,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : light_path.rays[0].tot_importance;
 
             sample += (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (prior_camera_importance * prior_light_importance * w);
+            sample_count++;
         }
     }
     out[id] = float4(sample, 1.0f);
