@@ -196,36 +196,46 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     path.length = 0;
     Ray ray = rays[id];
     path.from_camera = ray.from_camera;
+    int best_i;
+    float best_t;
+    Triangle triangle;
+    Material material;
+    float2 rand;
+    Ray new_ray;
+    float3 x, y;
+    float f, p;
+
+    debug[0] = sizeof(float2);
+    debug[1] = sizeof(float4);
+    debug[2] = sizeof(Triangle);
+    debug[3] = sizeof(Material);
 
     for (int i = 0; i < 8; i++) {
         path.rays[i] = ray;
         path.length = i + 1;
 
-        if (ray.hit_light >= 0 && path.from_camera) {
+        if (ray.hit_light >= 0 && path.from_camera == 1) {
             break;
         }
 
-        int best_i = -1;
-        float best_t = INFINITY;
+        best_i = -1;
+        best_t = INFINITY;
         traverse_bvh(ray, boxes, triangles, best_i, best_t);
 
         if (best_i == -1) {
             break;
         }
 
-        Triangle triangle = triangles[best_i];
-        Material material = materials[triangle.material];
-        float2 rand = random[id + i];
+        triangle = triangles[best_i];
+        material = materials[triangle.material];
+        rand = random[id * 8 + i];
 
-        Ray new_ray;
         new_ray.origin = ray.origin + ray.direction * best_t;
         new_ray.normal = triangle.normal;
         new_ray.material = triangle.material;
 
-        float3 x, y;
         local_orthonormal_basis(triangle.normal, x, y);
 
-        float f, p;
         if (material.type == 0) {
             if (path.from_camera) {
                     new_ray.direction = random_hemisphere_uniform(x, y, triangle.normal, rand);
@@ -308,13 +318,19 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     Path light_path = light_paths[id];
     float3 sample = float3(0.0f);
     int sample_count = 0;
+    Ray light_ray;
+    Ray camera_ray;
+    float3 dir_l_to_c = float3(0.0f);
+    float dist_l_to_c;
+    float p_ratios[32];
+    float num;
+    float denom;
+    float w;
+    int s, t, i;
 
-    for (int t = 0; t < camera_path.length; t++){
-        for (int s = 0; s < light_path.length; s++){
-            float3 dir_l_to_c = float3(0.0f);
-            Ray light_ray;
-            Ray camera_ray;
-            
+    for (t = 0; t < camera_path.length; t++){
+        for (s = 0; s < light_path.length; s++){
+
             if (t == 0){
                 // this is where a light ray hits the camera plane. not yet supported.
                 continue;
@@ -332,7 +348,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 camera_ray = camera_path.rays[t - 1];
 
                 dir_l_to_c = camera_ray.origin - light_ray.origin;
-                float dist_l_to_c = length(dir_l_to_c);
+                dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
                 if (dot(light_ray.normal, dir_l_to_c) <= 0){
@@ -346,15 +362,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            float p_ratios[32];
-
-            for (int i; i < 32; i++){
+            for (int i = 0; i < 32; i++){
                 p_ratios[i] = 1.0f;
             }
 
             for (int i = 0; i < s + t; i++){
-                float num;
-                float denom;
                 if (i == 0){
                     num = 1.0f;
                     denom = light_ray.importance;
@@ -368,19 +380,19 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     denom = dot(light_ray.normal, dir_l_to_c) * geometry_term(camera_ray, light_ray);
                 }
                 p_ratios[i] = num / denom;
-                p_ratios[1] = 1.0f;
+                p_ratios[i] = 1.0f;
             }
 
             for (int i = 1; i < s + t; i++){
                 p_ratios[i] = p_ratios[i] * p_ratios[i - 1];
             }
 
-            float w = 0.0f;
+            w = 0.0f;
             for (int i = 0; i < s + t; i++){
                 w += p_ratios[s - 1] / p_ratios[i];
             }
 
-            sample += (camera_ray.color * light_ray.color) / (light_ray.importance * camera_ray.importance);
+            sample += (camera_ray.color * light_ray.color) / (light_ray.importance * camera_ray.importance * w);
             sample_count += 1;
         }
     }
