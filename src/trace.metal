@@ -299,8 +299,7 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
     float dist = length(delta);
     delta = delta / dist;
 
-    // hack to eliminate fireflies
-    if (dist < 1.0f){
+    if (dist < 1.0f) {
         return 0.0f;
     }
 
@@ -379,21 +378,19 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 p_ratios[i] = 1.0f;
             }
 
-            for (int i = 0; i < s + t + 1; i++){
+            for (int i = 0; i < s + t; i++){
                 float num, denom;
                 if (i == 0){
-                    Ray a, b;
-                    a = get_ray(camera_path, light_path, t, s, i);
-                    b = get_ray(camera_path, light_path, t, s, i + 1);
-                    num = a.c_importance;
-                    denom = b.l_importance * geometry_term(a, b);
+                    Ray a = get_ray(camera_path, light_path, t, s, i);
+                    Ray b = get_ray(camera_path, light_path, t, s, i + 1);
+                    num = 1.0f;
+                    denom = a.l_importance * geometry_term(a, b);
                 }
-                else if (i == s + t) {
-                    Ray a, b;
-                    a = get_ray(camera_path, light_path, t, s, i - 1);
-                    b = get_ray(camera_path, light_path, t, s, i);
-                    num = a.c_importance * geometry_term(a, b);
-                    denom = b.l_importance;
+                else if (i == s + t - 1) {
+                    Ray a = get_ray(camera_path, light_path, t, s, i - 1);
+                    Ray b = get_ray(camera_path, light_path, t, s, i - 2);
+                    num = a.c_importance * geometry_term(b, a);
+                    denom = 1.0f;
                 }
                 else {
                     Ray a, b, c;
@@ -406,17 +403,33 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 p_ratios[i] = num / denom;
             }
 
-            for (int i = 1; i < s + t + 1; i++){
+            // after above, p_ratios is like p1/p0, p2/p1, p3/p2, ...
+
+            // next we multiply so they are like p1/p0, p2/p0, p3/p0, ...
+
+            for (int i = 1; i < s + t; i++){
                 p_ratios[i] = p_ratios[i] * p_ratios[i - 1];
             }
 
             float w = 0.0f;
-            for (int i = 0; i < s + t + 1; i++){
-                w += (p_ratios[s - 1] * p_ratios[s - 1]) / (p_ratios[i] * p_ratios[i]);
+            if (s == 0) {
+                float sum = 1.0f;
+                for (int i = 0; i < s + t; i++){
+                    sum += p_ratios[i] * p_ratios[i];
+                }
+                w = 1.0f / sum;
+            }
+            else {
+                float p0 = 1 / p_ratios[s];
+                float sum = p0 * p0;
+                for (int i = 0; i < s + t; i++){
+                    sum += p_ratios[i] * p_ratios[i] * p0 * p0;
+                }
+                w = 1.0f / sum;
             }
 
             if (s == 0) {
-                //sample += camera_ray.color;
+                sample += w * camera_ray.color / (camera_ray.tot_importance);
             }
             else {
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
@@ -431,7 +444,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
                 float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : 1.0f;
 
-                sample += (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (prior_camera_importance * prior_light_importance * w);
+                sample += w * (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (prior_camera_importance * prior_light_importance);
             }
             sample_count++;
         }
