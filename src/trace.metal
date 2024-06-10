@@ -334,7 +334,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     Path light_path = light_paths[id];
     float3 sample = float3(0.0f);
     int sample_count = 0;
-    float p_ratios[16];
+    float p_ratios[32];
 
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -375,7 +375,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            for (int i = 0; i < 16; i++){
+            for (int i = 0; i < 32; i++){
                 p_ratios[i] = 1.0f;
             }
 
@@ -406,17 +406,17 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 p_ratios[i] = num / denom;
             }
 
-            for (int i = 1; i < s + t; i++){
+            for (int i = 1; i < s + t + 1; i++){
                 p_ratios[i] = p_ratios[i] * p_ratios[i - 1];
             }
 
             float w = 0.0f;
-            for (int i = 0; i < s + t; i++){
+            for (int i = 0; i < s + t + 1; i++){
                 w += (p_ratios[s - 1] * p_ratios[s - 1]) / (p_ratios[i] * p_ratios[i]);
             }
 
             if (s == 0) {
-                sample += camera_ray.color / (w * camera_ray.tot_importance);
+                //sample += camera_ray.color;
             }
             else {
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
