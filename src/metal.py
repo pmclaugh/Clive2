@@ -85,6 +85,7 @@ def get_materials():
     materials['emission'] = np.zeros((7, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
     materials['type'] = 0
+    # materials[0]['type'] = 1
     return materials
 
 
@@ -155,9 +156,9 @@ def fast_generate_light_rays(triangles, num_rays):
     rand_us = np.random.rand(num_rays)
     rand_vs = np.random.rand(num_rays)
     rand_ws = 1 - rand_us - rand_vs
-    points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:, 2] * rand_ws[:, None]
-    rays['origin'] = points
     rays['direction'] = np.array([0, -1, 0, 0])
+    points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:, 2] * rand_ws[:, None]
+    rays['origin'] = points + 0.0001 * rays['direction']
     rays['normal'] = rays['direction']
     rays['inv_direction'] = 1 / rays['direction']
     rays['c_importance'] = 1.0
@@ -208,8 +209,8 @@ if __name__ == '__main__':
 
     bvh = construct_BVH(tris)
     c = Camera(
-        center=np.array([0, 2, -8]),
-        direction=unit(np.array([0, 0, 1])),
+        center=np.array([0, 2, 8]),
+        direction=unit(np.array([0, 0, -1])),
     )
     mats = get_materials()
     boxes, triangles = np_flatten_bvh(bvh)
@@ -218,7 +219,7 @@ if __name__ == '__main__':
         kernel = f.read()
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 10
+    samples = 20
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
 
     batch_size = c.pixel_width * c.pixel_height
@@ -259,13 +260,13 @@ if __name__ == '__main__':
         join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples, final_out_debug, final_out_float_debug)
         print(f"Sample {i} join time: {time.time() - start_time}")
 
-        # retrieved_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:,:, :3]
+        unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:,:, :3]
         retrieved_camera_debug = np.frombuffer(out_camera_debug, dtype=np.int32)
 
         # retrieved_image = np.frombuffer(out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
         retrieved_light_debug = np.frombuffer(out_light_debug, dtype=np.int32)
 
-        retrieved_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+        bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
         retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
         retrieved_floats = np.frombuffer(final_out_float_debug, dtype=np.float32)
 
@@ -276,7 +277,7 @@ if __name__ == '__main__':
         print(np.min(retrieved_values))
         print(np.max(retrieved_values))
 
-        summed_image += np.nan_to_num(retrieved_image)
+        summed_image += np.nan_to_num(bidirectional_image)
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
             break

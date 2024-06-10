@@ -219,6 +219,10 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         path.rays[i] = ray;
         path.length = i + 1;
 
+        if (ray.hit_light >= 0 && path.from_camera) {
+            break;
+        }
+
         int best_i = -1;
         float best_t = INFINITY;
         traverse_bvh(ray, boxes, triangles, best_i, best_t);
@@ -255,7 +259,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             }
         } else {
             new_ray.direction = specular_reflection(ray.direction, triangle.normal);
-            f = 1.0f;
+            f = 1.0f / dot(triangle.normal, new_ray.direction);
             c_p = 1.0f;
             l_p = 1.0f;
         }
@@ -331,11 +335,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     float3 sample = float3(0.0f);
     int sample_count = 0;
     float p_ratios[16];
-    debug[id] = 0;
 
-    for (int t = 0; t < camera_path.length; t++){
-        for (int s = 0; s < light_path.length; s++){
-
+    for (int t = 0; t < camera_path.length + 1; t++){
+        for (int s = 0; s < light_path.length + 1; s++){
             Ray light_ray;
             Ray camera_ray;
 
@@ -346,10 +348,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else if (s == 0) {
                 // this is where a camera ray hits the light source.
                 camera_ray = camera_path.rays[t - 1];
-                if (camera_ray.hit_light < 0) {
+                if (camera_ray.hit_light < 0){
                     continue;
                 }
-                debug[id] += 1;
+            }
+            else if (t == 1) {
+                // light ray visibility to camera plane. not yet supported.
+                continue;
             }
             else {
                 light_ray = light_path.rays[s - 1];
