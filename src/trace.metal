@@ -379,7 +379,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 p_ratios[i] = 1.0f;
             }
 
-            for (int i = 0; i < s + t; i++){
+            for (int i = 0; i < s + t + 1; i++){
                 float num, denom;
                 if (i == 0){
                     Ray a, b;
@@ -388,7 +388,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     num = a.c_importance;
                     denom = b.l_importance * geometry_term(a, b);
                 }
-                else if (i == s + t - 1) {
+                else if (i == s + t) {
                     Ray a, b;
                     a = get_ray(camera_path, light_path, t, s, i - 1);
                     b = get_ray(camera_path, light_path, t, s, i);
