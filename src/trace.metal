@@ -297,10 +297,6 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
     float dist = length(delta);
     delta = delta / dist;
 
-    if (dist < 1.0f) {
-        return 0.0f;
-    }
-
     float camera_cos = dot(a.normal, delta);
     float light_cos = dot(b.normal, -delta);
 
@@ -383,12 +379,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i + 1);
                     num = 1.0f;
-                    denom = 1.0f / (PI * 2) * geometry_term(a, b);
+                    denom = b.l_importance * geometry_term(a, b);
                 }
                 else if (i == s + t - 1) {
                     Ray a = get_ray(camera_path, light_path, t, s, i );
                     Ray b = get_ray(camera_path, light_path, t, s, i - 1);
-                    num = a.c_importance * geometry_term(b, a);
+                    num = a.c_importance * geometry_term(a, b);
                     denom = 1.0f;
                 }
                 else {
@@ -420,7 +416,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float w = ps / sum;
 
             if (s == 0) {
-                sample += (camera_ray.color) / (camera_ray.tot_importance);
+                sample += w * (camera_ray.color) / (camera_ray.tot_importance);
             }
             else {
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
