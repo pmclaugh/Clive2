@@ -309,11 +309,11 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
 
 
 Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const thread int t, const thread int s, const thread int i){
-    if (i < t){
-        return camera_path.rays[i];
+    if (i < s){
+        return light_path.rays[i];
     }
     else {
-        return light_path.rays[t + s - i - 1];
+        return camera_path.rays[t + s - i - 1];
     }
 }
 
@@ -383,11 +383,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i + 1);
                     num = 1.0f;
-                    denom = a.l_importance * geometry_term(a, b);
+                    denom = 1.0f / (PI * 2) * geometry_term(a, b);
                 }
                 else if (i == s + t - 1) {
-                    Ray a = get_ray(camera_path, light_path, t, s, i - 1);
-                    Ray b = get_ray(camera_path, light_path, t, s, i - 2);
+                    Ray a = get_ray(camera_path, light_path, t, s, i );
+                    Ray b = get_ray(camera_path, light_path, t, s, i - 1);
                     num = a.c_importance * geometry_term(b, a);
                     denom = 1.0f;
                 }
@@ -396,8 +396,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     a = get_ray(camera_path, light_path, t, s, i - 1);
                     b = get_ray(camera_path, light_path, t, s, i);
                     c = get_ray(camera_path, light_path, t, s, i + 1);
-                    num = a.c_importance * geometry_term(a, b);
-                    denom = c.l_importance * geometry_term(b, c);
+                    num = a.l_importance * geometry_term(a, b);
+                    denom = c.c_importance * geometry_term(b, c);
                 }
                 p_ratios[i] = num / denom;
             }
