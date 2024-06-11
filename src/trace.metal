@@ -289,8 +289,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     else {
         out[id] = float4(0, 0, 0, 1);
     }
-
-    debug[id] = path.length;
 }
 
 
@@ -306,7 +304,7 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
     float camera_cos = dot(a.normal, delta);
     float light_cos = dot(b.normal, -delta);
 
-    return (camera_cos * light_cos) / (dist * dist);
+    return abs(camera_cos * light_cos) / (dist * dist);
 }
 
 
@@ -378,6 +376,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 p_ratios[i] = 1.0f;
             }
 
+            // set up p_ratios like p1/p0, p2/p1, p3/p2, ... out to pk+1/pk, where k = s + t - 1
             for (int i = 0; i < s + t; i++){
                 float num, denom;
                 if (i == 0){
@@ -403,33 +402,17 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 p_ratios[i] = num / denom;
             }
 
-            // after above, p_ratios is like p1/p0, p2/p1, p3/p2, ...
-
             // next we multiply so they are like p1/p0, p2/p0, p3/p0, ...
+            for (int i = 1; i < s + t; i++){p_ratios[i] = p_ratios[i] * p_ratios[i - 1];}
 
-            for (int i = 1; i < s + t; i++){
-                p_ratios[i] = p_ratios[i] * p_ratios[i - 1];
-            }
 
-            float w = 0.0f;
-            if (s == 0) {
-                float sum = 1.0f;
-                for (int i = 0; i < s + t; i++){
-                    sum += p_ratios[i] * p_ratios[i];
-                }
-                w = 1.0f / sum;
-            }
-            else {
-                float p0 = 1 / p_ratios[s];
-                float sum = p0 * p0;
-                for (int i = 0; i < s + t; i++){
-                    sum += p_ratios[i] * p_ratios[i] * p0 * p0;
-                }
-                w = 1.0f / sum;
-            }
+            float sum = 1.0f;
+            for (int i = 0; i < s + t; i++){sum += p_ratios[i] * p_ratios[i];}
+            float ps = s > 0 ? p_ratios[s - 1] : 1.0f;
+            float w = (ps * ps) / sum;
 
             if (s == 0) {
-                sample += w * camera_ray.color / (camera_ray.tot_importance);
+                sample += (camera_ray.color) / (camera_ray.tot_importance);
             }
             else {
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
