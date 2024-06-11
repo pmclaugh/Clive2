@@ -406,10 +406,18 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             for (int i = 1; i < s + t; i++){p_ratios[i] = p_ratios[i] * p_ratios[i - 1];}
 
 
-            float sum = 1.0f;
-            for (int i = 0; i < s + t; i++){sum += p_ratios[i] * p_ratios[i];}
-            float ps = s > 0 ? p_ratios[s - 1] : 1.0f;
-            float w = (ps * ps) / sum;
+            float sum = 0.0f; // count ps, which won't be in the array
+            if (s == 0) {
+                for (int i = 0; i < s + t; i++){sum += p_ratios[i];}
+                sum += 1.0f;
+            }
+            else {
+                float p0 = 1 / p_ratios[s - 1];
+                for (int i = 0; i < s + t; i++){sum += p_ratios[i] * p0;}
+                sum += p0;
+            }
+            float ps = 1.0f;
+            float w = ps / sum;
 
             if (s == 0) {
                 sample += (camera_ray.color) / (camera_ray.tot_importance);
