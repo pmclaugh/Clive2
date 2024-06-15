@@ -156,13 +156,13 @@ def fast_generate_light_rays(triangles, num_rays):
     rand_us = np.random.rand(num_rays)
     rand_vs = np.random.rand(num_rays)
     rand_ws = 1 - rand_us - rand_vs
-    rays['direction'] = np.array([0, -1, 0, 0])
+    rays['direction'] = unit(np.array([0, -1, 0, 0]))
     points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:, 2] * rand_ws[:, None]
     rays['origin'] = points + 0.0001 * rays['direction']
     rays['normal'] = rays['direction']
     rays['inv_direction'] = 1 / rays['direction']
     rays['c_importance'] = 1.0
-    rays['l_importance'] = 1.0 / emitter_surface_area
+    rays['l_importance'] = 1.0
     rays['tot_importance'] = 1.0
     rays['from_camera'] = 0
     rays['color'] = np.array([1, 1, 1, 1])
@@ -265,6 +265,8 @@ if __name__ == '__main__':
         unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:,:, :3]
         retrieved_camera_debug = np.frombuffer(out_camera_debug, dtype=np.int32)
         retrieved_camera_floats = np.frombuffer(out_camera_debug_float, dtype=np.float32)
+        retrieved_light_debug = np.frombuffer(out_light_debug, dtype=np.int32)
+        retrieved_light_floats = np.frombuffer(out_light_debug_float, dtype=np.float32)
 
         bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
         retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
@@ -272,6 +274,8 @@ if __name__ == '__main__':
 
         print("camera", retrieved_camera_debug, np.min(retrieved_camera_debug), np.max(retrieved_camera_debug))
         print("camera floats", retrieved_camera_floats, np.min(retrieved_camera_floats), np.max(retrieved_camera_floats))
+        print("light", retrieved_light_debug, np.min(retrieved_light_debug), np.max(retrieved_light_debug))
+        print("light floats", retrieved_light_floats, np.min(retrieved_light_floats), np.max(retrieved_light_floats))
         print("join", retrieved_values, np.min(retrieved_values), np.max(retrieved_values))
         print("join floats", retrieved_floats, np.min(retrieved_floats), np.max(retrieved_floats))
 
