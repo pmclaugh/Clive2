@@ -209,13 +209,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    device float4 *out [[ buffer(5) ]],
                    device Path *output_paths [[ buffer(6) ]],
                    device int *debug [[ buffer(7) ]],
+                   device float *float_debug [[ buffer(8) ]],
                    uint id [[ thread_position_in_grid ]]) {
     Path path;
     path.length = 0;
     Ray ray = rays[id];
     path.from_camera = ray.from_camera;
-
-    debug[0] = sizeof(Ray);
 
     for (int i = 0; i < 8; i++) {
         path.rays[i] = ray;
@@ -285,6 +284,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     }
     output_paths[id] = path;
     Ray final_ray = path.rays[path.length - 1];
+    float_debug[id] = final_ray.l_importance;
     if (final_ray.hit_light >= 0) {
         out[id] = float4(final_ray.color / final_ray.tot_importance, 1);
     }
@@ -418,7 +418,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float w = 1.0f / sum;
 
             if (s == 0) {
-                sample += (camera_ray.color) / (camera_ray.tot_importance);
+                sample += w * (camera_ray.color) / (camera_ray.tot_importance);
             }
             else {
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
@@ -433,10 +433,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
                 float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : 1.0f;
 
-                sample += (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (prior_camera_importance * prior_light_importance);
+                sample += w * (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (prior_camera_importance * prior_light_importance);
             }
             sample_count++;
         }
     }
-    out[id] = float4(sample, 1.0f);
+    out[id] = float4(100.0f * sample, 1.0f);
 }

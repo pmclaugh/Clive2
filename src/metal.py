@@ -219,17 +219,19 @@ if __name__ == '__main__':
         kernel = f.read()
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 150
+    samples = 15
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
 
     batch_size = c.pixel_width * c.pixel_height
     out_camera_image = dev.buffer(batch_size * 16)
     out_camera_paths = dev.buffer(batch_size * Path.itemsize * 2)
     out_camera_debug = dev.buffer(batch_size * 4)
+    out_camera_debug_float = dev.buffer(batch_size * 4)
 
     out_light_image = dev.buffer(batch_size * 16)
     out_light_paths = dev.buffer(batch_size * Path.itemsize * 2)
     out_light_debug = dev.buffer(batch_size * 4)
+    out_light_debug_float = dev.buffer(batch_size * 4)
 
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_debug = dev.buffer(batch_size * 4)
@@ -246,14 +248,14 @@ if __name__ == '__main__':
         rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
 
         start_time = time.time()
-        trace_fn(batch_size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug)
+        trace_fn(batch_size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug, out_camera_debug_float)
         print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
         light_rays = fast_generate_light_rays(triangles, camera_rays.size)
         rands = np.random.rand(light_rays.size * 32).astype(np.float32)
 
         start_time = time.time()
-        trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug)
+        trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug, out_light_debug_float)
         print(f"Sample {i} light trace time: {time.time() - start_time}")
 
         start_time = time.time()
@@ -262,6 +264,7 @@ if __name__ == '__main__':
 
         unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:,:, :3]
         retrieved_camera_debug = np.frombuffer(out_camera_debug, dtype=np.int32)
+        retrieved_camera_floats = np.frombuffer(out_camera_debug_float, dtype=np.float32)
 
         # retrieved_image = np.frombuffer(out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
         retrieved_light_debug = np.frombuffer(out_light_debug, dtype=np.int32)
@@ -271,6 +274,7 @@ if __name__ == '__main__':
         retrieved_floats = np.frombuffer(final_out_float_debug, dtype=np.float32)
 
         print("camera", retrieved_camera_debug, np.min(retrieved_camera_debug), np.max(retrieved_camera_debug))
+        print("camera floats", retrieved_camera_floats, np.min(retrieved_camera_floats), np.max(retrieved_camera_floats))
         print("light", retrieved_light_debug, np.min(retrieved_light_debug), np.max(retrieved_light_debug))
 
         print(retrieved_values)
@@ -280,7 +284,7 @@ if __name__ == '__main__':
         camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
         light_paths = np.frombuffer(out_light_paths, dtype=Path)
 
-        summed_image += bidirectional_image
+        summed_image += np.nan_to_num(bidirectional_image)
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
             break
