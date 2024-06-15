@@ -224,18 +224,18 @@ if __name__ == '__main__':
 
     batch_size = c.pixel_width * c.pixel_height
     out_camera_image = dev.buffer(batch_size * 16)
-    out_camera_paths = dev.buffer(batch_size * Path.itemsize * 2)
+    out_camera_paths = dev.buffer(batch_size * Path.itemsize)
     out_camera_debug = dev.buffer(batch_size * 4)
     out_camera_debug_float = dev.buffer(batch_size * 4)
 
     out_light_image = dev.buffer(batch_size * 16)
-    out_light_paths = dev.buffer(batch_size * Path.itemsize * 2)
+    out_light_paths = dev.buffer(batch_size * Path.itemsize)
     out_light_debug = dev.buffer(batch_size * 4)
     out_light_debug_float = dev.buffer(batch_size * 4)
 
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_debug = dev.buffer(batch_size * 4)
-    final_out_float_debug = dev.buffer(batch_size * 16)
+    final_out_float_debug = dev.buffer(batch_size * 4)
 
     boxes = boxes.flatten()
     triangles = triangles.flatten()
@@ -266,23 +266,20 @@ if __name__ == '__main__':
         retrieved_camera_debug = np.frombuffer(out_camera_debug, dtype=np.int32)
         retrieved_camera_floats = np.frombuffer(out_camera_debug_float, dtype=np.float32)
 
-        # retrieved_image = np.frombuffer(out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-        retrieved_light_debug = np.frombuffer(out_light_debug, dtype=np.int32)
-
         bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
         retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
         retrieved_floats = np.frombuffer(final_out_float_debug, dtype=np.float32)
 
         print("camera", retrieved_camera_debug, np.min(retrieved_camera_debug), np.max(retrieved_camera_debug))
         print("camera floats", retrieved_camera_floats, np.min(retrieved_camera_floats), np.max(retrieved_camera_floats))
-        print("light", retrieved_light_debug, np.min(retrieved_light_debug), np.max(retrieved_light_debug))
-
-        print(retrieved_values)
-        print(np.min(retrieved_values))
-        print(np.max(retrieved_values))
+        print("join", retrieved_values, np.min(retrieved_values), np.max(retrieved_values))
+        print("join floats", retrieved_floats, np.min(retrieved_floats), np.max(retrieved_floats))
 
         camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
         light_paths = np.frombuffer(out_light_paths, dtype=Path)
+
+        print("camera paths", np.max(camera_paths['length']), np.min(camera_paths['length']))
+        print("light paths", np.max(light_paths['length']), np.min(light_paths['length']))
 
         summed_image += np.nan_to_num(bidirectional_image)
         if np.any(np.isnan(summed_image)):

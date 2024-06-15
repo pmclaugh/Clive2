@@ -215,14 +215,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     path.length = 0;
     Ray ray = rays[id];
     path.from_camera = ray.from_camera;
+    out[id] = float4(0, 0, 0, 1);
 
     for (int i = 0; i < 8; i++) {
         path.rays[i] = ray;
         path.length = i + 1;
-
-        if (ray.hit_light >= 0 && path.from_camera) {
-            break;
-        }
 
         int best_i = -1;
         float best_t = INFINITY;
@@ -288,9 +285,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     if (final_ray.hit_light >= 0) {
         out[id] = float4(final_ray.color / final_ray.tot_importance, 1);
     }
-    else {
-        out[id] = float4(0, 0, 0, 1);
-    }
 }
 
 
@@ -323,7 +317,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Box *boxes [[ buffer(4) ]],
                           device float4 *out [[ buffer(5) ]],
                           device int *debug [[ buffer(6) ]],
-                          device float4 *float_debug [[ buffer(7) ]],
+                          device float *float_debug [[ buffer(7) ]],
+                          device Path *output_paths [[ buffer(8) ]],
                           uint id [[ thread_position_in_grid ]]) {
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
@@ -407,12 +402,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float sum = 0.0f;
             if (s == 0) {
                 for (int i = 0; i < s + t; i++){sum += p_ratios[i];}
-                sum += 1.0f; // ps == 1
+                sum += 1.0f;
             }
             else {
                 float p0 = 1.0f / p_ratios[s - 1];
                 for (int i = 0; i < s + t; i++){sum += p_ratios[i] * p0;}
-                sum += p0; // p0 == ps
+                sum += p0;
             }
 
             float w = 1.0f / sum;
