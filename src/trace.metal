@@ -147,9 +147,27 @@ float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float
     return vec / length(vec);
 }
 
-
 float3 specular_reflection(const thread float3 &direction, const thread float3 &normal) {
     return direction - 2 * dot(direction, normal) * normal;
+}
+
+float dielectric_fresnel(const thread float cosThetaI, const thread float etaI, const thread float etaT) {
+
+    if (cosThetaI < 0) {
+        return dielectric_fresnel(-cosThetaI, etaT, etaI);
+    }
+
+    float sinThetaI = sqrt(max(0.0, 1.0 - cosThetaI * cosThetaI));
+    float sinThetaT = etaI / etaT * sinThetaI;
+    if (sinThetaT >= 1.0) {
+        return 1.0;
+    }
+    float cosThetaT = sqrt(max(0.0, 1.0 - sinThetaT * sinThetaT));
+
+    float rParallel = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
+    float rPerpendicular = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
+
+    return 0.5 * (rParallel * rParallel + rPerpendicular * rPerpendicular);
 }
 
 
@@ -256,8 +274,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 l_p = 1.0f / (2 * PI);
             }
         } else {
-            new_ray.direction = specular_reflection(ray.direction, triangle.normal);
-            f = 1.0f / dot(triangle.normal, new_ray.direction);
+            new_ray.direction = specular_reflection(-ray.direction, triangle.normal);
+            f = dielectric_fresnel(dot(triangle.normal, -ray.direction), 1.0f, 1.55f) / dot(triangle.normal, -ray.direction);
             c_p = 1.0f;
             l_p = 1.0f;
         }
@@ -280,11 +298,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         ray = new_ray;
     }
     output_paths[id] = path;
-    Ray final_ray = path.rays[path.length - 1];
-    debug[id] = path.length;
-    float_debug[id] = final_ray.tot_importance;
-    if (final_ray.hit_light >= 0) {
-        out[id] = float4(final_ray.color / final_ray.tot_importance, 1);
+
+    for (int i = path.length - 1; i >= 0; i--){
+        if (path.rays[i].hit_light >= 0){
+            out[id] = float4(path.rays[i - 1].color / path.rays[i - 1].tot_importance, 1);
+        }
     }
 }
 
@@ -381,7 +399,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     denom = b.c_importance * geometry_term(a, b);
                 }
                 else if (i == s + t - 1) {
-                    Ray a = get_ray(camera_path, light_path, t, s, i );
+                    Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i - 1);
                     num = b.l_importance * geometry_term(a, b);
                     denom = a.c_importance;
@@ -394,12 +412,21 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     num = a.l_importance * geometry_term(a, b);
                     denom = c.c_importance * geometry_term(b, c);
                 }
+
                 p_ratios[i] = num / denom;
             }
 
-            // next we multiply so they are like p1/p0, p2/p0, p3/p0, ...
+            // next multiply so they are like p1/p0, p2/p0, p3/p0, ...
             for (int i = 1; i < s + t; i++){p_ratios[i] = p_ratios[i] * p_ratios[i - 1];}
 
+            // handle specular
+            for (int i = 0; i < s + t; i++){
+                Ray a = get_ray(camera_path, light_path, t, s, i + 1);
+                if (materials[a.material].type == 1){
+                    p_ratios[i] = 0.0f;
+                    p_ratios[i + 1] = 0.0f;
+                }
+            }
 
             float sum = 0.0f;
             if (s == 0) {
@@ -415,7 +442,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float w = 1.0f / sum;
 
             if (s == 0) {
-                sample += w * (camera_ray.color) / (camera_ray.tot_importance);
+                Ray prior_camera_ray = camera_path.rays[t - 2];
+                sample += w * (prior_camera_ray.color) / (prior_camera_ray.tot_importance);
             }
             else {
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
@@ -423,6 +451,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
                 float3 prior_camera_color = t > 1 ? camera_path.rays[t - 2].color : float3(1.0f);
+                float3 prior_light_color = s > 1 ? light_path.rays[s - 2].color : float3(1.0f);
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = dot(camera_ray.normal, -dir_l_to_c);
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;

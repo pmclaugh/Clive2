@@ -101,7 +101,7 @@ def triangles_for_box(box_min, box_max):
     right_bottom_front = box_max - span * UNIT_Y
     right_top_back = box_max - span * UNIT_Z
 
-    shrink = np.array([.5, .95, .5], dtype=np.float32)
+    shrink = np.array([.25, .99, .25], dtype=np.float32)
     tris = [
         # back wall
         Triangle(left_bottom_back, right_bottom_back, right_top_back, material=0),
@@ -161,8 +161,8 @@ def fast_generate_light_rays(triangles, num_rays):
     rays['origin'] = points + 0.0001 * rays['direction']
     rays['normal'] = rays['direction']
     rays['inv_direction'] = 1 / rays['direction']
-    rays['c_importance'] = 1.0
-    rays['l_importance'] = 1.0 / emitter_surface_area
+    rays['c_importance'] = 1.0  # not accessed
+    rays['l_importance'] = 1.0
     rays['tot_importance'] = 1.0
     rays['from_camera'] = 0
     rays['color'] = np.array([1, 1, 1, 1])
