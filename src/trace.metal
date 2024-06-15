@@ -377,14 +377,14 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (i == 0){
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i + 1);
-                    num = 1.0f;
-                    denom = b.l_importance * geometry_term(a, b);
+                    num = a.l_importance;
+                    denom = b.c_importance * geometry_term(a, b);
                 }
                 else if (i == s + t - 1) {
                     Ray a = get_ray(camera_path, light_path, t, s, i );
                     Ray b = get_ray(camera_path, light_path, t, s, i - 1);
-                    num = a.c_importance * geometry_term(a, b);
-                    denom = 1.0f;
+                    num = b.l_importance * geometry_term(a, b);
+                    denom = a.c_importance;
                 }
                 else {
                     Ray a, b, c;
