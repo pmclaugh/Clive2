@@ -215,6 +215,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     Ray ray = rays[id];
     path.from_camera = ray.from_camera;
 
+    debug[0] = sizeof(Ray);
+
     for (int i = 0; i < 8; i++) {
         path.rays[i] = ray;
         path.length = i + 1;
@@ -402,21 +404,21 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             for (int i = 1; i < s + t; i++){p_ratios[i] = p_ratios[i] * p_ratios[i - 1];}
 
 
-            float sum = 0.0f; // count ps, which won't be in the array
+            float sum = 0.0f;
             if (s == 0) {
                 for (int i = 0; i < s + t; i++){sum += p_ratios[i];}
-                sum += 1.0f;
+                sum += 1.0f; // ps == 1
             }
             else {
-                float p0 = 1 / p_ratios[s - 1];
+                float p0 = 1.0f / p_ratios[s - 1];
                 for (int i = 0; i < s + t; i++){sum += p_ratios[i] * p0;}
-                sum += p0;
+                sum += p0; // p0 == ps
             }
-            float ps = 1.0f;
-            float w = ps / sum;
+
+            float w = 1.0f / sum;
 
             if (s == 0) {
-                sample += w * (camera_ray.color) / (camera_ray.tot_importance);
+                sample += (camera_ray.color) / (camera_ray.tot_importance);
             }
             else {
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
@@ -431,7 +433,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
                 float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : 1.0f;
 
-                sample += w * (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (prior_camera_importance * prior_light_importance);
+                sample += (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (prior_camera_importance * prior_light_importance);
             }
             sample_count++;
         }

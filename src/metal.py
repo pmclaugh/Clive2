@@ -219,7 +219,7 @@ if __name__ == '__main__':
         kernel = f.read()
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 15
+    samples = 150
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
 
     batch_size = c.pixel_width * c.pixel_height
@@ -280,7 +280,7 @@ if __name__ == '__main__':
         camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
         light_paths = np.frombuffer(out_light_paths, dtype=Path)
 
-        summed_image += np.nan_to_num(bidirectional_image)
+        summed_image += bidirectional_image
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
             break
