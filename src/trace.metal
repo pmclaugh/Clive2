@@ -152,6 +152,10 @@ float3 specular_transmission(const thread float3 &i, const thread float3 &n, con
     return coeff * m - eta * i;
 }
 
+float3 specular_half_direction(const thread float3 &i, const thread float3 &o, const thread float ni, const thread float no) {
+    return -(ni * i + no * o);
+}
+
 float GGX_F(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
     float c = abs(dot(i, m));
     float g = sqrt(ni * ni / nt / nt + c * c - 1);
@@ -194,11 +198,26 @@ float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, cons
     return m / length(m);
 }
 
-float GGX_BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    float3 h = normalize(i + o);
     float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
     float F = GGX_F(i, m, 1.0f, 1.55f);
     return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+}
+
+float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
+    float3 h = specular_half_direction(i, o, 1.0, 1.55);
+    float D = GGX_D(h, n, alpha);
+    float G = GGX_G(i, o, h, n, alpha);
+    float F = GGX_F(i, h, 1.0f, 1.55f);
+
+    float ih = abs(dot(i, h));
+    float oh = abs(dot(o, h));
+    float in = abs(dot(i, n));
+    float on = abs(dot(o, n));
+
+    return (ih * oh) / (in * on) * no * no * D * G * (1 - F) / ((ni * ih + no * oh) *  (ni * ih + no * oh));
 }
 
 float GGX_importance(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
@@ -317,14 +336,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             if (rand.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
                 pf = fresnel;
+                f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, triangle.normal, 0.5);
             } else {
                 new_ray.direction = specular_transmission(-ray.direction, triangle.normal, m, 1.0, 1.55);
                 pf = 1.0 - fresnel;
+                f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, triangle.normal, 1.0, 1.55, 0.5);
             }
-            //f = GGX_BRDF(-ray.direction, new_ray.direction, m, triangle.normal, 0.5);
-            f = 1.0f;
-            //float pm = GGX_importance(-ray.direction, new_ray.direction, m, triangle.normal, 0.5);
-            float pm = GGX_D(m, triangle.normal, 0.5) * abs(dot(m, triangle.normal));
+            float pm = GGX_importance(-ray.direction, new_ray.direction, m, triangle.normal, 0.5);
+            //float pm = GGX_D(m, triangle.normal, 0.5) * abs(dot(m, triangle.normal));
             c_p = pm * pf;
             l_p = pm * pf;
         }
@@ -418,6 +437,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else {
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
+
+                if (materials[light_ray.material].type == 1){
+                    continue;
+                }
+                if (materials[camera_ray.material].type == 1){
+                    continue;
+                }
 
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
                 float dist_l_to_c = length(dir_l_to_c);
