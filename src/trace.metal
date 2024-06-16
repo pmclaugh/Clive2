@@ -161,7 +161,7 @@ float GGX_F(const thread float3 &i, const thread float3 &m, const thread float n
     float g = sqrt(ni * ni / nt / nt + c * c - 1);
     float inner = 1 + (c * (g + c) - 1) / (c * (g - c) + 1);
     float outer = (g - c) * (g - c) / 2 * ((g + c) * (g + c));
-    return inner * outer;
+    return min(1.0f, max(0.0f, inner * outer));
 }
 
 float positive(const thread float x) {
@@ -181,7 +181,8 @@ float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3
 }
 
 float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    return GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
+    float g = GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
+    return max(0.0f, min(1.0f, g));
 }
 
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
@@ -189,7 +190,8 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
     float cosTheta2 = cosTheta * cosTheta;
     float tanTheta2 = (1.0f - cosTheta2) / cosTheta2;
     float alpha2 = alpha * alpha;
-    return positive(cosTheta) * alpha2 / (PI * cosTheta2 * cosTheta2 * (alpha2 + tanTheta2) * (alpha2 + tanTheta2));
+    float d = positive(cosTheta) * alpha2 / (PI * cosTheta2 * cosTheta2 * (alpha2 + tanTheta2) * (alpha2 + tanTheta2));
+    return max(0.0f, min(1.0f, d));
 }
 
 float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand, const thread float alpha) {
@@ -218,7 +220,10 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float in = abs(dot(i, n));
     float on = abs(dot(o, n));
 
-    return (ih * oh) / (in * on) * no * no * D * G * (1 - F) / ((ni * ih + no * oh) * (ni * ih + no * oh));
+    float num = (ih * oh) / (in * on) * no * no * D * G * (1 - F);
+    float denom = (ni * ih + no * oh) * (ni * ih + no * oh);
+
+    return num / denom;
 }
 
 float GGX_importance(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
@@ -273,7 +278,7 @@ bool visibility_test(const thread float3 origin, const thread float3 target, con
     int best_i = -1;
     float best_t = t_max;
     traverse_bvh(test_ray, boxes, triangles, best_i, best_t);
-    return best_t >= t_max;
+    return best_t >= t_max && best_t > DELTA;
 }
 
 
@@ -353,18 +358,18 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             float pf = 1.0f;
             float pm = 1.0f;
             f = 1.0f;
-            if (rand.x <= fresnel) {
+            if (rand.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
-                //f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, alpha);
+                f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, alpha);
                 pf = fresnel;
             } else {
                 new_ray.direction = specular_transmission(-ray.direction, n, m, ni, no);
-                //f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
+                f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = 1.0 - fresnel;
             }
             pm = GGX_D(m, n, 0.5) * abs(dot(m, n));
-            c_p = 1.0f;
-            l_p = 1.0f;
+            c_p = pm * pf;
+            l_p = pm * pf;
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
@@ -456,6 +461,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else {
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
+
+                if (materials[light_ray.material].type == 1){
+                    continue;
+                }
+                if (materials[camera_ray.material].type == 1){
+                    continue;
+                }
 
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
                 float dist_l_to_c = length(dir_l_to_c);
