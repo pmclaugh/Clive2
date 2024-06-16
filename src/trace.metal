@@ -67,12 +67,6 @@ void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool
 
 
 void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triangle, thread bool &hit, thread float &t_out) {
-
-    if (dot(ray.direction, triangle.normal) >= 0) {
-        hit = false;
-        return;
-    }
-
     float3 edge1 = triangle.v1 - triangle.v0;
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
@@ -151,25 +145,68 @@ float3 specular_reflection(const thread float3 &direction, const thread float3 &
     return direction - 2 * dot(direction, normal) * normal;
 }
 
-float dielectric_fresnel(const thread float cosThetaI, const thread float etaI, const thread float etaT) {
-
-    if (cosThetaI < 0) {
-        return dielectric_fresnel(-cosThetaI, etaT, etaI);
-    }
-
-    float sinThetaI = sqrt(max(0.0, 1.0 - cosThetaI * cosThetaI));
-    float sinThetaT = etaI / etaT * sinThetaI;
-    if (sinThetaT >= 1.0) {
-        return 1.0;
-    }
-    float cosThetaT = sqrt(max(0.0, 1.0 - sinThetaT * sinThetaT));
-
-    float rParallel = ((etaT * cosThetaI) - (etaI * cosThetaT)) / ((etaT * cosThetaI) + (etaI * cosThetaT));
-    float rPerpendicular = ((etaI * cosThetaI) - (etaT * cosThetaT)) / ((etaI * cosThetaI) + (etaT * cosThetaT));
-
-    return 0.5 * (rParallel * rParallel + rPerpendicular * rPerpendicular);
+float3 specular_transmission(const thread float3 &i, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float nt) {
+    float cosTheta = dot(i, m);
+    float eta = ni / nt;
+    float coeff = eta * cosTheta - sign(dot(i, n)) * sqrt(1 + eta * (cosTheta * cosTheta - 1));
+    return coeff * m - eta * i;
 }
 
+float GGX_F(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
+    float c = abs(dot(i, m));
+    float g = sqrt(ni * ni / nt / nt + c * c - 1);
+    float inner = 1 + (c * (g + c) - 1) / (c * (g - c) + 1);
+    float outer = (g - c) * (g - c) / 2 * ((g + c) * (g + c));
+    return inner * outer;
+}
+
+float positive(const thread float x) {
+    return x > 0 ? 1 : 0;
+}
+
+float sign(const thread float x) {
+    return x > 0 ? 1 : -1;
+}
+
+float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    float nv = dot(n, v);
+    float mv = dot(m, v);
+    float alphatan = alpha * tan(acos(nv));
+    return positive(mv/nv) * 2.0f / (1.0f + sqrt(1.0f + alphatan * alphatan));
+}
+
+float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    return GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
+}
+
+float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    float cosTheta = dot(m, n);
+    float cosTheta2 = cosTheta * cosTheta;
+    float tanTheta2 = (1.0f - cosTheta2) / cosTheta2;
+    float alpha2 = alpha * alpha;
+    return positive(cosTheta) * alpha2 / (PI * cosTheta2 * cosTheta2 * (alpha2 + tanTheta2) * (alpha2 + tanTheta2));
+}
+
+float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand, const thread float alpha) {
+    float phi = 2 * PI * rand.x;
+    float theta = atan(alpha * sqrt(rand.y) / sqrt(1 - rand.y));
+    float3 m = cos(phi) * sin(theta) * x_axis + sin(phi) * sin(theta) * y_axis + cos(theta) * z_axis;
+    return m / length(m);
+}
+
+float GGX_BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    float D = GGX_D(m, n, alpha);
+    float G = GGX_G(i, o, m, n, alpha);
+    float F = GGX_F(i, m, 1.0f, 1.55f);
+    return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+}
+
+float GGX_importance(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    float im = abs(dot(i, m));
+    float in = abs(dot(i, n));
+    float mn = abs(dot(m, n));
+    return (im * GGX_G(i, o, m, n, alpha)) / (mn * in);
+}
 
 void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device Triangle *triangles, thread int &best_i, thread float &best_t) {
     int stack[64];
@@ -252,7 +289,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float2 rand = random[id * 8 + i];
 
         Ray new_ray;
-        new_ray.origin = ray.origin + ray.direction * best_t + DELTA * triangle.normal;
+        new_ray.origin = ray.origin + ray.direction * best_t;
         new_ray.normal = triangle.normal;
         new_ray.material = triangle.material;
 
@@ -274,10 +311,22 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 l_p = 1.0f / (2 * PI);
             }
         } else {
-            new_ray.direction = specular_reflection(-ray.direction, triangle.normal);
-            f = dielectric_fresnel(dot(triangle.normal, -ray.direction), 1.0f, 1.55f) / dot(triangle.normal, -ray.direction);
-            c_p = 1.0f;
-            l_p = 1.0f;
+            float3 m = GGX_sample(x, y, triangle.normal, rand, 0.5);
+            float fresnel = GGX_F(ray.direction, m, 1.0, 1.55);
+            float pf = 1.0f;
+            if (rand.x < fresnel) {
+                new_ray.direction = specular_reflection(-ray.direction, m);
+                pf = fresnel;
+            } else {
+                new_ray.direction = specular_transmission(-ray.direction, triangle.normal, m, 1.0, 1.55);
+                pf = 1.0 - fresnel;
+            }
+            //f = GGX_BRDF(-ray.direction, new_ray.direction, m, triangle.normal, 0.5);
+            f = 1.0f;
+            //float pm = GGX_importance(-ray.direction, new_ray.direction, m, triangle.normal, 0.5);
+            float pm = GGX_D(m, triangle.normal, 0.5) * abs(dot(m, triangle.normal));
+            c_p = pm * pf;
+            l_p = pm * pf;
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
@@ -418,15 +467,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             // next multiply so they are like p1/p0, p2/p0, p3/p0, ...
             for (int i = 1; i < s + t; i++){p_ratios[i] = p_ratios[i] * p_ratios[i - 1];}
-
-            // handle specular
-            for (int i = 0; i < s + t; i++){
-                Ray a = get_ray(camera_path, light_path, t, s, i + 1);
-                if (materials[a.material].type == 1){
-                    p_ratios[i] = 0.0f;
-                    p_ratios[i + 1] = 0.0f;
-                }
-            }
 
             float sum = 0.0f;
             if (s == 0) {

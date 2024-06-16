@@ -85,7 +85,7 @@ def get_materials():
     materials['emission'] = np.zeros((7, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
     materials['type'] = 0
-    # materials[0]['type'] = 1
+    materials[0]['type'] = 1
     return materials
 
 
@@ -104,8 +104,8 @@ def triangles_for_box(box_min, box_max):
     shrink = np.array([.25, .99, .25], dtype=np.float32)
     tris = [
         # back wall
-        Triangle(left_bottom_back, right_bottom_back, right_top_back, material=0),
-        Triangle(left_bottom_back, right_top_back, left_top_back, material=0),
+        Triangle(left_bottom_back, right_bottom_back, right_top_back, material=2),
+        Triangle(left_bottom_back, right_top_back, left_top_back, material=2),
         # left wall
         Triangle(left_bottom_back, left_top_front, left_bottom_front, material=1),
         Triangle(left_bottom_back, left_top_back, left_top_front, material=1),
@@ -209,8 +209,8 @@ if __name__ == '__main__':
 
     bvh = construct_BVH(tris)
     c = Camera(
-        center=np.array([0, 2, 8]),
-        direction=unit(np.array([0, 0, -1])),
+        center=np.array([4, 2, 4]),
+        direction=unit(np.array([-1, 0, -1])),
     )
     mats = get_materials()
     boxes, triangles = np_flatten_bvh(bvh)
