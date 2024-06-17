@@ -332,7 +332,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         Ray new_ray;
         new_ray.origin = ray.origin + ray.direction * best_t;
-        new_ray.normal = triangle.normal;
+        new_ray.normal = n;
         new_ray.material = triangle.material;
 
         float3 x, y;
@@ -478,8 +478,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
 
-                if (materials[light_ray.material].type == 1){continue;}
-                if (materials[camera_ray.material].type == 1){continue;}
+                //if (materials[light_ray.material].type == 1){continue;}
+                //if (materials[camera_ray.material].type == 1){continue;}
 
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
                 float dist_l_to_c = length(dir_l_to_c);
