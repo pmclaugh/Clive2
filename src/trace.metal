@@ -279,7 +279,7 @@ bool visibility_test(const thread float3 origin, const thread float3 target, con
     int best_i = -1;
     float best_t = t_max;
     traverse_bvh(test_ray, boxes, triangles, best_i, best_t);
-    return best_t >= t_max && best_t > DELTA;
+    return best_t >= t_max;
 }
 
 
@@ -342,19 +342,19 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (material.type == 0) {
             if (path.from_camera) {
                     new_ray.direction = random_hemisphere_cosine(x, y, n, rand);
-                    f = dot(n, new_ray.direction) / PI;
+                    f = dot(n, -ray.direction) / PI;
                     c_p = dot(n, new_ray.direction) / PI;
                     l_p = 1.0f / (2 * PI);
                 }
             else {
                 new_ray.direction = random_hemisphere_uniform(x, y, n, rand);
-                f = dot(n, -ray.direction) / PI;
+                f = dot(n, new_ray.direction) / PI;
                 c_p = dot(n, -ray.direction) / PI;
                 l_p = 1.0f / (2 * PI);
             }
         } else {
-            //float3 m = GGX_sample(x, y, n, rand, alpha);
-            float3 m = n;
+            float3 m = GGX_sample(x, y, n, rand, alpha);
+            //float3 m = n;
             float fresnel = GGX_F(-ray.direction, m, ni, no);
             float pf = 1.0f;
             float pm = 1.0f;
