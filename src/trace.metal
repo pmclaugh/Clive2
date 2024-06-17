@@ -67,6 +67,12 @@ void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool
 
 
 void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triangle, thread bool &hit, thread float &t_out) {
+
+    if (dot(ray.direction, triangle.normal) == 0.0f) {
+        hit = false;
+        return;
+    }
+
     float3 edge1 = triangle.v1 - triangle.v0;
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
@@ -211,18 +217,17 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
-    float3 h = specular_half_direction(i, o, 1.0, 1.55);
-    float D = GGX_D(h, n, alpha);
-    float G = GGX_G(i, o, h, n, alpha);
-    float F = GGX_F(i, h, ni, no);
+    float D = GGX_D(m, n, alpha);
+    float G = GGX_G(i, o, m, n, alpha);
+    float F = GGX_F(i, m, ni, no);
 
-    float ih = abs(dot(i, h));
-    float oh = abs(dot(o, h));
+    float im = abs(dot(i, m));
+    float om = abs(dot(o, m));
     float in = abs(dot(i, n));
     float on = abs(dot(o, n));
 
-    float num = (ih * oh) / (in * on) * no * no * D * G * (1 - F);
-    float denom = (ni * ih + no * oh) * (ni * ih + no * oh);
+    float num = (im * om) / (in * on) * no * no * D * G * (1 - F);
+    float denom = (ni * im + no * om) * (ni * im + no * om);
 
     return num / denom;
 }
@@ -354,18 +359,17 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             }
         } else {
             float3 m = GGX_sample(x, y, n, rand, alpha);
-            //float3 m = n;
             float fresnel = GGX_F(-ray.direction, m, ni, no);
             float pf = 1.0f;
             float pm = 1.0f;
             f = 1.0f;
             if (rand.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
-                //f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, alpha);
+                f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, alpha);
                 pf = fresnel;
             } else {
                 new_ray.direction = specular_transmission(-ray.direction, n, m, ni, no);
-                //f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
+                f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = 1.0 - fresnel;
             }
             pm = GGX_D(m, n, 0.5) * abs(dot(m, n));
@@ -427,11 +431,18 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         return dot(i, n);
     }
     else {
-        if (dot(i, n) > 0 && dot(o, n) > 0) {
+        if (dot(i, n) * dot(o, n) > 0) {
             return GGX_BRDF_reflect(i, o, normalize(i + o), n, 0.1);
         }
         else {
-            return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.0, 1.55), n, 1.0, 1.55, 0.1);
+            if (dot(i, n) > 0){
+                return 1.0f;
+                return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.0, 1.55), n, 1.0, 1.55, 0.01);
+            }
+            else {
+                return 1.0f;
+                return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.55, 1.0), n, 1.55, 1.0, 0.01);
+            }
         }
     }
 }
@@ -548,14 +559,23 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 float3 prior_camera_color = t > 1 ? camera_path.rays[t - 2].color : float3(1.0f);
                 float3 prior_light_color = s > 1 ? light_path.rays[s - 2].color : float3(1.0f);
+
+                float3 prior_camera_direction = t > 1 ? camera_path.rays[t - 2].direction : camera_path.rays[0].direction;
+                float3 prior_light_direction = s > 1 ? light_path.rays[s - 2].direction : light_path.rays[0].direction;
+
                 Material camera_material = materials[camera_ray.material];
-                float new_camera_f = abs(dot(camera_ray.normal, -dir_l_to_c));
+                Material light_material = materials[light_ray.material];
+
+                float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
+
+                float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
+                float3 light_color = prior_light_color * new_light_f * light_material.color;
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
                 float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : 1.0f;
 
-                sample += w * (geometry_term(light_ray, camera_ray) * camera_color * light_ray.color) / (prior_camera_importance * prior_light_importance);
+                sample += w * (geometry_term(light_ray, camera_ray) * camera_color * light_color) / (prior_camera_importance * prior_light_importance);
             }
             sample_count++;
         }
