@@ -342,13 +342,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (material.type == 0) {
             if (path.from_camera) {
                     new_ray.direction = random_hemisphere_cosine(x, y, n, rand);
-                    f = dot(n, -ray.direction) / PI;
+                    f = dot(n, new_ray.direction) / PI;
                     c_p = dot(n, new_ray.direction) / PI;
                     l_p = 1.0f / (2 * PI);
                 }
             else {
                 new_ray.direction = random_hemisphere_uniform(x, y, n, rand);
-                f = dot(n, new_ray.direction) / PI;
+                f = dot(n, -ray.direction) / PI;
                 c_p = dot(n, -ray.direction) / PI;
                 l_p = 1.0f / (2 * PI);
             }
@@ -361,11 +361,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             f = 1.0f;
             if (rand.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
-                //f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, alpha);
+                f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, alpha);
                 pf = fresnel;
             } else {
                 new_ray.direction = specular_transmission(-ray.direction, n, m, ni, no);
-                //f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
+                f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = 1.0 - fresnel;
             }
             pm = GGX_D(m, n, 0.5) * abs(dot(m, n));
@@ -485,8 +485,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                if (dot(light_ray.normal, dir_l_to_c) == 0){continue;}
-                if (dot(camera_ray.normal, -dir_l_to_c) == 0){continue;}
+                if (dot(light_ray.normal, dir_l_to_c) == 0.0f){continue;}
+                if (dot(camera_ray.normal, -dir_l_to_c) == 0.0f){continue;}
                 if (not visibility_test(light_ray.origin, camera_ray.origin, boxes, triangles)){continue;}
             }
 
