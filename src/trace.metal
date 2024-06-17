@@ -158,10 +158,12 @@ float3 specular_half_direction(const thread float3 &i, const thread float3 &o, c
 
 float GGX_F(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
     float c = abs(dot(i, m));
-    float g = sqrt(ni * ni / nt / nt + c * c - 1);
-    float inner = 1 + (c * (g + c) - 1) / (c * (g - c) + 1);
-    float outer = (g - c) * (g - c) / 2 * ((g + c) * (g + c));
-    return min(1.0f, max(0.0f, inner * outer));
+    float g = sqrt((nt * nt) / (ni * ni) + c * c - 1);
+    float num = (c * (g + c) - 1);
+    float denom = (c * (g - c) + 1);
+    float inner = 1 + (num * num) / (denom * denom);
+    float outer = ((g - c) * (g - c)) / (2 * (g + c) * (g + c));
+    return inner * outer;
 }
 
 float positive(const thread float x) {
@@ -181,8 +183,7 @@ float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3
 }
 
 float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    float g = GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
-    return max(0.0f, min(1.0f, g));
+    return GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
 }
 
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
@@ -360,11 +361,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             f = 1.0f;
             if (rand.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
-                f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, alpha);
+                //f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, alpha);
                 pf = fresnel;
             } else {
                 new_ray.direction = specular_transmission(-ray.direction, n, m, ni, no);
-                f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
+                //f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = 1.0 - fresnel;
             }
             pm = GGX_D(m, n, 0.5) * abs(dot(m, n));
@@ -430,7 +431,6 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             return GGX_BRDF_reflect(i, o, normalize(i + o), n, 0.1);
         }
         else {
-            return 1.0f;
             return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.0, 1.55), n, 1.0, 1.55, 0.1);
         }
     }
