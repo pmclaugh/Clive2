@@ -209,7 +209,6 @@ float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, cons
 }
 
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    float3 h = normalize(i + o);
     float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
     float F = GGX_F(i, m, 1.0f, 1.55f);
@@ -347,18 +346,21 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (material.type == 0) {
             if (path.from_camera) {
                     new_ray.direction = random_hemisphere_cosine(x, y, n, rand);
-                    f = dot(n, new_ray.direction) / PI;
+                    f = dot(n, -ray.direction) / PI;
                     c_p = dot(n, new_ray.direction) / PI;
                     l_p = 1.0f / (2 * PI);
                 }
             else {
                 new_ray.direction = random_hemisphere_uniform(x, y, n, rand);
-                f = dot(n, -ray.direction) / PI;
+                f = dot(n, new_ray.direction) / PI;
                 c_p = dot(n, -ray.direction) / PI;
                 l_p = 1.0f / (2 * PI);
             }
         } else {
             float3 m = GGX_sample(x, y, n, rand, alpha);
+            if (dot(-ray.direction, m) <= 0) {
+                continue;
+            }
             float fresnel = GGX_F(-ray.direction, m, ni, no);
             float pf = 1.0f;
             float pm = 1.0f;
@@ -428,7 +430,7 @@ Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
     if (material.type == 0) {
-        return dot(i, n);
+        return abs(dot(o, n));
     }
     else {
         if (dot(i, n) * dot(o, n) > 0) {
@@ -436,11 +438,9 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         }
         else {
             if (dot(i, n) > 0){
-                return 1.0f;
                 return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.0, 1.55), n, 1.0, 1.55, 0.01);
             }
             else {
-                return 1.0f;
                 return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.55, 1.0), n, 1.55, 1.0, 0.01);
             }
         }
@@ -488,9 +488,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else {
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
-
-                //if (materials[light_ray.material].type == 1){continue;}
-                //if (materials[camera_ray.material].type == 1){continue;}
 
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
                 float dist_l_to_c = length(dir_l_to_c);
