@@ -421,6 +421,22 @@ Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const
 }
 
 
+float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
+    if (material.type == 0) {
+        return dot(i, n);
+    }
+    else {
+        if (dot(i, n) > 0 && dot(o, n) > 0) {
+            return GGX_BRDF_reflect(i, o, normalize(i + o), n, 0.1);
+        }
+        else {
+            return 1.0f;
+            return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.0, 1.55), n, 1.0, 1.55, 0.1);
+        }
+    }
+}
+
+
 kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Path *light_paths [[ buffer(1) ]],
                           const device Triangle *triangles [[ buffer(2) ]],
@@ -462,26 +478,16 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
 
-                if (materials[light_ray.material].type == 1){
-                    continue;
-                }
-                if (materials[camera_ray.material].type == 1){
-                    continue;
-                }
+                if (materials[light_ray.material].type == 1){continue;}
+                if (materials[camera_ray.material].type == 1){continue;}
 
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                if (dot(light_ray.normal, dir_l_to_c) <= 0){
-                    continue;
-                }
-                if (dot(camera_ray.normal, -dir_l_to_c) <= 0){
-                    continue;
-                }
-                if (not visibility_test(light_ray.origin, camera_ray.origin, boxes, triangles)){
-                    continue;
-                }
+                if (dot(light_ray.normal, dir_l_to_c) <= 0){continue;}
+                if (dot(camera_ray.normal, -dir_l_to_c) <= 0){continue;}
+                if (not visibility_test(light_ray.origin, camera_ray.origin, boxes, triangles)){continue;}
             }
 
             for (int i = 0; i < 32; i++){
