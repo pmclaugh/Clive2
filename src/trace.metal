@@ -332,7 +332,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         Ray new_ray;
         new_ray.origin = ray.origin + ray.direction * best_t;
-        new_ray.normal = n;
+        new_ray.normal = triangle.normal;
         new_ray.material = triangle.material;
 
         float3 x, y;
@@ -485,8 +485,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                if (dot(light_ray.normal, dir_l_to_c) <= 0){continue;}
-                if (dot(camera_ray.normal, -dir_l_to_c) <= 0){continue;}
+                if (dot(light_ray.normal, dir_l_to_c) == 0){continue;}
+                if (dot(camera_ray.normal, -dir_l_to_c) == 0){continue;}
                 if (not visibility_test(light_ray.origin, camera_ray.origin, boxes, triangles)){continue;}
             }
 
