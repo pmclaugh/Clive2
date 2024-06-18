@@ -290,6 +290,31 @@ bool visibility_test(const thread float3 origin, const thread float3 target, con
 }
 
 
+float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
+    if (material.type == 0) {
+        return abs(dot(o, n));
+    }
+    else {
+        if (dot(i, n) * dot(o, n) > 0) {
+            if (dot(i, n) > 0){
+                return GGX_BRDF_reflect(i, o, normalize(i + o), n, 1.0, 1.55, 0.01);
+            }
+            else {
+                return GGX_BRDF_reflect(i, o, normalize(i + o), -n, 1.55, 1.0, 0.01);
+            }
+        }
+        else {
+            if (dot(i, n) > 0){
+                return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.0, 1.55), n, 1.0, 1.55, 0.01);
+            }
+            else {
+                return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.55, 1.0), -n, 1.55, 1.0, 0.01);
+            }
+        }
+    }
+}
+
+
 kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    const device Box *boxes [[ buffer(1) ]],
                    const device Triangle *triangles [[ buffer(2) ]],
@@ -384,7 +409,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
         if (dot(new_ray.direction, new_ray.normal) < 0) {
-            new_ray.color = f * ray.color;
+            new_ray.color = material.color * f * ray.color;
         }
         else {
             new_ray.color = material.color * f * ray.color;
@@ -450,31 +475,6 @@ Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const
     }
     else {
         return camera_path.rays[t + s - i - 1];
-    }
-}
-
-
-float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
-    if (material.type == 0) {
-        return abs(dot(o, n));
-    }
-    else {
-        if (dot(i, n) * dot(o, n) > 0) {
-            if (dot(i, n) > 0){
-                return GGX_BRDF_reflect(i, o, normalize(i + o), n, 1.0, 1.55, 0.01);
-            }
-            else {
-                return GGX_BRDF_reflect(i, o, normalize(i + o), -n, 1.55, 1.0, 0.01);
-            }
-        }
-        else {
-            if (dot(i, n) > 0){
-                return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.0, 1.55), n, 1.0, 1.55, 0.01);
-            }
-            else {
-                return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.55, 1.0), -n, 1.55, 1.0, 0.01);
-            }
-        }
     }
 }
 
