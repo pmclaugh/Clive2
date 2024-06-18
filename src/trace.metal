@@ -158,10 +158,11 @@ float3 specular_reflection(const thread float3 &direction, const thread float3 &
     return direction - 2 * dot(direction, normal) * normal;
 }
 
-float3 specular_transmission(const thread float3 &i, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float nt) {
+float3 specular_transmission(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
     float cosTheta = dot(i, m);
     float eta = ni / nt;
-    float coeff = eta * cosTheta - sign(dot(i, n)) * sqrt(1 - eta * eta * (1 - cosTheta * cosTheta));
+    float sign = eta < 1 ? 1 : -1;
+    float coeff = eta * cosTheta - sign * sqrt(1 - eta * eta * (1 - cosTheta * cosTheta));
     return normalize(coeff * m - eta * i);
 }
 
@@ -196,7 +197,7 @@ float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3
     float mv = dot(m, v);
     float sin2 = 1.0f - mv * mv;
     float tan2 = sin2 / (mv * mv);
-    return positive(mv/nv) * 2.0f / (1.0f + sqrt(1.0f + alpha * alpha * tan2));
+    return 2.0f / (1.0f + sqrt(1.0f + alpha * alpha * tan2));
 }
 
 float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
@@ -208,7 +209,7 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
     float cosTheta2 = cosTheta * cosTheta;
     float tanTheta2 = (1.0f - cosTheta2) / cosTheta2;
     float alpha2 = alpha * alpha;
-    return positive(cosTheta) * alpha2 / (PI * cosTheta2 * cosTheta2 * (alpha2 + tanTheta2) * (alpha2 + tanTheta2));
+    return alpha2 / (PI * cosTheta2 * cosTheta2 * (alpha2 + tanTheta2) * (alpha2 + tanTheta2));
 }
 
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -354,7 +355,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         Ray new_ray;
         new_ray.origin = ray.origin + ray.direction * best_t;
-        new_ray.normal = triangle.normal;
+        new_ray.normal = n;
         new_ray.material = triangle.material;
 
         float3 x, y;
@@ -379,7 +380,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             if (dot(-ray.direction, m) <= 0) {
                 continue;
             }
-            float fresnel = min(1.0f, GGX_F(-ray.direction, m, ni, no));
+            float fresnel = GGX_F(-ray.direction, m, ni, no);
             float pf = 1.0f;
             float pm = 1.0f;
             f = 1.0f;
@@ -388,7 +389,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 //f = BRDF(-ray.direction, new_ray.direction, n, material);
                 pf = fresnel;
             } else {
-                new_ray.direction = specular_transmission(-ray.direction, m, triangle.normal, ni, no);
+                new_ray.direction = specular_transmission(-ray.direction, m, ni, no);
                 //f = BRDF(-ray.direction, new_ray.direction, n, material);
                 pf = 1.0 - fresnel;
             }
