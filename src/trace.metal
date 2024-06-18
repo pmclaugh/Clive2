@@ -161,7 +161,7 @@ float3 specular_reflection(const thread float3 &direction, const thread float3 &
 float3 specular_transmission(const thread float3 &i, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float nt) {
     float cosTheta = dot(i, m);
     float eta = ni / nt;
-    float coeff = eta * cosTheta - sign(dot(i, n)) * sqrt(1 + eta * (cosTheta * cosTheta - 1));
+    float coeff = eta * cosTheta - sign(dot(i, n)) * sqrt(1 - eta * eta * (1 - cosTheta * cosTheta));
     return normalize(coeff * m - eta * i);
 }
 
