@@ -147,11 +147,18 @@ float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float
     return vec / length(vec);
 }
 
+float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand, const thread float alpha) {
+    float phi = 2 * PI * rand.x;
+    float theta = atan(alpha * sqrt(rand.y) / sqrt(1 - rand.y));
+    float3 m = cos(phi) * sin(theta) * x_axis + sin(phi) * sin(theta) * y_axis + cos(theta) * z_axis;
+    return m / length(m);
+}
+
 float3 specular_reflection(const thread float3 &direction, const thread float3 &normal) {
     return direction - 2 * dot(direction, normal) * normal;
 }
 
-float3 specular_transmission(const thread float3 &i, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float nt) {
+float3 specular_transmission(const thread float3 &i, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float nt) {
     float cosTheta = dot(i, m);
     float eta = ni / nt;
     float coeff = eta * cosTheta - sign(dot(i, n)) * sqrt(1 + eta * (cosTheta * cosTheta - 1));
@@ -164,7 +171,11 @@ float3 specular_half_direction(const thread float3 &i, const thread float3 &o, c
 
 float GGX_F(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
     float c = abs(dot(i, m));
-    float g = sqrt((nt * nt) / (ni * ni) + c * c - 1);
+    float g2 = (nt * nt) / (ni * ni) + c * c - 1;
+    if (g2 < 0) {
+        return 1.0f;
+    }
+    float g = sqrt(g2);
     float num = (c * (g + c) - 1);
     float denom = (c * (g - c) + 1);
     float inner = 1 + (num * num) / (denom * denom);
@@ -197,21 +208,13 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
     float cosTheta2 = cosTheta * cosTheta;
     float tanTheta2 = (1.0f - cosTheta2) / cosTheta2;
     float alpha2 = alpha * alpha;
-    float d = positive(cosTheta) * alpha2 / (PI * cosTheta2 * cosTheta2 * (alpha2 + tanTheta2) * (alpha2 + tanTheta2));
-    return max(0.0f, min(1.0f, d));
+    return positive(cosTheta) * alpha2 / (PI * cosTheta2 * cosTheta2 * (alpha2 + tanTheta2) * (alpha2 + tanTheta2));
 }
 
-float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand, const thread float alpha) {
-    float phi = 2 * PI * rand.x;
-    float theta = atan(alpha * sqrt(rand.y) / sqrt(1 - rand.y));
-    float3 m = cos(phi) * sin(theta) * x_axis + sin(phi) * sin(theta) * y_axis + cos(theta) * z_axis;
-    return m / length(m);
-}
-
-float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
-    float F = GGX_F(i, m, 1.0f, 1.55f);
+    float F = GGX_F(i, m, ni, no);
     return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
@@ -367,14 +370,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             f = 1.0f;
             if (rand.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
-                f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, alpha);
+                f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = fresnel;
             } else {
-                new_ray.direction = specular_transmission(-ray.direction, n, m, ni, no);
+                new_ray.direction = specular_transmission(-ray.direction, m, triangle.normal, ni, no);
                 f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = 1.0 - fresnel;
             }
-            pm = GGX_D(m, n, 0.5) * abs(dot(m, n));
+            pm = GGX_D(m, n, alpha) * abs(dot(m, n));
             c_p = pm * pf;
             l_p = pm * pf;
         }
@@ -411,10 +414,22 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
     float dist = length(delta);
     delta = delta / dist;
 
-    float camera_cos = dot(a.normal, delta);
-    float light_cos = dot(b.normal, -delta);
+    float camera_cos, light_cos;
+    if (dot(a.normal, delta) >= 0) {
+        camera_cos = dot(a.normal, delta);
+    }
+    else {
+        camera_cos = dot(-a.normal, delta);
+    }
 
-    return abs(camera_cos * light_cos) / (dist * dist);
+    if (dot(b.normal, -delta) >= 0) {
+        light_cos = dot(b.normal, -delta);
+    }
+    else {
+        light_cos = dot(-b.normal, -delta);
+    }
+
+    return camera_cos * light_cos / (dist * dist);
 }
 
 
@@ -434,7 +449,7 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
     }
     else {
         if (dot(i, n) * dot(o, n) > 0) {
-            return GGX_BRDF_reflect(i, o, normalize(i + o), n, 0.1);
+            return GGX_BRDF_reflect(i, o, normalize(i + o), n, 1.0, 1.55, 0.1);
         }
         else {
             if (dot(i, n) > 0){
