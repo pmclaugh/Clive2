@@ -399,10 +399,10 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
         if (dot(new_ray.direction, new_ray.normal) < 0) {
-            new_ray.color = material.color * f * ray.color;
+            new_ray.color = f * ray.color;
         }
         else {
-            new_ray.color = f * ray.color;
+            new_ray.color = material.color * f * ray.color;
         }
         new_ray.c_importance = c_p;
         new_ray.l_importance = l_p;

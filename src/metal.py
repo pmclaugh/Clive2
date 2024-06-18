@@ -85,7 +85,7 @@ def get_materials():
     materials['emission'] = np.zeros((7, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
     materials['type'] = 0
-    # materials[0]['type'] = 1
+    materials[0]['type'] = 1
     return materials
 
 
