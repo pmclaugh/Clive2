@@ -373,7 +373,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 //f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = fresnel;
             } else {
-                new_ray.direction = specular_transmission(-ray.direction, m, n, ni, no);
+                new_ray.direction = specular_transmission(-ray.direction, m, triangle.normal, ni, no);
                 //f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = 1.0 - fresnel;
             }
@@ -403,7 +403,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.hit_light = -1;
         }
 
-        if (i == 1){
+        if (i == 0){
             float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
         }
 
@@ -460,14 +460,19 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
     }
     else {
         if (dot(i, n) * dot(o, n) > 0) {
-            return GGX_BRDF_reflect(i, o, normalize(i + o), n, 1.0, 1.55, 0.01);
+            if (dot(i, n) > 0){
+                return GGX_BRDF_reflect(i, o, normalize(i + o), n, 1.0, 1.55, 0.01);
+            }
+            else {
+                return GGX_BRDF_reflect(i, o, normalize(i + o), -n, 1.55, 1.0, 0.01);
+            }
         }
         else {
             if (dot(i, n) > 0){
                 return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.0, 1.55), n, 1.0, 1.55, 0.01);
             }
             else {
-                return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.55, 1.0), n, 1.55, 1.0, 0.01);
+                return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.55, 1.0), -n, 1.55, 1.0, 0.01);
             }
         }
     }
