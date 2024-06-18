@@ -76,7 +76,7 @@ def get_materials():
     materials = np.zeros(7, dtype=Material)
     materials['color'] = np.zeros((7, 4), dtype=np.float32)
     materials['color'][0][:3] = RED
-    materials['color'][1][:3] = WHITE
+    materials['color'][1][:3] = GREEN
     materials['color'][2][:3] = WHITE
     materials['color'][3][:3] = WHITE
     materials['color'][4][:3] = WHITE
@@ -85,7 +85,7 @@ def get_materials():
     materials['emission'] = np.zeros((7, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
     materials['type'] = 0
-    materials[0]['type'] = 1
+    # materials[0]['type'] = 1
     return materials
 
 
