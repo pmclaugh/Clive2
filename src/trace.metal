@@ -77,7 +77,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
     float a = dot(edge1, h);
-    if (a <= 0) {
+    if (a == 0) {
         hit = false;
         return;
     }
@@ -298,7 +298,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    device float4 *out [[ buffer(5) ]],
                    device Path *output_paths [[ buffer(6) ]],
                    device int32_t *debug [[ buffer(7) ]],
-                   device float *float_debug [[ buffer(8) ]],
+                   device float4 *float_debug [[ buffer(8) ]],
                    uint id [[ thread_position_in_grid ]]) {
     Path path;
     path.length = 0;
@@ -373,7 +373,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = fresnel;
             } else {
-                new_ray.direction = specular_transmission(-ray.direction, m, triangle.normal, ni, no);
+                new_ray.direction = specular_transmission(-ray.direction, m, n, ni, no);
                 f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = 1.0 - fresnel;
             }
@@ -397,7 +397,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         } else {
             new_ray.hit_light = -1;
         }
+
+        if (i == 1){
+            float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
+        }
+
         ray = new_ray;
+
     }
     output_paths[id] = path;
 
