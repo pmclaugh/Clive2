@@ -50,7 +50,9 @@ struct Material {
     float3 color;
     float3 emission;
     int32_t type;
-    int32_t pad[3];
+    float alpha;
+    float ior;
+    int32_t pad;
 };
 
 
@@ -101,6 +103,54 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
     } else {
         hit = false;
     }
+}
+
+
+void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device Triangle *triangles, thread int &best_i, thread float &best_t) {
+    int stack[64];
+    int stack_ptr = 0;
+    stack[stack_ptr++] = 0;
+
+    while (stack_ptr > 0 && stack_ptr < 64) {
+        int box_id = stack[--stack_ptr];
+        Box box = boxes[box_id];
+        bool hit = false;
+        float t = INFINITY;
+        ray_box_intersect(ray, box, hit, t);
+        if (hit && (t < best_t)) {
+            if (box.right == 0) {
+                stack[stack_ptr++] = box.left;
+                stack[stack_ptr++] = box.left + 1;
+            } else {
+                for (int i = box.left; i < box.right; i++) {
+                    Triangle triangle = triangles[i];
+                    bool hit = false;
+                    float t = INFINITY;
+                    ray_triangle_intersect(ray, triangle, hit, t);
+                    if (hit && t < best_t) {
+                        best_i = i;
+                        best_t = t;
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+bool visibility_test(const thread float3 origin, const thread float3 target, const device Box *boxes, const device Triangle *triangles) {
+    Ray test_ray;
+    test_ray.origin = origin;
+    float3 direction = target - origin;
+    float t_max = length(direction);
+    direction = direction / t_max;
+    test_ray.direction = direction;
+    test_ray.inv_direction = 1.0 / direction;
+
+    int best_i = -1;
+    float best_t = t_max;
+    traverse_bvh(test_ray, boxes, triangles, best_i, best_t);
+    return best_t >= t_max;
 }
 
 
@@ -163,7 +213,8 @@ float3 specular_transmission(const thread float3 &i, const thread float3 &m, con
     float eta = ni / nt;
     float sign = eta < 1 ? 1 : -1;
     float coeff = eta * cosTheta - sign * sqrt(1 - eta * eta * (1 - cosTheta * cosTheta));
-    return normalize(coeff * m - eta * i);
+    float3 vec = coeff * m - eta * i;
+    return vec / length(vec);
 }
 
 float3 specular_half_direction(const thread float3 &i, const thread float3 &o, const thread float ni, const thread float no) {
@@ -171,7 +222,7 @@ float3 specular_half_direction(const thread float3 &i, const thread float3 &o, c
 }
 
 float GGX_F(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
-    float c = abs(dot(i, m));
+    float c = dot(i, m);
     float g2 = (nt * nt) / (ni * ni) + c * c - 1;
     if (g2 < 0) {
         return 1.0f;
@@ -188,20 +239,15 @@ float positive(const thread float x) {
     return x > 0 ? 1 : 0;
 }
 
-float sign(const thread float x) {
-    return x > 0 ? 1 : -1;
-}
-
-float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    float nv = dot(n, v);
+float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float alpha) {
     float mv = dot(m, v);
     float sin2 = 1.0f - mv * mv;
     float tan2 = sin2 / (mv * mv);
     return 2.0f / (1.0f + sqrt(1.0f + alpha * alpha * tan2));
 }
 
-float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    return GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
+float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float alpha) {
+    return GGX_G1(i, m, alpha) * GGX_G1(o, m, alpha);
 }
 
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
@@ -209,19 +255,20 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
     float cosTheta2 = cosTheta * cosTheta;
     float tanTheta2 = (1.0f - cosTheta2) / cosTheta2;
     float alpha2 = alpha * alpha;
-    return alpha2 / (PI * cosTheta2 * cosTheta2 * (alpha2 + tanTheta2) * (alpha2 + tanTheta2));
+    return min(1.0f, alpha2 / (PI * cosTheta2 * cosTheta2 * (alpha2 + tanTheta2) * (alpha2 + tanTheta2)));
 }
 
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
-    float G = GGX_G(i, o, m, n, alpha);
+    float G = GGX_G(i, o, m, alpha);
     float F = GGX_F(i, m, ni, no);
-    return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+
+    return G * F * D / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
-    float G = GGX_G(i, o, m, n, alpha);
+    float G = GGX_G(i, o, m, alpha);
     float F = GGX_F(i, m, ni, no);
 
     float im = abs(dot(i, m));
@@ -239,68 +286,33 @@ float GGX_importance(const thread float3 &i, const thread float3 &o, const threa
     float im = abs(dot(i, m));
     float in = abs(dot(i, n));
     float mn = abs(dot(m, n));
-    float g = GGX_G(i, o, m, n, alpha);
+    float g = GGX_G(i, o, m, alpha);
     return (im * g) / (mn * in);
 }
-
-void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device Triangle *triangles, thread int &best_i, thread float &best_t) {
-    int stack[64];
-    int stack_ptr = 0;
-    stack[stack_ptr++] = 0;
-
-    while (stack_ptr > 0 && stack_ptr < 64) {
-        int box_id = stack[--stack_ptr];
-        Box box = boxes[box_id];
-        bool hit = false;
-        float t = INFINITY;
-        ray_box_intersect(ray, box, hit, t);
-        if (hit && (t < best_t)) {
-            if (box.right == 0) {
-                stack[stack_ptr++] = box.left;
-                stack[stack_ptr++] = box.left + 1;
-            } else {
-                for (int i = box.left; i < box.right; i++) {
-                    Triangle triangle = triangles[i];
-                    bool hit = false;
-                    float t = INFINITY;
-                    ray_triangle_intersect(ray, triangle, hit, t);
-                    if (hit && t < best_t) {
-                        best_i = i;
-                        best_t = t;
-                    }
-                }
-            }
-        }
-    }
-}
-
-
-bool visibility_test(const thread float3 origin, const thread float3 target, const device Box *boxes, const device Triangle *triangles) {
-    Ray test_ray;
-    test_ray.origin = origin;
-    float3 direction = target - origin;
-    float t_max = length(direction);
-    direction = direction / t_max;
-    test_ray.direction = direction;
-    test_ray.inv_direction = 1.0 / direction;
-
-    int best_i = -1;
-    float best_t = t_max;
-    traverse_bvh(test_ray, boxes, triangles, best_i, best_t);
-    return best_t >= t_max;
-}
-
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
     if (material.type == 0) {
         return abs(dot(o, n));
     }
     else {
-        if (dot(i, n) * dot(o, n) > 0) {
-            return GGX_BRDF_reflect(i, o, normalize(i + o), n, 1.0, 1.55, 0.01);
+        return 1.0f;
+        float ni, no, alpha;
+        alpha = material.alpha;
+        if (dot(i, n) < 0) {
+            ni = material.ior;
+            no = 1.0;
         }
         else {
-            return GGX_BRDF_transmit(i, o, specular_half_direction(i, o, 1.0, 1.55), n, 1.0, 1.55, 0.01);
+            ni = 1.0;
+            no = material.ior;
+        }
+        if (dot(i, n) * dot(o, n) > 0) {
+            float3 m = normalize(i + o);
+            return GGX_BRDF_reflect(i, o, m, sign(dot(m, n)) * n, ni, no, alpha);
+        }
+        else {
+            float3 m = specular_half_direction(i, o, ni, no);
+            return GGX_BRDF_transmit(i, o, m, sign(dot(m, n)) * n, ni, no, alpha);
         }
     }
 }
@@ -322,8 +334,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     path.from_camera = ray.from_camera;
     out[id] = float4(0, 0, 0, 1);
 
-    float alpha = 0.01;
-
     for (int i = 0; i < 8; i++) {
         path.rays[i] = ray;
         path.length = i + 1;
@@ -342,20 +352,21 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         float3 n;
         float ni, no;
+        float alpha = material.alpha;
         if (dot(ray.direction, triangle.normal) > 0) {
             n = -triangle.normal;
-            ni = 1.55;
+            ni = material.ior;
             no = 1.0;
         }
         else {
             n = triangle.normal;
             ni = 1.0;
-            no = 1.55;
+            no = material.ior;
         }
 
         Ray new_ray;
         new_ray.origin = ray.origin + ray.direction * best_t;
-        new_ray.normal = n;
+        new_ray.normal = triangle.normal;
         new_ray.material = triangle.material;
 
         float3 x, y;
@@ -377,27 +388,22 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             }
         } else {
             float3 m = GGX_sample(x, y, n, rand, alpha);
-            if (dot(-ray.direction, m) <= 0) {
-                continue;
-            }
             float fresnel = GGX_F(-ray.direction, m, ni, no);
             float pf = 1.0f;
             float pm = 1.0f;
             f = 1.0f;
             if (rand.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
-                //f = BRDF(-ray.direction, new_ray.direction, n, material);
+                f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = fresnel;
             } else {
                 new_ray.direction = specular_transmission(-ray.direction, m, ni, no);
-                //f = BRDF(-ray.direction, new_ray.direction, n, material);
+                f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
             }
-            pm = GGX_D(m, n, alpha) * abs(dot(m, n));
-            c_p = 1.0f;
-            l_p = 1.0f;
-
-            new_ray.normal = m;
+            pm = dot(m, n);
+            c_p = pm * pf;
+            l_p = pm * pf;
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;

@@ -45,5 +45,7 @@ Material = np.dtype([
     ('color', np.float32, 4),
     ('emission', np.float32, 4),
     ('type', np.int32),
-    ('pad', np.int32, 3),
+    ('alpha', np.float32),
+    ('ior', np.float32),
+    ('pad', np.int32),
 ])
