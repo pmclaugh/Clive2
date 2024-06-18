@@ -370,16 +370,16 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             f = 1.0f;
             if (rand.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
-                f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
+                //f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = fresnel;
             } else {
                 new_ray.direction = specular_transmission(-ray.direction, m, n, ni, no);
-                f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
+                //f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, n, ni, no, alpha);
                 pf = 1.0 - fresnel;
             }
             pm = GGX_D(m, n, alpha) * abs(dot(m, n));
-            c_p = pm * pf;
-            l_p = pm * pf;
+            c_p = 1.0f;
+            l_p = 1.0f;
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
@@ -398,7 +398,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.hit_light = -1;
         }
 
-        if (i == 1){
+        if (i == 0){
             float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
         }
 
