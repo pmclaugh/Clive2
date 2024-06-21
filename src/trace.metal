@@ -266,8 +266,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, alpha);
     float F = GGX_F(i, m, ni, no);
 
-    //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
-    return G * F;
+    return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    //return D * G * F;
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -283,8 +283,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = (im * om) / (in * on) * no * no * D * G * (1 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
-    //return num / denom;
-    return G * (1 - F);
+    return num / denom;
+    //return D * G * (1 - F);
 }
 
 float GGX_importance(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
@@ -405,9 +405,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
             }
-            pm = dot(m, n);
-            c_p = 1.0f;
-            l_p = 1.0f;
+            pm = GGX_D(m, n, alpha) * dot(m, n);
+            c_p = pm * pf;
+            l_p = pm * pf;
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
