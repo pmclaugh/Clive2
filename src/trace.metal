@@ -212,7 +212,7 @@ float3 specular_transmission(const thread float3 &i, const thread float3 &m, con
     float cosTheta = abs(dot(i, m));
     float eta = ni / nt;
     float sign = eta < 1 ? 1 : -1;
-    float coeff = eta * cosTheta - sign * sqrt(1 - eta * eta * (1 - cosTheta * cosTheta));
+    float coeff = eta * cosTheta - sign * sqrt(1 + eta * (cosTheta * cosTheta - 1));
     float3 vec = coeff * m - eta * i;
     return vec / length(vec);
 }
