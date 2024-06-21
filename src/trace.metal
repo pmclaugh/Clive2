@@ -209,15 +209,21 @@ float3 specular_reflection(const thread float3 &direction, const thread float3 &
 }
 
 float3 specular_transmission(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
-    float cosTheta = abs(dot(i, m));
+    float cosTheta = dot(i, m);
     float eta = ni / nt;
     float sign = eta < 1 ? 1 : -1;
-    float coeff = eta * cosTheta - sign * sqrt(1 + eta * (cosTheta * cosTheta - 1));
+    float coeff = eta * cosTheta - sqrt(1 + eta * (cosTheta * cosTheta - 1));
     float3 vec = coeff * m - eta * i;
     return vec / length(vec);
 }
 
-float3 specular_half_direction(const thread float3 &i, const thread float3 &o, const thread float ni, const thread float no) {
+
+float3 specular_reflect_half_direction(const thread float3 &i, const thread float3 &o, const thread float3 &n) {
+    return normalize(sign(dot(i, n)) * (i + o));
+}
+
+
+float3 specular_transmit_half_direction(const thread float3 &i, const thread float3 &o, const thread float ni, const thread float no) {
     return normalize(-(ni * i + no * o));
 }
 
@@ -281,7 +287,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float on = abs(dot(o, n));
 
     float num = (im * om) / (in * on) * no * no * D * G * (1 - F);
-    float denom = (ni * im + no * om) * (ni * im + no * om);
+    float denom = (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
 
     return num / denom;
     //return D * G * (1 - F);
@@ -311,12 +317,14 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             no = material.ior;
         }
         if (dot(i, n) * dot(o, n) > 0) {
-            float3 m = normalize(i + o);
-            return GGX_BRDF_reflect(i, o, m, sign(dot(m, n)) * n, ni, no, alpha);
+            float3 m = specular_reflect_half_direction(i, o, n);
+            return GGX_F(i, m, ni, no);
+            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
-            float3 m = specular_half_direction(i, o, ni, no);
-            return GGX_BRDF_transmit(i, o, m, sign(dot(m, n)) * n, ni, no, alpha);
+            float3 m = specular_transmit_half_direction(i, o, ni, no);
+            return 1 - GGX_F(i, m, ni, no);
+            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
 }
@@ -401,13 +409,20 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = fresnel;
             } else {
-                new_ray.direction = specular_transmission(-ray.direction, m, ni, no);
+                // todo both of these behave correctly now, but this juggling of negatives shouldn't be necessary
+                if (dot(i, triangle.normal) < 0) {
+                    new_ray.direction = -specular_transmission(-ray.direction, -m, ni, no);
+                }
+                else {
+                    new_ray.direction = specular_transmission(-ray.direction, m, ni, no);
+                }
+
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
             }
-            pm = GGX_D(m, n, alpha) * dot(m, n);
-            c_p = pm * pf;
-            l_p = pm * pf;
+            pm = dot(m, n);
+            c_p = pf;
+            l_p = pf;
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
@@ -431,7 +446,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.hit_light = -1;
         }
 
-        if (i == 2){
+        if (i == 1){
             float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
         }
 
