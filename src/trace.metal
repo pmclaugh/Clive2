@@ -219,7 +219,7 @@ float3 specular_transmission(const thread float3 &i, const thread float3 &m, con
 
 
 float3 specular_reflect_half_direction(const thread float3 &i, const thread float3 &o, const thread float3 &n) {
-    return normalize(sign(dot(i, n)) * (i + o));
+    return normalize(i + o);
 }
 
 
@@ -293,14 +293,6 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     //return D * G * (1 - F);
 }
 
-float GGX_importance(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    float im = abs(dot(i, m));
-    float in = abs(dot(i, n));
-    float mn = abs(dot(m, n));
-    float g = GGX_G(i, o, m, alpha);
-    return (im * g) / (mn * in);
-}
-
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
     if (material.type == 0) {
         return abs(dot(o, n));
@@ -316,15 +308,15 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             ni = 1.0;
             no = material.ior;
         }
-        if (dot(i, n) * dot(o, n) > 0) {
-            float3 m = specular_reflect_half_direction(i, o, n);
-            return GGX_F(i, m, ni, no);
-            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
+        float3 reflect_m = specular_reflect_half_direction(i, o, n);
+        if (dot(reflect_m, n) > 0) {
+            return GGX_F(i, reflect_m, ni, no);
+            //return GGX_BRDF_reflect(i, o, reflect_m, n, ni, no, alpha);
         }
         else {
-            float3 m = specular_transmit_half_direction(i, o, ni, no);
-            return 1 - GGX_F(i, m, ni, no);
-            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
+            float3 transmit_m = specular_transmit_half_direction(i, o, ni, no);
+            return 1 - GGX_F(i, transmit_m, ni, no);
+            //return GGX_BRDF_transmit(i, o, transmit_m, n, ni, no, alpha);
         }
     }
 }
@@ -421,8 +413,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 pf = 1.0 - fresnel;
             }
             pm = dot(m, n);
-            c_p = pf;
-            l_p = pf;
+            c_p = pm * pf;
+            l_p = pm * pf;
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
