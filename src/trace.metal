@@ -252,6 +252,9 @@ float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 
 
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
     float cosTheta = dot(m, n);
+    if (cosTheta <= 0) {
+        return 0;
+    }
     float cosTheta2 = cosTheta * cosTheta;
     float tanTheta2 = (1.0f - cosTheta2) / cosTheta2;
     float alpha2 = alpha * alpha;
@@ -263,7 +266,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, alpha);
     float F = GGX_F(i, m, ni, no);
 
-    return G * F * D / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    return G * F;
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -279,7 +283,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = (im * om) / (in * on) * no * no * D * G * (1 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
-    return num / denom;
+    //return num / denom;
+    return G * (1 - F);
 }
 
 float GGX_importance(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
@@ -295,7 +300,6 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         return abs(dot(o, n));
     }
     else {
-        //return 1.0f;
         float ni, no, alpha;
         alpha = material.alpha;
         if (dot(i, n) < 0) {
@@ -394,7 +398,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             f = 1.0f;
             if (rand.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
-                f = BRDF(-ray.direction, new_ray.direction, n, material);
+                f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = fresnel;
             } else {
                 new_ray.direction = specular_transmission(-ray.direction, m, ni, no);
@@ -427,7 +431,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.hit_light = -1;
         }
 
-        if (i == 0){
+        if (i == 2){
             float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
         }
 
