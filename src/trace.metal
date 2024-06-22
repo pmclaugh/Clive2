@@ -419,12 +419,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 new_ray.direction = new_specular_transmission(ray.direction, -m, ni, no);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
-                float3 sthd = specular_transmit_half_direction(ray.direction, new_ray.direction, triangle.normal, ni, no);
-                if (i == 0) {
-                    float_debug[id] = float4(dot(sthd, m));
-                    //float_debug[id] = float4(f);
-                    //float_debug[id] = float4((new_ray.direction + 1) / 2, 1.0f);
-                }
             }
 
             pm = dot(m, n);
