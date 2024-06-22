@@ -217,7 +217,7 @@ float3 specular_transmission(const thread float3 &i, const thread float3 &m, con
     float cosTheta = dot(i, m);
     float eta = ni / nt;
     float sign = eta < 1 ? 1 : -1;
-    float coeff = eta * cosTheta - sqrt(1 + eta * (cosTheta * cosTheta - 1));
+    float coeff = eta * cosTheta - sign * sqrt(1 + eta * (cosTheta * cosTheta - 1));
     float3 vec = coeff * m - eta * i;
     return vec / length(vec);
 }
@@ -308,20 +308,21 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             ni = 1.0;
             no = material.ior;
         }
-        if (dot(i, n) * dot(o, n) > 0) {
+        if (dot(i, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o, n);
 
             //return 0.0f;
-            //return GGX_F(i, m, no, ni);
-            return GGX_BRDF_reflect(i, o, m, n, no, ni, alpha);
+            //return dot(i, m);
+            return GGX_F(i, m, ni, no);
+            //return GGX_BRDF_reflect(i, o, m, n, no, ni, alpha);
         }
         else {
             float3 m = specular_transmit_half_direction(i, o, n, ni, no);
 
             //return 0.0f;
-            //return dot(i, m);
-            //return 1 - GGX_F(i, m, ni, no);
-            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
+            //return abs(dot(i, m));
+            return 1 - GGX_F(i, m, ni, no);
+            //return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
 }
@@ -363,10 +364,10 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 n;
         float ni, no;
         float alpha = material.alpha;
-        if (dot(ray.direction, triangle.normal) >= 0) {
+        if (dot(-ray.direction, triangle.normal) <= 0) {
             n = -triangle.normal;
-            no = material.ior;
-            ni = 1.0;
+            ni = material.ior;
+            no = 1.0;
         }
         else {
             n = triangle.normal;
@@ -398,37 +399,29 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             }
         } else {
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
-            float fresnel = GGX_F(ray.direction, m, ni, no);
+            float fresnel = GGX_F(-ray.direction, m, ni, no);
             float pf = 1.0f;
             float pm = 1.0f;
             f = 1.0f;
             if (random_roll_b.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
-                float3 srhd = specular_reflect_half_direction(-ray.direction, new_ray.direction, n);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = fresnel;
             } else {
-                // todo both of these behave correctly now, but this juggling of negatives shouldn't be necessary
-                if (dot(ray.direction, triangle.normal) < 0) {
-                    new_ray.direction = -specular_transmission(-ray.direction, -m, ni, no);
-                }
-                else {
-                    new_ray.direction = specular_transmission(-ray.direction, m, ni, no);
-                }
-
-                float3 sthd = specular_transmit_half_direction(-ray.direction, new_ray.direction, triangle.normal, ni, no);
+                new_ray.direction = -specular_transmission(-ray.direction, -m, ni, no);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
+                            if (i == 0) {
+                float_debug[id] = float4(f);
+                //float_debug[id] = float4((m + 1) / 2, 1.0f);
             }
+            }
+
+
+
             pm = dot(m, n);
             c_p = pm * pf;
             l_p = pm * pf;
-        }
-
-        if (i == 1){
-            //float_debug[id] = float4(random_roll_a.y);
-            float_debug[id] = float4((new_ray.direction + 1) / 2, 1.0f);
-            //float_debug[id] = float4(dot(sthd, m));
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
