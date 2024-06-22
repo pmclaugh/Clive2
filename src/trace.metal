@@ -205,7 +205,7 @@ float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, cons
 }
 
 float3 specular_reflection(const thread float3 &i, const thread float3 &n) {
-    return 2 * abs(dot(i, n)) * n - i;
+    return i - 2 * dot(i, n) * n;
 }
 
 float3 specular_reflect_half_direction(const thread float3 &i, const thread float3 &o, const thread float3 &n) {
@@ -318,14 +318,15 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             float3 m = specular_reflect_half_direction(i, o, n);
 
             //return 0.0f;
+            //return dot(m, n);
             //return dot(i, m);
             //return GGX_F(i, m, ni, no);
             return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
-            float3 m = specular_transmit_half_direction(i, o, n, ni, no);
+            float3 m = specular_transmit_half_direction(-i, o, n, ni, no);
 
-            //return dot(reconstructed_m, m);
+            //return dot(m, n);
             //return 0.0f;
             //return abs(dot(i, m));
             //return 1.0f - GGX_F(i, m, ni, no);
@@ -411,17 +412,16 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             float pm = 1.0f;
             f = 1.0f;
             if (random_roll_b.x < fresnel) {
-                new_ray.direction = specular_reflection(-ray.direction, m);
-                f = BRDF(-ray.direction, new_ray.direction, triangle.normal,material);
+                new_ray.direction = specular_reflection(ray.direction, m);
+                f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = fresnel;
             } else {
                 new_ray.direction = new_specular_transmission(ray.direction, -m, ni, no);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
-                f = 1.0f - fresnel;
                 pf = 1.0 - fresnel;
             }
 
-            if (i == 1) {
+            if (i == 0) {
                 float_debug[id] = float4(f);
                 //float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
             }
