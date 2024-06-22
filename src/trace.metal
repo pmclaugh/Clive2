@@ -301,7 +301,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     //return (1 - F);
 }
 
-float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &m, const thread Material material) {
+float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
     if (material.type == 0) {
         return abs(dot(o, n));
     }
@@ -317,21 +317,21 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             no = material.ior;
         }
         if (dot(i, o) > 0) {
-            float3 reconstructed_m = specular_reflect_half_direction(i, o, n);
+            float3 m = specular_reflect_half_direction(i, o, n);
 
             //return 0.0f;
             //return dot(i, m);
             //return GGX_F(i, m, ni, no);
-            return GGX_BRDF_reflect(i, o, reconstructed_m, n, ni, no, alpha);
+            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
-            float3 reconstructed_m = specular_transmit_half_direction(i, o, n, ni, no);
+            float3 m = specular_transmit_half_direction(i, o, n, ni, no);
 
             //return dot(reconstructed_m, m);
             //return 0.0f;
             //return abs(dot(i, m));
-            //return GGX_F(i, m, ni, no);
-            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
+            return 1.0f - GGX_F(i, m, ni, no);
+            //return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
 }
@@ -414,11 +414,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             f = 1.0f;
             if (random_roll_b.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
-                f = BRDF(-ray.direction, new_ray.direction, triangle.normal, m, material);
+                f = BRDF(-ray.direction, new_ray.direction, triangle.normal,material);
                 pf = fresnel;
             } else {
                 new_ray.direction = new_specular_transmission(ray.direction, -m, ni, no);
-                f = BRDF(-ray.direction, new_ray.direction, triangle.normal, m, material);
+                f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
+                f = 1.0f - fresnel;
                 pf = 1.0 - fresnel;
             }
 
@@ -607,12 +608,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 Material camera_material = materials[camera_ray.material];
                 Material light_material = materials[light_ray.material];
 
-                float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_ray.normal, camera_material);
-                new_camera_f = 1.0f;
+                float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
-                float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_ray.normal, light_material);
-                new_light_f = 1.0f;
+                float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
