@@ -311,9 +311,9 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         if (dot(i, n) * dot(o, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o, n);
 
-            //return 1.0f;
+            //return 0.0f;
             //return GGX_F(i, m, no, ni);
-            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
+            return GGX_BRDF_reflect(i, o, m, n, no, ni, alpha);
         }
         else {
             float3 m = specular_transmit_half_direction(i, o, n, ni, no);
@@ -398,7 +398,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             }
         } else {
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
-            float fresnel = GGX_F(-ray.direction, m, no, ni);
+            float fresnel = GGX_F(ray.direction, m, ni, no);
             float pf = 1.0f;
             float pm = 1.0f;
             f = 1.0f;
