@@ -321,17 +321,17 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
 
             //return 0.0f;
             //return dot(i, m);
-            return GGX_F(i, m, ni, no);
-            //return GGX_BRDF_reflect(i, o, reconstructed_m, n, no, ni, alpha);
+            //return GGX_F(i, m, ni, no);
+            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
             float3 reconstructed_m = specular_transmit_half_direction(i, o, n, ni, no);
 
             //return dot(reconstructed_m, m);
-            return 0.0f;
+            //return 0.0f;
             //return abs(dot(i, m));
-            return GGX_F(i, m, ni, no);
-            //return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
+            //return GGX_F(i, m, ni, no);
+            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
 }
@@ -422,7 +422,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 pf = 1.0 - fresnel;
             }
 
-            if (i == 0) {
+            if (i == 1) {
                 float_debug[id] = float4(f);
                 //float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
             }
