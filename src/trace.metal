@@ -213,18 +213,26 @@ float3 specular_reflect_half_direction(const thread float3 &i, const thread floa
 }
 
 
-float3 specular_transmission(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
+float3 specular_transmission(const thread float3 &i, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float nt) {
     float cosTheta = dot(i, m);
     float eta = ni / nt;
-    float sign = eta < 1 ? 1 : -1;
-    float coeff = eta * cosTheta - sign * sqrt(1 + eta * (cosTheta * cosTheta - 1));
+    float coeff = eta * cosTheta - sign(dot(i, n)) * sqrt(1 + eta * (cosTheta * cosTheta - 1));
     float3 vec = coeff * m - eta * i;
     return vec / length(vec);
 }
 
 
+float3 new_specular_transmission(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
+    float im = dot(i, m);
+    float mu = ni / nt;
+    float ncoeff = sqrt(1 - mu * mu * (1 - im * im));
+    float3 t = ncoeff * m - mu * (i - im * m);
+    return t / length(t);
+}
+
+
 float3 specular_transmit_half_direction(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float ni, const thread float no) {
-    return normalize(sign(-dot(i, n)) * (ni * i + no * o));
+    return normalize(-(ni * i + no * o));
 }
 
 float GGX_F(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
@@ -241,19 +249,19 @@ float GGX_F(const thread float3 &i, const thread float3 &m, const thread float n
     return inner * outer;
 }
 
-float positive(const thread float x) {
-    return x > 0 ? 1 : 0;
-}
+float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    if (dot(v, m) * dot(v, n) <= 0) {
+        return 0;
+    }
 
-float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float alpha) {
-    float mv = abs(dot(m, v));
+    float mv = dot(m, v);
     float sin2 = 1.0f - mv * mv;
     float tan2 = sin2 / (mv * mv);
     return 2.0f / (1.0f + sqrt(1.0f + alpha * alpha * tan2));
 }
 
-float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float alpha) {
-    return GGX_G1(i, m, alpha) * GGX_G1(o, m, alpha);
+float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    return GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
 }
 
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
@@ -269,7 +277,7 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
 
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
-    float G = GGX_G(i, o, m, alpha);
+    float G = GGX_G(i, o, m, n, alpha);
     float F = GGX_F(i, m, ni, no);
 
     //return G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
@@ -278,7 +286,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
-    float G = GGX_G(i, o, m, alpha);
+    float G = GGX_G(i, o, m, n, alpha);
     float F = GGX_F(i, m, ni, no);
 
     float im = abs(dot(i, m));
@@ -408,21 +416,24 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = fresnel;
             } else {
-                new_ray.direction = -specular_transmission(-ray.direction, -m, ni, no);
+                new_ray.direction = new_specular_transmission(ray.direction, -m, ni, no);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
-                            if (i == 0) {
-                float_debug[id] = float4(f);
-                //float_debug[id] = float4((m + 1) / 2, 1.0f);
+                float3 sthd = specular_transmit_half_direction(ray.direction, new_ray.direction, triangle.normal, ni, no);
+                if (i == 0) {
+                    float_debug[id] = float4(dot(sthd, m));
+                    //float_debug[id] = float4(f);
+                    //float_debug[id] = float4((new_ray.direction + 1) / 2, 1.0f);
+                }
             }
-            }
-
-
 
             pm = dot(m, n);
             c_p = pm * pf;
             l_p = pm * pf;
+
         }
+
+
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
         if (dot(-ray.direction, triangle.normal) < 0) {
