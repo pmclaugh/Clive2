@@ -280,8 +280,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = GGX_F(i, m, ni, no);
 
-    //return G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
-    return F;
+    return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    //return F;
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -297,8 +297,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = (im * om) / (in * on) * no * no * D * G * (1 - F);
     float denom = (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
 
-    //return num / denom;
-    return (1 - F);
+    return num / denom;
+    //return (1 - F);
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &m, const thread Material material) {
@@ -316,13 +316,13 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             ni = 1.0;
             no = material.ior;
         }
-        if (dot(i, n) * dot(o, n) > 0) {
+        if (dot(i, o) > 0) {
             float3 reconstructed_m = specular_reflect_half_direction(i, o, n);
 
             //return 0.0f;
             //return dot(i, m);
             //return GGX_F(i, m, ni, no);
-            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
+            return GGX_BRDF_reflect(i, o, reconstructed_m, n, ni, no, alpha);
         }
         else {
             float3 reconstructed_m = specular_transmit_half_direction(i, o, n, ni, no);
@@ -427,7 +427,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 //float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
             }
 
-            pm = dot(m, n);
+            pm = GGX_D(m, n, alpha) * dot(m, n);
             c_p = pm * pf;
             l_p = pm * pf;
 
@@ -475,19 +475,8 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
     delta = delta / dist;
 
     float camera_cos, light_cos;
-    if (dot(a.normal, delta) >= 0) {
-        camera_cos = dot(a.normal, delta);
-    }
-    else {
-        camera_cos = dot(-a.normal, delta);
-    }
-
-    if (dot(b.normal, -delta) >= 0) {
-        light_cos = dot(b.normal, -delta);
-    }
-    else {
-        light_cos = dot(-b.normal, -delta);
-    }
+    camera_cos = abs(dot(a.normal, delta));
+    light_cos = abs(dot(b.normal, -delta));
 
     return camera_cos * light_cos / (dist * dist);
 }
@@ -619,9 +608,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 Material light_material = materials[light_ray.material];
 
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_ray.normal, camera_material);
+                new_camera_f = 1.0f;
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_ray.normal, light_material);
+                new_light_f = 1.0f;
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
