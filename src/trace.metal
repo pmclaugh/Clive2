@@ -208,6 +208,11 @@ float3 specular_reflection(const thread float3 &i, const thread float3 &n) {
     return 2 * abs(dot(i, n)) * n - i;
 }
 
+float3 specular_reflect_half_direction(const thread float3 &i, const thread float3 &o, const thread float3 &n) {
+    return normalize(sign(dot(i, n)) * (i + o));
+}
+
+
 float3 specular_transmission(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
     float cosTheta = dot(i, m);
     float eta = ni / nt;
@@ -215,11 +220,6 @@ float3 specular_transmission(const thread float3 &i, const thread float3 &m, con
     float coeff = eta * cosTheta - sqrt(1 + eta * (cosTheta * cosTheta - 1));
     float3 vec = coeff * m - eta * i;
     return vec / length(vec);
-}
-
-
-float3 specular_reflect_half_direction(const thread float3 &i, const thread float3 &o, const thread float3 &n) {
-    return normalize(sign(dot(i, n)) * (i + o));
 }
 
 
@@ -272,8 +272,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, alpha);
     float F = GGX_F(i, m, ni, no);
 
-    return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
-    //return D * G * F;
+    //return G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    return G * F;
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -289,8 +289,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = (im * om) / (in * on) * no * no * D * G * (1 - F);
     float denom = (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
 
-    return num / denom;
-    //return D * G * (1 - F);
+    //return num / denom;
+    return G * (1 - F);
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -300,7 +300,7 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
     else {
         float ni, no, alpha;
         alpha = material.alpha;
-        if (dot(i, n) < 0) {
+        if (dot(i, n) <= 0) {
             ni = material.ior;
             no = 1.0;
         }
@@ -311,17 +311,17 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         if (dot(i, n) * dot(o, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o, n);
 
-            //return 0.0f;
-            return GGX_F(i, m, ni, no);
-            //return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
+            //return 1.0f;
+            //return GGX_F(i, m, no, ni);
+            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
             float3 m = specular_transmit_half_direction(i, o, n, ni, no);
 
             //return 0.0f;
             //return dot(i, m);
-            return 1 - GGX_F(i, m, ni, no);
-            //return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
+            //return 1 - GGX_F(i, m, ni, no);
+            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
 }
@@ -331,7 +331,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    const device Box *boxes [[ buffer(1) ]],
                    const device Triangle *triangles [[ buffer(2) ]],
                    const device Material *materials [[ buffer(3) ]],
-                   const device float2 *random [[ buffer(4) ]],
+                   const device float2 *random_buffer [[ buffer(4) ]],
                    device float4 *out [[ buffer(5) ]],
                    device Path *output_paths [[ buffer(6) ]],
                    device int32_t *debug [[ buffer(7) ]],
@@ -357,15 +357,16 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         Triangle triangle = triangles[best_i];
         Material material = materials[triangle.material];
-        float2 rand = random[id * 8 + i];
+        float2 random_roll_a = random_buffer[id * 16 + 2 * i];
+        float2 random_roll_b = random_buffer[id * 16 + 2 * i + 1];
 
         float3 n;
         float ni, no;
         float alpha = material.alpha;
-        if (dot(ray.direction, triangle.normal) > 0) {
+        if (dot(ray.direction, triangle.normal) >= 0) {
             n = -triangle.normal;
-            ni = material.ior;
-            no = 1.0;
+            no = material.ior;
+            ni = 1.0;
         }
         else {
             n = triangle.normal;
@@ -384,32 +385,28 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float f, c_p, l_p;
         if (material.type == 0) {
             if (path.from_camera) {
-                    new_ray.direction = random_hemisphere_cosine(x, y, n, rand);
+                    new_ray.direction = random_hemisphere_cosine(x, y, n, random_roll_a);
                     f = dot(n, -ray.direction) / PI;
                     c_p = dot(n, new_ray.direction) / PI;
                     l_p = 1.0f / (2 * PI);
                 }
             else {
-                new_ray.direction = random_hemisphere_uniform(x, y, n, rand);
+                new_ray.direction = random_hemisphere_uniform(x, y, n, random_roll_a);
                 f = dot(n, new_ray.direction) / PI;
                 c_p = dot(n, -ray.direction) / PI;
                 l_p = 1.0f / (2 * PI);
             }
         } else {
-            float3 m = GGX_sample(x, y, n, rand, alpha);
-            float fresnel = GGX_F(-ray.direction, m, ni, no);
+            float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
+            float fresnel = GGX_F(-ray.direction, m, no, ni);
             float pf = 1.0f;
             float pm = 1.0f;
             f = 1.0f;
-            if (rand.x < fresnel) {
+            if (random_roll_b.x < fresnel) {
                 new_ray.direction = specular_reflection(-ray.direction, m);
                 float3 srhd = specular_reflect_half_direction(-ray.direction, new_ray.direction, n);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = fresnel;
-                if (i == 0){
-                    float_debug[id] = float4((new_ray.direction + 1) / 2, 1.0f);
-                    //float_debug[id] = float4(dot(-ray.direction, n));
-                }
             } else {
                 // todo both of these behave correctly now, but this juggling of negatives shouldn't be necessary
                 if (dot(ray.direction, triangle.normal) < 0) {
@@ -420,15 +417,18 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 }
 
                 float3 sthd = specular_transmit_half_direction(-ray.direction, new_ray.direction, triangle.normal, ni, no);
-
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
-
-
             }
             pm = dot(m, n);
             c_p = pm * pf;
             l_p = pm * pf;
+        }
+
+        if (i == 1){
+            //float_debug[id] = float4(random_roll_a.y);
+            float_debug[id] = float4((new_ray.direction + 1) / 2, 1.0f);
+            //float_debug[id] = float4(dot(sthd, m));
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;

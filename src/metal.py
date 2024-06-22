@@ -251,14 +251,14 @@ if __name__ == '__main__':
 
     for i in range(samples):
         camera_rays = c.ray_batch_numpy().flatten()
-        rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
+        rands = np.random.rand(camera_rays.size * 64).astype(np.float32)
 
         start_time = time.time()
         trace_fn(batch_size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug, out_camera_debug_image)
         print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
         light_rays = fast_generate_light_rays(triangles, camera_rays.size)
-        rands = np.random.rand(light_rays.size * 32).astype(np.float32)
+        rands = np.random.rand(light_rays.size * 64).astype(np.float32)
 
         start_time = time.time()
         trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug, out_light_debug_image)
