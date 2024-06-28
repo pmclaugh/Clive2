@@ -1,7 +1,7 @@
 #include <metal_stdlib>
 using namespace metal;
 
-#define PI 3.14159265359
+#define PI 3.14159265359f
 #define DELTA 0.0001
 
 struct Ray {
@@ -225,8 +225,7 @@ float3 new_specular_transmission(const thread float3 &i, const thread float3 &m,
     float im = dot(i, m);
     float mu = ni / nt;
     float ncoeff = sqrt(1 - mu * mu * (1 - im * im));
-    float3 t = ncoeff * m - mu * (i - im * m);
-    return t / length(t);
+    return normalize(ncoeff * m - mu * (i - im * m));
 }
 
 
@@ -269,19 +268,8 @@ float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 
     return GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
 }
 
+
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    float cosTheta = dot(m, n);
-    if (cosTheta <= 0) {
-        return 0.0f;
-    }
-    float cosTheta2 = cosTheta * cosTheta;
-    float tanTheta2 = (1.0f - cosTheta2) / cosTheta2;
-    float alpha2 = alpha * alpha;
-    return alpha2 / (PI * cosTheta2 * cosTheta2 * (alpha2 + tanTheta2) * (alpha2 + tanTheta2));
-}
-
-
-float GGX_D_2(const thread float3 &m, const thread float3 &n, const thread float alpha) {
     float cosTheta = dot(m, n);
     if (cosTheta <= 0) {
         return 0.0f;
@@ -295,16 +283,16 @@ float GGX_D_2(const thread float3 &m, const thread float3 &n, const thread float
 
 
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
-    float D = GGX_D_2(m, n, alpha);
+    float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
     float F = GGX_F(i, m, ni, no);
 
-    return D;
+    return D * G * F;
     //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
-    float D = GGX_D_2(m, n, alpha);
+    float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
     float F = GGX_F(i, m, ni, no);
 
@@ -316,7 +304,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = (im * om) / (in * on) * no * no * D * G * (1 - F);
     float denom = (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
 
-    return D;
+    return D * G * (1.0f - F);
     //return num / denom;
 }
 
@@ -338,20 +326,16 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         if (dot(i, n) * dot(o, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o, n);
 
-            //return 0.0f;
-            //return dot(m, n);
-            //return dot(i, m);
+            //return 1.0f;
             //return GGX_F(i, m, ni, no);
             return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
             float3 m = specular_transmit_half_direction(-i, o, n, ni, no);
 
-            //return dot(m, n);
-            return 0.0f;
-            //return abs(dot(i, m));
+            //return 0.0f;
             //return 1.0f - GGX_F(i, m, ni, no);
-            //return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
+            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
 }
@@ -445,14 +429,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
             }
-            pm = abs(dot(m, n));
+            pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
             l_p = pm * pf;
-
-            if (i == 0) {
-                float_debug[id] = float4(f);
-            }
         }
+
+
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
         new_ray.color = material.color * f * ray.color;
