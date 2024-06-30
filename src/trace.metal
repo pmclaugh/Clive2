@@ -404,31 +404,18 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             float pf = 1.0f;
             float pm = 1.0f;
             f = 1.0f;
-            if (dot(-ray.direction, m) <= 0) {
-                f = 0.0f;
-            } else if (random_roll_b.x < fresnel) {
+            if (random_roll_b.x < 0.5) {
                 new_ray.direction = specular_reflection(ray.direction, m, triangle.normal);
 
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
 
                 pf = fresnel;
-
-
             } else {
                 new_ray.direction = specular_transmission(ray.direction, m, ni, no);
 
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
 
                 pf = 1.0 - fresnel;
-
-                if (i == 1) {
-                    //float_debug[id] = float4(f);
-                    float_debug[id] = float4((new_ray.direction + 1.0) / 2.0, 1.0);
-                    //float3 reconstructed_m = specular_reflect_half_direction(-ray.direction, new_ray.direction);
-                    //float3 reconstructed_m = specular_transmit_half_direction(ray.direction, new_ray.direction, triangle.normal, ni, no);
-                    //float_debug[id] = float4(dot(m, reconstructed_m));
-                    //float_debug[id] = float4((m + 1) / 2, 1.0);
-                }
             }
             pm = dot(m, n);
             c_p = pm * pf;
