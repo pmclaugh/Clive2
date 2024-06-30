@@ -160,7 +160,9 @@ def fast_generate_light_rays(triangles, num_rays):
     rand_us = np.random.rand(num_rays)
     rand_vs = np.random.rand(num_rays)
     rand_ws = 1 - rand_us - rand_vs
-    rays['direction'] = unit(np.array([0, -1, 0, 0]))
+    rand_rs = np.sqrt(1 - np.random.rand(num_rays) ** 2)
+    rand_thetas = 2 * np.pi * np.random.rand(num_rays)
+    rays['direc
     points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:, 2] * rand_ws[:, None]
     rays['origin'] = points + 0.0001 * rays['direction']
     rays['normal'] = rays['direction']
@@ -291,7 +293,7 @@ if __name__ == '__main__':
         print("camera paths", np.max(camera_paths['length']), np.min(camera_paths['length']))
         print("light paths", np.max(light_paths['length']), np.min(light_paths['length']))
 
-        summed_image += np.nan_to_num(retrieved_camera_debug_image)
+        summed_image += np.nan_to_num(bidirectional_image)
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
             break
