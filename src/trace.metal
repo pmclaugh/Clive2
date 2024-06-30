@@ -279,9 +279,9 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = GGX_F(i, m, ni, no);
 
-    return F;
+    //return F;
     //return D * G * F;
-    //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -297,9 +297,9 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = (im * om) / (in * on) * no * no * D * G * (1 - F);
     float denom = (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
 
-    return 1.0f - F;
+    //return 1.0f - F;
     //return D * G * (1.0f - F);
-    //return num / denom;
+    return num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -410,6 +410,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
 
                 pf = fresnel;
+
             } else {
                 new_ray.direction = specular_transmission(ray.direction, m, ni, no);
 
@@ -417,7 +418,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
                 pf = 1.0 - fresnel;
             }
-            pm = dot(m, n);
+            pm = dot(m, n) * GGX_D(m, n, alpha);
             c_p = pm * pf;
             l_p = pm * pf;
         }
