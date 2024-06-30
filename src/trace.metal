@@ -214,11 +214,11 @@ float3 specular_reflect_half_direction(const thread float3 &i, const thread floa
 
 float3 specular_transmission(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float no) {
     // in this function, i is the incident direction
-    float cosTheta_i = dot(-i, m);
+    float cosTheta_i = dot(i, m);
     float eta = ni / no;
     float sinTheta_o2 = eta * eta * (1 - cosTheta_i * cosTheta_i);
     float cosTheta_o = sqrt(1 - sinTheta_o2);
-    return normalize(eta * i + (no/ni * cosTheta_i - cosTheta_o) * m);
+    return normalize(eta * i + (eta * cosTheta_i - cosTheta_o) * m);
 }
 
 float3 specular_transmit_half_direction(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float ni, const thread float no) {
@@ -412,6 +412,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
 
                 pf = fresnel;
+
+
             } else {
                 new_ray.direction = specular_transmission(ray.direction, m, ni, no);
 
@@ -428,7 +430,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                     //float_debug[id] = float4((m + 1) / 2, 1.0);
                 }
             }
-            pm = dot(m, n) * GGX_D(m, n, alpha);
+            pm = dot(m, n);
             c_p = pm * pf;
             l_p = pm * pf;
         }
