@@ -290,10 +290,12 @@ if __name__ == '__main__':
         print("camera paths", np.max(camera_paths['length']), np.min(camera_paths['length']))
         print("light paths", np.max(light_paths['length']), np.min(light_paths['length']))
 
-        print(np.sum(np.isnan(bidirectional_image)), "nans in image")
-        print(np.sum(np.any(np.isnan(bidirectional_image), axis=2)), "pixels with nans")
-        print(np.sum(np.isinf(bidirectional_image)), "infs in image")
-        summed_image += bidirectional_image
+        image = bidirectional_image
+
+        print(np.sum(np.isnan(image)), "nans in image")
+        print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
+        print(np.sum(np.isinf(image)), "infs in image")
+        summed_image += image
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
             break

@@ -376,13 +376,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             if (path.from_camera) {
                     new_ray.direction = random_hemisphere_cosine(x, y, n, random_roll_a);
                     f = dot(n, -ray.direction) / PI;
-                    c_p = dot(n, new_ray.direction) / PI;
+                    c_p = max(DELTA, dot(n, new_ray.direction)) / PI;
                     l_p = 1.0f / (2 * PI);
                 }
             else {
                 new_ray.direction = random_hemisphere_uniform(x, y, n, random_roll_a);
                 f = dot(n, new_ray.direction) / PI;
-                c_p = dot(n, -ray.direction) / PI;
+                c_p = max(DELTA, dot(n, -ray.direction)) / PI;
                 l_p = 1.0f / (2 * PI);
             }
         } else {
@@ -398,14 +398,16 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 new_ray.direction = specular_reflection(ray.direction, m);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = fresnel;
+                if (dot(-ray.direction, n) * dot(new_ray.direction, n) <= 0.0f) {break;}
             } else {
                 new_ray.direction = specular_transmission(ray.direction, m, ni, no);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
+                if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
-            c_p = pm * pf;
-            l_p = pm * pf;
+            c_p = max(DELTA, pm * pf);
+            l_p = max(DELTA, pm * pf);
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
