@@ -220,7 +220,7 @@ float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thre
     float cosTheta_i = abs(dot(i, m));
     float eta = ni / nt;
     float sinTheta_t2 = eta * eta * (1 - cosTheta_i * cosTheta_i);
-    if (sinTheta_t2 > 1) {
+    if (sinTheta_t2 > 1 || sinTheta_t2 < 0) {
         return 1.0f;
     }
     float cosTheta_t = sqrt(1 - sinTheta_t2);
@@ -394,7 +394,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             float pm = 1.0f;
             f = 1.0f;
 
-            if (random_roll_b.x <= fresnel) {
+            if (random_roll_b.x > 0 && random_roll_b.x <= fresnel) {
                 new_ray.direction = specular_reflection(ray.direction, m);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = fresnel;
