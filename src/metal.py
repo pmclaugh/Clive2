@@ -46,13 +46,15 @@ class Triangle:
         return a / np.linalg.norm(a)
 
 
-def load_obj(obj_path):
+def load_obj(obj_path, offset=None, material=None):
+    if offset is None:
+        offset = np.zeros(3)
     obj = objloader.Obj.open(obj_path)
     triangles = []
     for i, ((v0, n0, t0), (v1, n1, t1), (v2, n2, t2)) in enumerate(zip(*[iter(obj.face)] * 3)):
-        triangle = Triangle(np.array(obj.vert[v0 - 1]),
-                            np.array(obj.vert[v1 - 1]),
-                            np.array(obj.vert[v2 - 1]))
+        triangle = Triangle(np.array(obj.vert[v0 - 1]) + offset,
+                            np.array(obj.vert[v1 - 1]) + offset,
+                            np.array(obj.vert[v2 - 1]) + offset)
 
         # normals
         triangle.n0 = np.array(obj.norm[n0 - 1]) if n0 is not None else INVALID
@@ -65,7 +67,10 @@ def load_obj(obj_path):
         triangle.t2 = np.array(obj.text[t2 - 1]) if t2 is not None else INVALID
 
         # material
-        triangle.material = 0
+        if material is None:
+            triangle.material = 0
+        else:
+            triangle.material = material
         triangle.emitter = False
 
         triangles.append(triangle)
@@ -80,14 +85,14 @@ def get_materials():
     materials['color'][2][:3] = WHITE
     materials['color'][3][:3] = WHITE
     materials['color'][4][:3] = WHITE
-    materials['color'][5][:3] = WHITE
+    materials['color'][5][:3] = BLUE
     materials['color'][6][:3] = WHITE
     materials['emission'] = np.zeros((7, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
     materials['type'] = 0
 
     materials['ior'] = 1.5
-    materials['alpha'] = 0.1
+    materials['alpha'] = 0.01
 
     materials[0]['type'] = 1
     return materials
@@ -123,8 +128,8 @@ def triangles_for_box(box_min, box_max):
         Triangle(left_bottom_back, right_bottom_front, right_bottom_back, material=4),
         Triangle(left_bottom_back, left_bottom_front, right_bottom_front, material=4),
         # ceiling
-        Triangle(left_top_back, right_top_back, right_top_front, material=5),
-        Triangle(left_top_back, right_top_front, left_top_front, material=5),
+        Triangle(left_top_back, right_top_back, right_top_front, material=4),
+        Triangle(left_top_back, right_top_front, left_top_front, material=4),
         # ceiling light # NB this assumes box is centered on the origin, at least wrt x and z
         Triangle(left_top_back * shrink, right_top_back * shrink, right_top_front * shrink, material=6, emitter=True),
         Triangle(left_top_back * shrink, right_top_front * shrink, left_top_front * shrink, material=6, emitter=True),
@@ -204,7 +209,8 @@ def surface_area(t):
 
 
 if __name__ == '__main__':
-    tris = load_obj('../resources/teapot.obj')
+    tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 0]), material=0)
+    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -4]), material=5)
 
     # manually define a box around the teapot
 
@@ -222,7 +228,7 @@ if __name__ == '__main__':
         kernel = f.read()
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 15
+    samples = 100
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
 
     batch_size = c.pixel_width * c.pixel_height
