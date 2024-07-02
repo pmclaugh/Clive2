@@ -293,7 +293,7 @@ if __name__ == '__main__':
         print(np.sum(np.isnan(bidirectional_image)), "nans in image")
         print(np.sum(np.any(np.isnan(bidirectional_image), axis=2)), "pixels with nans")
         print(np.sum(np.isinf(bidirectional_image)), "infs in image")
-        summed_image += np.nan_to_num(bidirectional_image)
+        summed_image += bidirectional_image
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
             break
