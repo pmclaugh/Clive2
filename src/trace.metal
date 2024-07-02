@@ -273,10 +273,10 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    float im = abs(dot(i, m));
-    float om = abs(dot(o, m));
-    float in = abs(dot(i, n));
-    float on = abs(dot(o, n));
+    float im = saturate(dot(i, m));
+    float om = saturate(dot(o, m));
+    float in = saturate(dot(i, n));
+    float on = saturate(dot(o, n));
 
     float num = im * om * no * no * D * G * (1 - F);
     float denom = in * on * (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
@@ -305,16 +305,10 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         }
         if (dot(i, n) * dot(o, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o);
-            if (dot(i, m) <= 0) {
-                return 0.0f;
-            }
             return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
             float3 m = specular_transmit_half_direction(i, o, n, ni, no);
-            if (dot(i, m) <= 0) {
-                return 0.0f;
-            }
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
