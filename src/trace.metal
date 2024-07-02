@@ -213,7 +213,7 @@ float3 specular_transmission(const thread float3 &i, const thread float3 &m, con
 }
 
 float3 specular_transmit_half_direction(const thread float3 &i, const thread float3 &o, const thread float ni, const thread float no) {
-    return normalize(no * o - ni * i);
+    return normalize(-(no * o + ni * i));
 }
 
 float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
