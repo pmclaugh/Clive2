@@ -253,7 +253,7 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
     float alpha2 = alpha * alpha;
     float denom =  1 + cosTheta2 * (alpha2 - 1);
 
-    return saturate(alpha2 / (PI * denom * denom));
+    return alpha2 / (PI * denom * denom);
 }
 
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -411,7 +411,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
-
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = max(DELTA, pm * pf);
