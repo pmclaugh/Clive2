@@ -282,7 +282,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
 
     //return D;
     return D * (1.0f - F) * G;
-    //return num / denom;
+    //return coeff * num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -411,6 +411,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
+
+                if (i == 0) {
+                    float3 reconstructed_m = specular_transmit_half_direction(-ray.direction, new_ray.direction, ni, no);
+                    float_debug[id] = float4(dot(reconstructed_m, m));
+                }
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = max(DELTA, pm * pf);
@@ -418,12 +423,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
-        if (dot(new_ray.direction, triangle.normal) > 0) {
-            new_ray.color =  material.color * f * ray.color;
-        } else {
-            new_ray.color = f * ray.color;
-        }
-
+        new_ray.color =  material.color * f * ray.color;
         new_ray.c_importance = c_p;
         new_ray.l_importance = l_p;
         if (path.from_camera) {
