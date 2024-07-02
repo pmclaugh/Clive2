@@ -252,13 +252,14 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
-    float F = degreve_fresnel(i, m, ni, no);
+    //float F = degreve_fresnel(i, m, ni, no);
+    float F = 1.0f;
 
     //return D;
     //return 1.0f;
-    return F * G;
+    //return F * G;
     //return D * G * F;
-    //return D * G * F / (4 * abs(dot(i, m)) * abs(dot(o, m)));
+    return D * G * F / (4 * abs(dot(o, m)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -272,7 +273,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float on = abs(dot(o, n));
 
     float num = im * om * no * no * D * G * (1 - F);
-    float denom = in * on * (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
+    float denom = on * (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
 
     //return D;
     //return 1.0f;
@@ -389,6 +390,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
             float fresnel = degreve_fresnel(-ray.direction, m, ni, no);
 
+            fresnel = 1.0f;
+
             float pf = 1.0f;
             float pm = 1.0f;
             f = 1.0f;
@@ -406,7 +409,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
                 pf = 1.0 - fresnel;
             }
-            pm = abs(dot(m, n));
+            pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
             l_p = pm * pf;
 
