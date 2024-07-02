@@ -87,7 +87,7 @@ def get_materials():
     materials['type'] = 0
 
     materials['ior'] = 1.5
-    materials['alpha'] = 0.001
+    materials['alpha'] = 0.01
 
     materials[0]['type'] = 1
     return materials

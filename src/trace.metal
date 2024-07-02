@@ -259,7 +259,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     //return 1.0f;
     //return F * G;
     //return D * G * F;
-    return D * G * F / (4 * abs(dot(o, m)));
+    return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -273,13 +273,12 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float on = abs(dot(o, n));
 
     float num = im * om * no * no * D * G * (1 - F);
-    float denom = on * (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
+    float denom = in * on * (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
 
-    //return D;
+    //return G;
     //return 1.0f;
-    return (1.0f - F) * G;
-    //return D * G * (1.0f - F);
-    //return num / denom;
+    //return (1.0f - F) * G;
+    return num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -290,12 +289,12 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         float ni, no, alpha;
         alpha = material.alpha;
         if (dot(i, n) > 0) {
-            ni = material.ior;
-            no = 1.0;
+            ni = 1.0f;
+            no = material.ior;
         }
         else {
-            ni = 1.0;
-            no = material.ior;
+            ni = material.ior;
+            no = 1.0f;
         }
         if (dot(i, n) * dot(o, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o);
@@ -352,15 +351,15 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 n;
         float ni, no;
         float alpha = material.alpha;
-        if (dot(-ray.direction, triangle.normal) > 0) {
+        if (dot(-ray.direction, triangle.normal) > 0.0f) {
             n = triangle.normal;
-            ni = material.ior;
-            no = 1.0;
+            ni = 1.0f;
+            no = material.ior;
         }
         else {
             n = -triangle.normal;
-            ni = 1.0;
-            no = material.ior;
+            ni = material.ior;
+            no = 1.0f;
         }
 
         Ray new_ray;
@@ -389,8 +388,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
 
             float fresnel = degreve_fresnel(-ray.direction, m, ni, no);
-
-            fresnel = 1.0f;
 
             float pf = 1.0f;
             float pm = 1.0f;
