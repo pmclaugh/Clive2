@@ -451,7 +451,8 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
     camera_cos = abs(dot(a.normal, delta));
     light_cos = abs(dot(b.normal, delta));
 
-    return camera_cos * light_cos / (dist * dist);
+    float g = camera_cos * light_cos / (dist * dist);
+    return max(DELTA, g);
 }
 
 
