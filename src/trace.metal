@@ -191,15 +191,17 @@ float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float
 
 float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand, const thread float alpha) {
     float phi = 2 * PI * rand.x;
-    float theta = atan(alpha * sqrt(rand.y) / sqrt(1 - rand.y));
+    float theta = atan(alpha * sqrt(rand.y) / sqrt(1.0f - rand.y));
     return normalize(cos(phi) * sin(theta) * x_axis + sin(phi) * sin(theta) * y_axis + cos(theta) * z_axis);
 }
 
 float3 specular_reflection(const thread float3 &i, const thread float3 &m) {
+    // in this function, i is the incident direction
     return normalize(i - 2 * dot(i, m) * m);
 }
 
 float3 specular_reflect_half_direction(const thread float3 &i, const thread float3 &o) {
+    // in this function, i is wi
     return normalize(i + o);
 }
 
@@ -213,10 +215,12 @@ float3 specular_transmission(const thread float3 &i, const thread float3 &m, con
 }
 
 float3 specular_transmit_half_direction(const thread float3 &i, const thread float3 &o, const thread float ni, const thread float no) {
+    // in this function, i is wi
     return normalize(-(no * o + ni * i));
 }
 
 float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
+    // this function is agnostic about i being incident or wi
     float cosTheta_i = abs(dot(i, m));
     float eta = ni / nt;
     float sinTheta_t2 = eta * eta * (1 - cosTheta_i * cosTheta_i);
@@ -230,6 +234,7 @@ float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thre
 }
 
 float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    // this function is agnostic about i being incident or wi
     float mv = dot(m, v);
     float sin2 = 1.0f - mv * mv;
     float tan2 = sin2 / (mv * mv);
@@ -237,10 +242,12 @@ float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3
 }
 
 float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    // this function is agnostic about i being incident or wi
     return GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
 }
 
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    // this function is agnostic about i being incident or wi
     float cosTheta = dot(m, n);
     float cosTheta2 = cosTheta * cosTheta;
     float alpha2 = alpha * alpha;
@@ -255,10 +262,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float F = degreve_fresnel(i, m, ni, no);
 
     //return D;
-    //return 1.0f;
-    //return G * F;
     return D * G * F;
-    //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    //return D * G * F / (4 * max(DELTA, abs(dot(i, n)) * abs(dot(o, n))));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -273,13 +278,11 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
 
     float coeff = (im * om) / (in * on);
     float num = no * no * D * G * (1 - F);
-    float denom = (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
+    float denom = (ni * im - no * om) * (ni * im - no * om);
 
     //return D;
-    //return G * (1.0f - F);
     return D * (1.0f - F) * G;
-    //return coeff * num / denom;
-    //return 1.0f;
+    //return num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -299,10 +302,12 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         }
         if (dot(i, n) * dot(o, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o);
+            if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
             return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
             float3 m = specular_transmit_half_direction(i, o, ni, no);
+            if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
@@ -406,10 +411,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
-                if (i == 1) {
-                    float3 reconstructed_m = specular_transmit_half_direction(-ray.direction, new_ray.direction, ni, no);
-                    float_debug[id] = float4(dot(reconstructed_m, m));
-                }
+
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = max(DELTA, pm * pf);
