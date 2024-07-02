@@ -153,11 +153,11 @@ bool visibility_test(const thread float3 origin, const thread float3 target, con
 
 void local_orthonormal_basis(const thread float3 &n, thread float3 &x, thread float3 &y) {
     if (abs(n.x) > abs(n.y)) {
-        x = float3(-n.z, 0, n.x) / sqrt(n.x * n.x + n.z * n.z);
+        x = normalize(float3(-n.z, 0, n.x) / sqrt(n.x * n.x + n.z * n.z));
     } else {
-        x = float3(0, n.z, -n.y) / sqrt(n.y * n.y + n.z * n.z);
+        x = normalize(float3(0, n.z, -n.y) / sqrt(n.y * n.y + n.z * n.z));
     }
-    y = cross(n, x);
+    y = normalize(cross(n, x));
 }
 
 float2 sample_disk_concentric(const thread float2 &rand) {
@@ -246,7 +246,7 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
     float alpha2 = alpha * alpha;
     float denom =  1 + cosTheta2 * (alpha2 - 1);
 
-    return alpha2 / (PI * denom * denom);
+    return saturate(alpha2 / (PI * denom * denom));
 }
 
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -256,7 +256,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
 
     //return D;
     //return 1.0f;
-    //return F * G;
+    //return G * F;
     //return D * G * F;
     return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
@@ -275,10 +275,11 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = no * no * D * G * (1 - F);
     float denom = (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
 
-    //return G;
     //return D;
-    //return (1.0f - F) * G * D;
-    return num / denom;
+    //return G * (1.0f - F);
+    //return D * (1.0f - F) * G;
+    return coeff * num / denom;
+    //return 1.0f;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -387,7 +388,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         } else {
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
 
-            float fresnel = degreve_fresnel(-ray.direction, m, ni, no);
+            float fresnel = degreve_fresnel(ray.direction, m, ni, no);
 
             float pf = 1.0f;
             float pm = 1.0f;
@@ -410,8 +411,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.inv_direction = 1.0 / new_ray.direction;
         if (dot(new_ray.direction, triangle.normal) > 0) {
             new_ray.color =  material.color * f * ray.color;
-        }
-        else {
+        } else {
             new_ray.color = f * ray.color;
         }
 

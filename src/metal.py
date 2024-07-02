@@ -87,7 +87,7 @@ def get_materials():
     materials['type'] = 0
 
     materials['ior'] = 1.5
-    materials['alpha'] = 0.01
+    materials['alpha'] = 0.1
 
     materials[0]['type'] = 1
     return materials
@@ -290,6 +290,9 @@ if __name__ == '__main__':
         print("camera paths", np.max(camera_paths['length']), np.min(camera_paths['length']))
         print("light paths", np.max(light_paths['length']), np.min(light_paths['length']))
 
+        print(np.sum(np.isnan(bidirectional_image)), "nans in image")
+        print(np.sum(np.any(np.isnan(bidirectional_image), axis=2)), "pixels with nans")
+        print(np.sum(np.isinf(bidirectional_image)), "infs in image")
         summed_image += np.nan_to_num(bidirectional_image)
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
