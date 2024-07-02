@@ -199,7 +199,7 @@ float3 specular_reflection(const thread float3 &i, const thread float3 &m) {
     return normalize(i - 2 * dot(i, m) * m);
 }
 
-float3 specular_reflect_half_direction(const thread float3 &i, const thread float3 &o, const thread float3 &n) {
+float3 specular_reflect_half_direction(const thread float3 &i, const thread float3 &o) {
     return normalize(i + o);
 }
 
@@ -240,7 +240,6 @@ float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 
     return GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
 }
 
-
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
     float cosTheta = dot(m, n);
     float cosTheta2 = cosTheta * cosTheta;
@@ -250,21 +249,27 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
     return alpha2 / (PI * denom * denom);
 }
 
+float cwyman_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    float cosTheta = abs(dot(m, n));
+    float alpha2 = alpha * alpha;
+    float denom = ((cosTheta * alpha2 - cosTheta) * cosTheta + 1);
+    return alpha2 / (PI * denom * denom);
+}
 
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
-    float D = GGX_D(m, n, alpha);
+    float D = cwyman_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
     //return D;
     //return 1.0f;
-    return F;
+    return F * G;
     //return D * G * F;
     //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
-    float D = GGX_D(m, n, alpha);
+    float D = cwyman_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
@@ -273,12 +278,12 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float in = abs(dot(i, n));
     float on = abs(dot(o, n));
 
-    float num = no * no * D * G * (1 - F);
-    float denom = (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
+    float num = im * om * no * no * D * G * (1 - F);
+    float denom = in * on * (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
 
     //return D;
     //return 1.0f;
-    return (1.0f - F);
+    return (1.0f - F) * G;
     //return D * G * (1.0f - F);
     //return num / denom;
 }
@@ -299,11 +304,17 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             no = material.ior;
         }
         if (dot(i, n) * dot(o, n) > 0) {
-            float3 m = specular_reflect_half_direction(i, o, n);
+            float3 m = specular_reflect_half_direction(i, o);
+            if (dot(i, m) <= 0) {
+                return 0.0f;
+            }
             return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
             float3 m = specular_transmit_half_direction(i, o, n, ni, no);
+            if (dot(i, m) <= 0) {
+                return 0.0f;
+            }
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
@@ -390,7 +401,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
 
             if (dot(m, -ray.direction) <= 0) {
-                m = -m;
+                break;
             }
 
             float fresnel = degreve_fresnel(-ray.direction, m, ni, no);
@@ -415,10 +426,10 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             c_p = pm * pf;
             l_p = pm * pf;
 
-            if (i == 1) {
-                float_debug[id] = float4(fresnel);
+            if (i == 0) {
+                float_debug[id] = float4(f);
                 //float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
-                //float3 reconstructed_m = specular_reflect_half_direction(-ray.direction, new_ray.direction, triangle.normal);
+                //float3 reconstructed_m = specular_reflect_half_direction(-ray.direction, new_ray.direction);
                 //float3 reconstructed_m = specular_transmit_half_direction(-ray.direction, new_ray.direction, triangle.normal, ni, no);
                 //float_debug[id] = float4(dot(m, reconstructed_m));
             }

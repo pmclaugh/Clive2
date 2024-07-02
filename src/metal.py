@@ -87,7 +87,7 @@ def get_materials():
     materials['type'] = 0
 
     materials['ior'] = 1.5
-    materials['alpha'] = 0.05
+    materials['alpha'] = 0.1
 
     materials[0]['type'] = 1
     return materials
@@ -185,7 +185,6 @@ def basic_tone_map(image):
 def tone_map(image):
     print(f"min {np.min(image)} max {np.max(image)}")
     tone_vector = np.array([0.0722, 0.7152, 0.2126])
-    # tone_vector = ONES
     tone_sums = np.sum(image * tone_vector, axis=2)
     log_tone_sums = np.log(0.1 + tone_sums)
     per_pixel_lts = np.sum(log_tone_sums) / np.prod(image.shape[:2])
@@ -223,7 +222,7 @@ if __name__ == '__main__':
         kernel = f.read()
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 15
+    samples = 10
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
 
     batch_size = c.pixel_width * c.pixel_height
