@@ -213,12 +213,12 @@ float3 specular_transmission(const thread float3 &i, const thread float3 &m, con
 }
 
 float3 specular_transmit_half_direction(const thread float3 &i, const thread float3 &o, const thread float ni, const thread float no) {
-    return normalize(-(ni * i + no * o));
+    return normalize(no * o - ni * i);
 }
 
 float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
     float cosTheta_i = abs(dot(i, m));
-    float eta = nt / ni;
+    float eta = ni / nt;
     float sinTheta_t2 = eta * eta * (1 - cosTheta_i * cosTheta_i);
     if (sinTheta_t2 > 1) {
         return 1.0f;
@@ -252,8 +252,7 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
-    //float F = degreve_fresnel(i, m, ni, no);
-    float F = 1.0f;
+    float F = degreve_fresnel(i, m, ni, no);
 
     //return D;
     //return 1.0f;
@@ -272,13 +271,14 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float in = abs(dot(i, n));
     float on = abs(dot(o, n));
 
-    float num = im * om * no * no * D * G * (1 - F);
-    float denom = in * on * (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
+    float coeff = (im * om) / (in * on);
+    float num = no * no * D * G * (1 - F);
+    float denom = (ni * dot(i, m) + no * dot(o, m)) * (ni * dot(i, m) + no * dot(o, m));
 
     //return G;
     //return D;
-    return (1.0f - F) * G * D;
-    //return num / denom;
+    //return (1.0f - F) * G * D;
+    return num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -395,34 +395,19 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
             if (random_roll_b.x <= fresnel) {
                 new_ray.direction = specular_reflection(ray.direction, m);
-
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
-
                 pf = fresnel;
-
             } else {
                 new_ray.direction = specular_transmission(ray.direction, m, ni, no);
-
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
-
                 pf = 1.0 - fresnel;
             }
-            pm = GGX_D(m, n, alpha);
+            pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
             l_p = pm * pf;
-
-            if (i == 0) {
-                float_debug[id] = float4(fresnel);
-                //float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
-                //float3 reconstructed_m = specular_reflect_half_direction(-ray.direction, new_ray.direction);
-                //float3 reconstructed_m = specular_transmit_half_direction(-ray.direction, new_ray.direction, triangle.normal, ni, no);
-                //float_debug[id] = float4(dot(m, reconstructed_m));
-            }
-
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
-        new_ray.color = material.color * f * ray.color;
         if (dot(new_ray.direction, triangle.normal) > 0) {
             new_ray.color =  material.color * f * ray.color;
         }
