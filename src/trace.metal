@@ -418,6 +418,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 new_ray.direction = GGX_transmit(ray.direction, m, triangle.normal, ni, no);
                 //new_ray.direction = specular_transmission(ray.direction, m, ni, no);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
+                f_debug = BRDF_transmit(ray.direction, new_ray.direction, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
 
