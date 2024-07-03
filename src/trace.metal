@@ -309,12 +309,12 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         }
         if (dot(i, n) * dot(o, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o);
-            if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
+            //if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
             return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
             float3 m = specular_transmit_half_direction(i, o, ni, no);
-            if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
+            //if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
@@ -419,7 +419,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
-
                 if (i == 1) {
                     //float_debug[id] = float4(fresnel);
                     float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
@@ -429,9 +428,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 }
             }
 
-
-
-            //pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+            pm = abs(dot(m, n));
             c_p = max(DELTA, pm * pf);
             l_p = max(DELTA, pm * pf);
         }
