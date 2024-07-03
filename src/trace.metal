@@ -288,7 +288,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float denom = (ni * im - no * om) * (ni * im - no * om);
 
     //return D;
-    //return D * (1.0f - F) * G;
+    return D * (1.0f - F) * G;
     //return coeff * num / denom;
 }
 
@@ -414,13 +414,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 pf = fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) <= 0.0f) {break;}
             } else {
-                new_ray.direction = GGX_transmit(ray.direction, m, ni, no);
+                new_ray.direction = specular_transmission(ray.direction, m, ni, no);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
 
                 if (i == 0) {
-                    float_debug[id] = float4(f);
+                    //float_debug[id] = float4(f);
                     //float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
                     //float3 reconstructed_m = specular_transmit_half_direction(ray.direction, new_ray.direction, ni, no);
                     //float_debug[id] = float4(dot(reconstructed_m, m));
