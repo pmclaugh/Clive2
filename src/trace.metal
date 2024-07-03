@@ -214,9 +214,16 @@ float3 specular_transmission(const thread float3 &i, const thread float3 &m, con
     return normalize(eta * i + (eta * cosTheta_i - cosTheta_o) * m);
 }
 
+float3 GGX_transmit(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float no) {
+    float cosTheta_i = dot(i, m);
+    float eta = ni / no;
+    float inner = sqrt(1 + eta * (cosTheta_i * cosTheta_i - 1));
+    return normalize((eta * cosTheta_i - inner) * m - eta * i);
+}
+
 float3 specular_transmit_half_direction(const thread float3 &i, const thread float3 &o, const thread float ni, const thread float no) {
     // in this function, i is wi
-    return normalize(-(no * o + ni * i));
+    return normalize(no * o + ni * i);
 }
 
 float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
@@ -281,7 +288,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float denom = (ni * im - no * om) * (ni * im - no * om);
 
     //return D;
-    return D * (1.0f - F) * G;
+    //return D * (1.0f - F) * G;
     //return coeff * num / denom;
 }
 
@@ -407,14 +414,16 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 pf = fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) <= 0.0f) {break;}
             } else {
-                new_ray.direction = specular_transmission(ray.direction, m, ni, no);
+                new_ray.direction = GGX_transmit(ray.direction, m, ni, no);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
 
                 if (i == 0) {
-                    float3 reconstructed_m = specular_transmit_half_direction(-ray.direction, new_ray.direction, ni, no);
-                    float_debug[id] = float4(dot(reconstructed_m, m));
+                    float_debug[id] = float4(f);
+                    //float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
+                    //float3 reconstructed_m = specular_transmit_half_direction(ray.direction, new_ray.direction, ni, no);
+                    //float_debug[id] = float4(dot(reconstructed_m, m));
                 }
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);

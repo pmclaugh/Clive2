@@ -228,7 +228,7 @@ if __name__ == '__main__':
         kernel = f.read()
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 100
+    samples = 10
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
 
     batch_size = c.pixel_width * c.pixel_height
@@ -296,7 +296,7 @@ if __name__ == '__main__':
         print("camera paths", np.max(camera_paths['length']), np.min(camera_paths['length']))
         print("light paths", np.max(light_paths['length']), np.min(light_paths['length']))
 
-        image = bidirectional_image
+        image = retrieved_camera_debug_image
 
         print(np.sum(np.isnan(image)), "nans in image")
         print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
