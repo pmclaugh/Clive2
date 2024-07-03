@@ -215,10 +215,10 @@ float3 specular_transmission(const thread float3 &i, const thread float3 &m, con
 }
 
 float3 GGX_transmit(const thread float3 &i, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no) {
-    float cosTheta_i = abs(dot(i, m));
+    float cosTheta_i = dot(i, m);
     float eta = ni / no;
     float inner = sqrt(1 + eta * (cosTheta_i * cosTheta_i - 1));
-    return normalize((eta * cosTheta_i + sign(dot(i, n)) * inner) * m - eta * i);
+    return normalize((eta * cosTheta_i - inner) * m - eta * i);
 }
 
 float3 specular_transmit_half_direction(const thread float3 &i, const thread float3 &o, const thread float ni, const thread float no) {
@@ -414,19 +414,22 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 pf = fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) <= 0.0f) {break;}
             } else {
-                new_ray.direction = -GGX_transmit(ray.direction, m, triangle.normal, ni, no);
+                new_ray.direction = GGX_transmit(ray.direction, m, triangle.normal, ni, no);
                 //new_ray.direction = specular_transmission(ray.direction, m, ni, no);
                 f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = 1.0 - fresnel;
-                //if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
+                if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
 
                 if (i == 1) {
                     //float_debug[id] = float4(fresnel);
                     float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
-                    //float3 reconstructed_m = specular_transmit_half_direction(ray.direction, new_ray.direction, ni, no);
+                    float3 reconstructed_m = -specular_transmit_half_direction(ray.direction, new_ray.direction, ni, no);
                     //float_debug[id] = float4(dot(reconstructed_m, m));
+                    //float_debug[id] = float4((reconstructed_m + 1) / 2, 1);
                 }
             }
+
+
 
             //pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = max(DELTA, pm * pf);
