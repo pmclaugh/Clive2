@@ -296,7 +296,7 @@ if __name__ == '__main__':
         print("camera paths", np.max(camera_paths['length']), np.min(camera_paths['length']))
         print("light paths", np.max(light_paths['length']), np.min(light_paths['length']))
 
-        image = retrieved_camera_debug_image
+        image = bidirectional_image
 
         print(np.sum(np.isnan(image)), "nans in image")
         print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
