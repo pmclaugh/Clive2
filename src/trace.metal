@@ -231,7 +231,7 @@ float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thre
     float cosTheta_i = abs(dot(i, m));
     float eta = ni / nt;
     float sinTheta_t2 = eta * eta * (1 - cosTheta_i * cosTheta_i);
-    if (sinTheta_t2 > 1 || sinTheta_t2 < 0) {
+    if (sinTheta_t2 > 1) {
         return 1.0f;
     }
     float cosTheta_t = sqrt(1 - sinTheta_t2);
@@ -309,12 +309,12 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         }
         if (dot(i, n) * dot(o, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o);
-            //if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
+            if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
             return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
             float3 m = specular_transmit_half_direction(i, o, ni, no);
-            //if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
+            if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
@@ -427,7 +427,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                     //float_debug[id] = 1.0f;
                     //float_debug[id] = float4(f);
                     //float_debug[id] = float4(debug_f);
-                    //float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
+                    float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
                     //float3 reconstructed_m = specular_transmit_half_direction(ray.direction, new_ray.direction, ni, no);
                     //float_debug[id] = GGX_D(reconstructed_m, n, alpha);
                     //float_debug[id] = float4(dot(reconstructed_m, m));
@@ -444,7 +444,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
-        new_ray.color =  material.color * f * ray.color;
+        
+        if (dot(new_ray.direction, triangle.normal) > 0.0f) {
+            new_ray.color =  material.color * f * ray.color;
+        } else {
+            new_ray.color = f * ray.color;
+        }
+
         new_ray.c_importance = c_p;
         new_ray.l_importance = l_p;
         if (path.from_camera) {
