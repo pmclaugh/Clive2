@@ -410,8 +410,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
             if (random_roll_b.x > 0 && random_roll_b.x <= fresnel) {
                 new_ray.direction = specular_reflection(ray.direction, m);
-                //f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
-                f = GGX_BRDF_reflect(ray.direction, new_ray.direction, m, triangle.normal, ni, no, alpha);
+                f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 pf = fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) <= 0.0f) {break;}
 
@@ -422,29 +421,26 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_transmit(ray.direction, new_ray.direction, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
-
-                if (i == 0) {
-                    //float_debug[id] = 1.0f;
-                    //float_debug[id] = float4(f);
-                    //float_debug[id] = float4(debug_f);
-                    float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
-                    //float3 reconstructed_m = specular_transmit_half_direction(ray.direction, new_ray.direction, ni, no);
-                    //float_debug[id] = GGX_D(reconstructed_m, n, alpha);
-                    //float_debug[id] = float4(dot(reconstructed_m, m));
-                    //float_debug[id] = float4((reconstructed_m + 1) / 2, 1);
-                }
-
             }
 
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = max(DELTA, pm * pf);
             l_p = max(DELTA, pm * pf);
 
-
+            if (i == 1) {
+                    //float_debug[id] = 1.0f;
+                    float_debug[id] = float4(fresnel);
+                    //float_debug[id] = float4(debug_f);
+                    //float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
+                    //float3 reconstructed_m = specular_transmit_half_direction(ray.direction, new_ray.direction, ni, no);
+                    //float_debug[id] = GGX_D(reconstructed_m, n, alpha);
+                    //float_debug[id] = float4(dot(reconstructed_m, m));
+                    //float_debug[id] = float4((reconstructed_m + 1) / 2, 1);
+                }
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
-        
+
         if (dot(new_ray.direction, triangle.normal) > 0.0f) {
             new_ray.color =  material.color * f * ray.color;
         } else {
