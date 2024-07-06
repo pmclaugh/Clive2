@@ -160,6 +160,22 @@ void local_orthonormal_basis(const thread float3 &n, thread float3 &x, thread fl
     y = normalize(cross(n, x));
 }
 
+void orthonormal(const thread float3 &n, thread float3 &x, thread float3 &y){
+    float3 v;
+    if (n.x < n.y && n.x < n.z) {
+        v = float3(1, 0, 0);
+    }
+    else if (n.y < n.z) {
+        v = float3(0, 1, 0);
+    }
+    else {
+        v = float3(0, 0, 1);
+    }
+
+    x = normalize(v - dot(v, n) * n);
+    y = cross(n, x);
+}
+
 float2 sample_disk_concentric(const thread float2 &rand) {
     float2 offset = 2.0 * rand - float2(1.0, 1.0);
     if (offset.x == 0 && offset.y == 0) {
@@ -330,7 +346,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
     if (path.from_camera == 0) {
         float3 x, y;
-        local_orthonormal_basis(ray.direction, x, y);
+        orthonormal(ray.direction, x, y);
         float2 random_roll = random_buffer[id * 16];
         ray.direction = random_hemisphere_cosine(x, y, ray.direction, random_roll);
     }
@@ -372,7 +388,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.material = triangle.material;
 
         float3 x, y;
-        local_orthonormal_basis(n, x, y);
+        orthonormal(n, x, y);
 
         float f, c_p, l_p;
         if (material.type == 0) {
@@ -409,15 +425,15 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
-
-                if (i == 1) {
-                    float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
-                }
             }
 
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
             l_p = pm * pf;
+        }
+
+        if (i == 0) {
+            float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
         }
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
