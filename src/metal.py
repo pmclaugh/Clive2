@@ -213,14 +213,14 @@ if __name__ == '__main__':
     tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2]), material=0)
     tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2]), material=5)
 
-    # manually define a box around the teapot
+    # manually define a box around the teapots
 
     tris += triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
 
     bvh = construct_BVH(tris)
     c = Camera(
-        center=np.array([6, 2, 0]),
-        direction=unit(np.array([-1, 0, 0])),
+        center=np.array([0, 2, 8]),
+        direction=unit(np.array([0, 0, -1])),
     )
     mats = get_materials()
     boxes, triangles = np_flatten_bvh(bvh)
@@ -229,7 +229,7 @@ if __name__ == '__main__':
         kernel = f.read()
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 30
+    samples = 50
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
 
     batch_size = c.pixel_width * c.pixel_height
