@@ -419,6 +419,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 new_ray.direction = specular_reflection(ray.direction, m);
                 f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, triangle.normal, ni, no, alpha);
                 pf = fresnel;
+
+                if (i == 0) {
+                    float3 reconstructed_m = specular_reflect_half_direction(ray.direction, new_ray.direction);
+                    float_debug[id] = float4(dot(reconstructed_m, m));
+                }
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) <= 0.0f) {break;}
             } else {
                 new_ray.direction = GGX_transmit(ray.direction, m, triangle.normal, ni, no);
@@ -432,9 +437,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             l_p = pm * pf;
         }
 
-        if (i == 0) {
-            float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
-        }
+
 
         new_ray.inv_direction = 1.0 / new_ray.direction;
 
@@ -482,12 +485,8 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
 
 
 Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const thread int t, const thread int s, const thread int i){
-    if (i < s){
-        return light_path.rays[i];
-    }
-    else {
-        return camera_path.rays[t + s - i - 1];
-    }
+    if (i < s) {return light_path.rays[i];}
+    else {return camera_path.rays[t + s - i - 1];}
 }
 
 
