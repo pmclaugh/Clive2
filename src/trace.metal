@@ -460,10 +460,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
             } else {
                 new_ray.direction = GGX_transmit(ray.direction, m, triangle.normal, ni, no);
-                //new_ray.direction = phil_transmit(ray.direction, m, triangle.normal, ni, no);
-                //new_ray.direction = degreve_refraction(ray.direction, m, ni, no);
-                //new_ray.direction = dummy_refraction(ray.direction, m, ni, no);
-
 
                 //f = BRDF(-ray.direction, new_ray.direction, triangle.normal, material);
                 //f = debug_BRDF(-ray.direction, new_ray.direction, triangle.normal, material, m);
@@ -471,14 +467,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 pf = 1.0 - fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
 
-                if (i == 0) {
+                if (i == 1) {
                     //float_debug[id] = 1.0f;
                     //float_debug[id] = float4(f);
                     //float_debug[id] = float4(debug_f);
-                    //float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
+                    float_debug[id] = float4((new_ray.direction + 1) / 2, 1);
                     float3 reconstructed_m = -specular_transmit_half_direction(ray.direction, new_ray.direction, ni, no);
                     if (dot(reconstructed_m, m) < 0.99999f) {
-                      float_debug[id] = float4(1.0f);
+                      //float_debug[id] = float4(1.0f);
                     }
                     //float_debug[id] = float4(dot(reconstructed_m, m));
                     //float_debug[id] = GGX_D(reconstructed_m, n, alpha);
