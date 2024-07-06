@@ -95,6 +95,7 @@ def get_materials():
     materials['alpha'] = 0.01
 
     materials[0]['type'] = 1
+    materials[5]['type'] = 1
     return materials
 
 
@@ -209,8 +210,8 @@ def surface_area(t):
 
 
 if __name__ == '__main__':
-    tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 0]), material=0)
-    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -4]), material=5)
+    tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2]), material=0)
+    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2]), material=5)
 
     # manually define a box around the teapot
 
@@ -218,8 +219,8 @@ if __name__ == '__main__':
 
     bvh = construct_BVH(tris)
     c = Camera(
-        center=np.array([0, 2, 6]),
-        direction=unit(np.array([0, 0, -1])),
+        center=np.array([6, 2, 0]),
+        direction=unit(np.array([-1, 0, 0])),
     )
     mats = get_materials()
     boxes, triangles = np_flatten_bvh(bvh)
