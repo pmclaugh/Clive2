@@ -162,10 +162,10 @@ void local_orthonormal_basis(const thread float3 &n, thread float3 &x, thread fl
 
 void orthonormal(const thread float3 &n, thread float3 &x, thread float3 &y){
     float3 v;
-    if (n.x < n.y && n.x < n.z) {
+    if (abs(n.x) <= abs(n.y) && abs(n.x) <= abs(n.z)) {
         v = float3(1, 0, 0);
     }
-    else if (n.y < n.z) {
+    else if (abs(n.y) <= abs(n.z)) {
         v = float3(0, 1, 0);
     }
     else {
@@ -173,7 +173,7 @@ void orthonormal(const thread float3 &n, thread float3 &x, thread float3 &y){
     }
 
     x = normalize(v - dot(v, n) * n);
-    y = cross(n, x);
+    y = normalize(cross(n, x));
 }
 
 float2 sample_disk_concentric(const thread float2 &rand) {
