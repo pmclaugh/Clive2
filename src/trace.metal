@@ -416,13 +416,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             f = 1.0f;
 
             if (random_roll_b.x > 0.0f && random_roll_b.x <= fresnel) {
-                new_ray.direction = specular_reflection(ray.direction, m);
+                new_ray.direction = sign(dot(-ray.direction, triangle.normal)) * specular_reflection(ray.direction, m);
                 f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, triangle.normal, ni, no, alpha);
                 pf = fresnel;
 
                 if (i == 0) {
                     float3 reconstructed_m = specular_reflect_half_direction(ray.direction, new_ray.direction);
-                    float_debug[id] = float4(dot(reconstructed_m, m));
+                    //float_debug[id] = float4(dot(reconstructed_m, m));
+                    float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
                 }
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) <= 0.0f) {break;}
             } else {
