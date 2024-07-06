@@ -228,7 +228,7 @@ if __name__ == '__main__':
         kernel = f.read()
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 10
+    samples = 30
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
 
     batch_size = c.pixel_width * c.pixel_height
@@ -301,7 +301,7 @@ if __name__ == '__main__':
         print(np.sum(np.isnan(image)), "nans in image")
         print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
         print(np.sum(np.isinf(image)), "infs in image")
-        summed_image += image
+        summed_image += np.nan_to_num(image)
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
             break
