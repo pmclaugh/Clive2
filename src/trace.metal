@@ -296,8 +296,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
     //return 1.0f - F;
-    //return D * (1.0f - F) * G;
-    return coeff * num / denom;
+    return D * (1.0f - F) * G;
+    //return coeff * num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -427,7 +427,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_transmit(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
-                if (i == 0) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
+                if (i == 1) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
@@ -437,7 +437,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.direction = wo;
         new_ray.inv_direction = 1.0 / wo;
 
-        new_ray.color = material.color * f * ray.color;
+        if (dot(wo, n) >= 0.0f) {
+            new_ray.color = material.color * f * ray.color;
+        }
+        else {
+            new_ray.color = f * ray.color;
+        }
 
         new_ray.c_importance = c_p;
         new_ray.l_importance = l_p;
