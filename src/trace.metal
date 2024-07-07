@@ -394,14 +394,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (material.type == 0) {
             if (path.from_camera) {
                     new_ray.direction = random_hemisphere_cosine(x, y, n, random_roll_a);
-                    f = dot(n, -ray.direction) / PI;
-                    c_p = max(DELTA, dot(n, new_ray.direction)) / PI;
+                    f = dot(n, new_ray.direction) / PI;
+                    c_p = dot(n, new_ray.direction) / PI;
                     l_p = 1.0f / (2 * PI);
                 }
             else {
                 new_ray.direction = random_hemisphere_uniform(x, y, n, random_roll_a);
-                f = dot(n, new_ray.direction) / PI;
-                c_p = max(DELTA, dot(n, -ray.direction)) / PI;
+                f = dot(n, -ray.direction) / PI;
+                c_p = dot(n, -ray.direction) / PI;
                 l_p = 1.0f / (2 * PI);
             }
         } else {
