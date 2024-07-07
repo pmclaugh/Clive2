@@ -420,17 +420,21 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, triangle.normal, ni, no, alpha);
                 pf = fresnel;
 
-                if (i == 0) {
-                    float3 reconstructed_m = specular_reflect_half_direction(ray.direction, new_ray.direction);
-                    //float_debug[id] = float4(dot(reconstructed_m, m));
-                    float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
-                }
+
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) <= 0.0f) {break;}
             } else {
                 new_ray.direction = GGX_transmit(ray.direction, m, triangle.normal, ni, no);
                 f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(-ray.direction, n) * dot(new_ray.direction, n) >= 0.0f) {break;}
+                if (i == 1) {
+                    float3 reconstructed_m = specular_transmit_half_direction(ray.direction, new_ray.direction, ni, no);
+                    //float_debug[id] = float4(dot(reconstructed_m, m));
+                    //float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
+                    if (abs(dot(reconstructed_m, m)) < 1.0f) {
+                        float_debug[id] = float4(1.0f);
+                    }
+                }
             }
 
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
