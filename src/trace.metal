@@ -277,8 +277,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float F = degreve_fresnel(i, m, ni, no);
 
     //return F;
-    //return D * G * F;
-    return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    return D * G * F;
+    //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -293,7 +293,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
 
     float coeff = (im * om) / (in * on);
     float num = no * no * D * G * (1 - F);
-    float denom = (ni * im - no * om) * (ni * im - no * om);
+    float denom = (ni * im + no * om) * (ni * im + no * om);
 
     //return 1.0f - F;
     //return D * (1.0f - F) * G;
@@ -347,7 +347,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     if (path.from_camera == 0) {
         float3 x, y;
         orthonormal(ray.direction, x, y);
-        float2 random_roll = random_buffer[id * 16];
+        float2 random_roll = random_buffer[id * 16 + 1];
         ray.direction = random_hemisphere_cosine(x, y, ray.direction, random_roll);
     }
 
@@ -427,6 +427,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_transmit(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
+                if (i == 0) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
@@ -440,20 +441,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         new_ray.c_importance = c_p;
         new_ray.l_importance = l_p;
-        if (path.from_camera) {
-            new_ray.tot_importance = ray.tot_importance * c_p;
-        } else {
-            new_ray.tot_importance = ray.tot_importance * l_p;
-        }
+        if (path.from_camera) {new_ray.tot_importance = ray.tot_importance * c_p;}
+        else {new_ray.tot_importance = ray.tot_importance * l_p;}
 
-        if (triangle.is_light) {
-            new_ray.hit_light = best_i;
-        } else {
-            new_ray.hit_light = -1;
-        }
+        if (triangle.is_light) {new_ray.hit_light = best_i;}
+        else {new_ray.hit_light = -1;}
 
         ray = new_ray;
-
     }
     output_paths[id] = path;
 
@@ -599,10 +593,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
+                new_camera_f = 1.0f;
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
                 Material light_material = materials[light_ray.material];
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
+                new_light_f = 1.0f;
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
