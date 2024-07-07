@@ -70,16 +70,11 @@ void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool
 
 void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triangle, thread bool &hit, thread float &t_out) {
 
-    if (dot(ray.direction, triangle.normal) == 0.0f) {
-        hit = false;
-        return;
-    }
-
     float3 edge1 = triangle.v1 - triangle.v0;
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
     float a = abs(dot(edge1, h));
-    if (a == 0) {
+    if (abs(a) < 0.001f) {
         hit = false;
         return;
     }
@@ -427,7 +422,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_transmit(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
-                if (i == 1) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
+                if (i == 0) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
@@ -437,12 +432,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.direction = wo;
         new_ray.inv_direction = 1.0 / wo;
 
-        if (dot(wo, n) >= 0.0f) {
-            new_ray.color = material.color * f * ray.color;
-        }
-        else {
-            new_ray.color = f * ray.color;
-        }
+        new_ray.color = material.color * f * ray.color;
 
         new_ray.c_importance = c_p;
         new_ray.l_importance = l_p;
