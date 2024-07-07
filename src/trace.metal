@@ -296,8 +296,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
     //return 1.0f - F;
-    return D * (1.0f - F) * G;
-    //return coeff * num / denom;
+    //return D * (1.0f - F) * G;
+    return coeff * num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
