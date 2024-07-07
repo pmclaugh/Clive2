@@ -97,7 +97,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
         return;
     }
     float t = f * dot(edge2, q);
-    if (t > DELTA) {
+    if (t > 0) {
         hit = true;
         t_out = t;
     } else {
@@ -221,7 +221,7 @@ float3 specular_reflect_half_direction(const thread float3 &i, const thread floa
     return normalize(i + o);
 }
 
-float3 GGX_transmit(const thread float3 &i, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no) {
+float3 GGX_transmit(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float no) {
     // in this function, i is incident
     float cosTheta_i = dot(i, m);
     float eta = ni / no;
@@ -317,12 +317,12 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         }
         if (dot(i, n) * dot(o, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o);
-            //if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
+            if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
             return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else {
             float3 m = specular_transmit_half_direction(-i, o, ni, no);
-            //if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
+            if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
     }
@@ -390,69 +390,51 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 x, y;
         orthonormal(n, x, y);
 
+        float3 wi, wo;
+        wi = -ray.direction;
+
         float f, c_p, l_p;
         if (material.type == 0) {
             if (path.from_camera) {
-                    new_ray.direction = random_hemisphere_cosine(x, y, n, random_roll_a);
-                    f = dot(n, new_ray.direction) / PI;
-                    c_p = dot(n, new_ray.direction) / PI;
-                    l_p = 1.0f / (2 * PI);
-                }
+                wo = random_hemisphere_cosine(x, y, n, random_roll_a);
+                f = dot(n, wo) / PI;
+                c_p = dot(n, wo) / PI;
+                l_p = 1.0f / (2 * PI);
+            }
             else {
-                new_ray.direction = random_hemisphere_uniform(x, y, n, random_roll_a);
-                f = dot(n, -ray.direction) / PI;
-                c_p = dot(n, -ray.direction) / PI;
+                wo = random_hemisphere_uniform(x, y, n, random_roll_a);
+                f = dot(n, wi) / PI;
+                c_p = dot(n, wi) / PI;
                 l_p = 1.0f / (2 * PI);
             }
         } else {
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
-
             if (dot(m, n) <= 0.0f) {break;}
-
-            float fresnel = degreve_fresnel(ray.direction, m, ni, no);
 
             float pf = 1.0f;
             float pm = 1.0f;
             f = 1.0f;
 
+            float fresnel = degreve_fresnel(wi, m, ni, no);
+
             if (random_roll_b.x > 0.0f && random_roll_b.x <= fresnel) {
-                new_ray.direction = sign(dot(-ray.direction, triangle.normal)) * specular_reflection(ray.direction, m);
-                f = GGX_BRDF_reflect(-ray.direction, new_ray.direction, m, triangle.normal, ni, no, alpha);
+                wo = specular_reflection(-wi, m);
+                f = GGX_BRDF_reflect(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = fresnel;
-                if (i == 1) {
-                    float3 reconstructed_m = specular_reflect_half_direction(-ray.direction, new_ray.direction);
-                    //float_debug[id] = float4(dot(reconstructed_m, m));
-                    //float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
-                    if (dot(reconstructed_m, m) < 0.9999f) {
-                        //float_debug[id] = float4(1.0f);
-                    }
-                }
-
-
+                if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
             } else {
-                new_ray.direction = sign(dot(-ray.direction, triangle.normal)) * GGX_transmit(ray.direction, m, triangle.normal, ni, no);
-                f = GGX_BRDF_transmit(-ray.direction, new_ray.direction, m, triangle.normal, ni, no, alpha);
+                wo = GGX_transmit(-wi, m, ni, no);
+                f = GGX_BRDF_transmit(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
-                if (i == 1) {
-                    float3 reconstructed_m = specular_transmit_half_direction(ray.direction, new_ray.direction, ni, no);
-                    //float_debug[id] = float4(dot(reconstructed_m, m));
-                    float_debug[id] = float4((new_ray.direction + 1.0f) / 2.0f, 1.0f);
-                    if (dot(reconstructed_m, m) < 0.9999f) {
-                        //float_debug[id] = float4(1.0f);
-                    }
-                    //float_debug[id] = float4(dot(reconstructed_m, m));
-                }
-
+                if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
             }
-
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
             l_p = pm * pf;
         }
 
-
-
-        new_ray.inv_direction = 1.0 / new_ray.direction;
+        new_ray.direction = wo;
+        new_ray.inv_direction = 1.0 / wo;
 
         new_ray.color = material.color * f * ray.color;
 
@@ -617,12 +599,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
-                new_camera_f = 1.0f;
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
                 Material light_material = materials[light_ray.material];
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
-                new_light_f = 1.0f;
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
