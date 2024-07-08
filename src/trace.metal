@@ -340,7 +340,7 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
 }
 
 float3 sample_normal(const thread Triangle &triangle, const thread float u, const thread float v) {
-    return normalize(triangle.n0 * u + triangle.n1 * v + triangle.n2 * (1 - u - v));
+    return normalize(triangle.n0 * (1 - u - v) + triangle.n1 * u + triangle.n2 * v);
 }
 
 kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
