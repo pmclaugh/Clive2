@@ -117,11 +117,12 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
                 stack[stack_ptr++] = box.left + 1;
             } else {
                 for (int i = box.left; i < box.right; i++) {
+                    if (i == ray.triangle) {continue;}
                     Triangle triangle = triangles[i];
                     bool hit = false;
                     t = INFINITY;
                     ray_triangle_intersect(ray, triangle, hit, t);
-                    if (hit && t < best_t && ray.triangle != i) {
+                    if (hit && t < best_t) {
                         best_i = i;
                         best_t = t;
                     }
@@ -244,6 +245,13 @@ float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thre
     return 0.5f * (r_parallel * r_parallel + r_perpendicular * r_perpendicular);
 }
 
+float schlick_fresnel(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
+    // this function is agnostic about i being incident or wi
+    float cosTheta_i = abs(dot(i, m));
+    float f0 = pow((ni - nt) / (ni + nt), 2);
+    return f0 + (1 - f0) * pow(1 - cosTheta_i, 5);
+}
+
 float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3 &n, const thread float alpha) {
     // this function is agnostic about i being incident or wi
     float mv = dot(m, v);
@@ -270,17 +278,17 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
-    float F = degreve_fresnel(i, m, ni, no);
+    float F = schlick_fresnel(i, m, ni, no);
 
     //return F;
-    return D * G * F;
-    //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    //return D * G * F;
+    return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
-    float F = degreve_fresnel(i, m, ni, no);
+    float F = schlick_fresnel(i, m, ni, no);
 
     float im = abs(dot(i, m));
     float om = abs(dot(o, m));
@@ -289,11 +297,11 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
 
     float coeff = (im * om) / (in * on);
     float num = no * no * D * G * (1 - F);
-    float denom = (ni * im - no * om) * (ni * im - no * om);
+    float denom = (ni * im + no * om) * (ni * im + no * om);
 
     //return 1.0f - F;
-    return D * (1.0f - F) * G;
-    //return coeff * num / denom;
+    //return D * (1.0f - F) * G;
+    return coeff * num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -413,14 +421,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             float pm = 1.0f;
             f = 1.0f;
 
-            float fresnel = degreve_fresnel(wi, m, ni, no);
+            float fresnel = schlick_fresnel(wi, m, ni, no);
 
             if (random_roll_b.x > 0.0f && random_roll_b.x <= fresnel) {
                 wo = specular_reflection(-wi, m);
                 f = GGX_BRDF_reflect(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
-                if (i == 1) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
                 new_ray.color = f * ray.color;
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
@@ -430,6 +437,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 if (dot(wi, triangle.normal) > 0.0f) {new_ray.color = material.color * f * ray.color;}
                 else {new_ray.color = f * ray.color;}
             }
+
+            if (i == 1) {float_debug[id] = float4(schlick_fresnel(wi, m, ni, no));}
+
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
             l_p = pm * pf;
