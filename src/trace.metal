@@ -74,7 +74,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
     float a = dot(edge1, h);
-    if (a < 0.001f) {
+    if (abs(a) < 0.001f) {
         hit = false;
         return;
     }
@@ -419,13 +419,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_reflect(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
-
+                if (i == 1) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
-                if (i == 1) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
+
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
