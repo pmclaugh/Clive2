@@ -287,8 +287,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    return F;
-    //return D * G * F;
+    //return F;
+    return D * G * F;
     //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
@@ -306,8 +306,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = no * no * D * G * (1 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
-    return 1.0f - F;
-    //return D * (1.0f - F) * G;
+    //return 1.0f - F;
+    return D * (1.0f - F) * G;
     //return coeff * num / denom;
 }
 
@@ -388,18 +388,16 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float ni, no;
         float alpha = material.alpha;
         float3 sampled_normal = sample_normal(triangle, u, v);
-        float3 signed_normal;
+        float3 signed_n;
         if (dot(-ray.direction, triangle.normal) > 0.0f) {
             n = sampled_normal;
-            signed_normal = triangle.normal;
-            //n = triangle.normal;
+            signed_n = sampled_normal;
             ni = 1.0f;
             no = material.ior;
         }
         else {
             n = -sampled_normal;
-            signed_normal = -triangle.normal;
-            //n = -triangle.normal;
+            signed_n = sampled_normal;
             ni = material.ior;
             no = 1.0f;
         }
@@ -446,7 +444,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
             if (random_roll_b.x > 0.0f && random_roll_b.x <= fresnel) {
                 wo = specular_reflection(-wi, m);
-                f = GGX_BRDF_reflect(wi, wo, m, triangle.normal, ni, no, alpha);
+                f = GGX_BRDF_reflect(wi, wo, m, signed_n, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
                 new_ray.color = material.color * f * ray.color;
@@ -454,18 +452,18 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 //if (i == 0) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
-                f = GGX_BRDF_transmit(wi, wo, m, triangle.normal, ni, no, alpha);
+                f = GGX_BRDF_transmit(wi, wo, m, signed_n, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
                 if (dot(wi, triangle.normal) > 0.0f) {new_ray.color = material.color * f * ray.color;}
                 else {new_ray.color = f * ray.color;}
 
-                new_ray.color = material.color * f * ray.color;
+                //new_ray.color = material.color * f * ray.color;
             }
 
             //if (i == 1){float_debug[id] = float4(fresnel);}
 
-            pm = abs(dot(m, n));
+            pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
             l_p = pm * pf;
         }
