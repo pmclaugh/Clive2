@@ -289,7 +289,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
 
     float coeff = (im * om) / (in * on);
     float num = no * no * D * G * (1 - F);
-    float denom = (ni * im + no * om) * (ni * im + no * om);
+    float denom = (ni * im - no * om) * (ni * im - no * om);
 
     //return 1.0f - F;
     return D * (1.0f - F) * G;
@@ -404,6 +404,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 c_p = dot(n, wi) / PI;
                 l_p = 1.0f / (2 * PI);
             }
+            new_ray.color = material.color * f * ray.color;
         } else {
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
             if (dot(m, n) <= 0.0f) {break;}
@@ -420,12 +421,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 pf = fresnel;
                 if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
                 if (i == 1) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
+                new_ray.color = f * ray.color;
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
-
+                if (dot(wi, triangle.normal) > 0.0f) {new_ray.color = material.color * f * ray.color;}
+                else {new_ray.color = f * ray.color;}
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
@@ -434,13 +437,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         new_ray.direction = wo;
         new_ray.inv_direction = 1.0 / wo;
-
-        if (dot(wo, triangle.normal) * dot(wi, triangle.normal) < 0.0f || dot(wi, triangle.normal) > 0.0f) {
-            new_ray.color = material.color * f * ray.color;
-        }
-        else {
-            new_ray.color = f * ray.color;
-        }
 
         new_ray.c_importance = c_p;
         new_ray.l_importance = l_p;
