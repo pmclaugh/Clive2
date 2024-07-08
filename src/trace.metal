@@ -11,12 +11,13 @@ struct Ray {
     float3 color;
     float3 normal;
     int32_t material;
+    int32_t triangle;
     float c_importance;
     float l_importance;
     float tot_importance;
     int32_t hit_light;
     int32_t from_camera;
-    int32_t pad[2];
+    int32_t pad;
 };
 
 struct Path {
@@ -120,7 +121,7 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
                     bool hit = false;
                     t = INFINITY;
                     ray_triangle_intersect(ray, triangle, hit, t);
-                    if (hit && t < best_t) {
+                    if (hit && t < best_t && ray.triangle != i) {
                         best_i = i;
                         best_t = t;
                     }
@@ -130,14 +131,15 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
     }
 }
 
-bool visibility_test(const thread float3 origin, const thread float3 target, const device Box *boxes, const device Triangle *triangles) {
+bool visibility_test(const thread Ray a, const thread Ray b, const device Box *boxes, const device Triangle *triangles) {
     Ray test_ray;
-    test_ray.origin = origin;
-    float3 direction = target - origin;
+    test_ray.origin = a.origin;
+    float3 direction = b.origin - a.origin;
     float t_max = length(direction);
     direction = direction / t_max;
     test_ray.direction = direction;
     test_ray.inv_direction = 1.0 / direction;
+    test_ray.triangle = a.triangle;
 
     int best_i = -1;
     float best_t = t_max;
@@ -380,6 +382,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.origin = ray.origin + ray.direction * best_t;
         new_ray.normal = triangle.normal;
         new_ray.material = triangle.material;
+        new_ray.triangle = best_i;
 
         float3 x, y;
         orthonormal(n, x, y);
@@ -526,7 +529,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 if (dot(light_ray.normal, dir_l_to_c) == 0.0f){continue;}
                 if (dot(camera_ray.normal, -dir_l_to_c) == 0.0f){continue;}
-                if (not visibility_test(light_ray.origin, camera_ray.origin, boxes, triangles)){continue;}
+                if (not visibility_test(light_ray, camera_ray, boxes, triangles)){continue;}
             }
 
             for (int i = 0; i < 32; i++){
