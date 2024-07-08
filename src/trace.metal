@@ -280,8 +280,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = schlick_fresnel(i, m, ni, no);
 
-    //return F;
-    return D * G * F;
+    return F;
+    //return D * G * F;
     //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
@@ -299,8 +299,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = no * no * D * G * (1 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
-    //return 1.0f - F;
-    return D * (1.0f - F) * G;
+    return 1.0f - F;
+    //return D * (1.0f - F) * G;
     //return coeff * num / denom;
 }
 
@@ -431,6 +431,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 new_ray.color = f * ray.color;
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
+                if (i == 0) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
                 f = GGX_BRDF_transmit(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
@@ -438,9 +439,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 else {new_ray.color = f * ray.color;}
             }
 
-            if (i == 1) {float_debug[id] = float4(schlick_fresnel(wi, m, ni, no));}
 
-            pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+
+            pm = abs(dot(m, n));
             c_p = pm * pf;
             l_p = pm * pf;
         }
@@ -602,12 +603,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
-                //new_camera_f = 1.0f;
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
                 Material light_material = materials[light_ray.material];
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
-                //new_light_f = 1.0f;
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
