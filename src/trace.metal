@@ -402,7 +402,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             no = 1.0f;
         }
 
-        if (i == 0) {float_debug[id] = float4((n + 1.0f) / 2.0f, 1.0f);}
+        //if (i == 0) {float_debug[id] = float4((n + 1.0f) / 2.0f, 1.0f);}
         //if (i == 0) {float_debug[id] = float4(v);}
 
         Ray new_ray;
@@ -448,16 +448,15 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 pf = fresnel;
                 if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
                 new_ray.color = material.color * f * ray.color;
-                //if (i == 1){float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
+                //if (i == 0){float_debug[id] = float4((-wi + 1.0f) / 2.0f, 1.0f);}
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
-                //if (i == 0) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
                 f = GGX_BRDF_transmit(wi, wo, m, signed_n, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
                 if (dot(wi, triangle.normal) > 0.0f) {new_ray.color = material.color * f * ray.color;}
                 else {new_ray.color = f * ray.color;}
-
+                //if (i == 1) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
                 //new_ray.color = material.color * f * ray.color;
             }
 
@@ -556,8 +555,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                if (dot(light_ray.normal, dir_l_to_c) == 0.0f){continue;}
-                if (dot(camera_ray.normal, -dir_l_to_c) == 0.0f){continue;}
+                if (abs(dot(light_ray.normal, dir_l_to_c)) < 0.00001f){continue;}
+                if (abs(dot(camera_ray.normal, -dir_l_to_c)) < 0.00001f){continue;}
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)){continue;}
             }
 
