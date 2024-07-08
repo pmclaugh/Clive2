@@ -40,6 +40,9 @@ struct Triangle {
     float3 v0;
     float3 v1;
     float3 v2;
+    float3 n0;
+    float3 n1;
+    float3 n2;
     float3 normal;
     int32_t material;
     int32_t is_light;
@@ -280,8 +283,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    //return F;
-    return D * G * F;
+    return F;
+    //return D * G * F;
     //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
@@ -299,8 +302,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = no * no * D * G * (1 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
-    //return 1.0f - F;
-    return D * (1.0f - F) * G;
+    return 1.0f - F;
+    //return D * (1.0f - F) * G;
     //return coeff * num / denom;
 }
 
@@ -428,7 +431,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_reflect(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
-                new_ray.color = f * ray.color;
+                new_ray.color = material.color * f * ray.color;
                 if (i == 1){float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
@@ -438,11 +441,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
                 if (dot(wi, triangle.normal) > 0.0f) {new_ray.color = material.color * f * ray.color;}
                 else {new_ray.color = f * ray.color;}
+
+                new_ray.color = material.color * f * ray.color;
             }
 
             //if (i == 1){float_debug[id] = float4(fresnel);}
 
-            pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+            pm = abs(dot(m, n));
             c_p = pm * pf;
             l_p = pm * pf;
         }

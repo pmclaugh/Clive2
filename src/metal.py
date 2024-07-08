@@ -9,6 +9,7 @@ import metalcompute as mc
 import time
 from struct_types import Ray, Material, Path, Box
 from datetime import datetime
+from collections import defaultdict
 
 
 class Triangle:
@@ -210,6 +211,27 @@ def surface_area(t):
     return np.linalg.norm(np.cross(e1, e2)) / 2
 
 
+def smooth_normals(triangles):
+    vertex_triangles = defaultdict(list)
+
+    for i, t in enumerate(triangles):
+        vertex_triangles[t['v0'].tobytes()].append((i, 0))
+        vertex_triangles[t['v1'].tobytes()].append((i, 1))
+        vertex_triangles[t['v2'].tobytes()].append((i, 2))
+
+    for i, l in vertex_triangles.items():
+        normals = [triangles[j]['normal'] for (j, _) in l]
+        # todo there is a more correct, weighted way to do this with surface area or angles or something.
+        avg_normal = np.mean(normals, axis=0)
+        for (j, v) in l:
+            if v == 0:
+                triangles[j]['n0'] = avg_normal
+            elif v == 1:
+                triangles[j]['n1'] = avg_normal
+            else:
+                triangles[j]['n2'] = avg_normal
+
+
 if __name__ == '__main__':
     tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2]), material=0)
     tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2]), material=5)
@@ -220,11 +242,12 @@ if __name__ == '__main__':
 
     bvh = construct_BVH(tris)
     c = Camera(
-        center=np.array([0, 2, 8]),
-        direction=unit(np.array([0, 0, -1])),
+        center=np.array([5, 2, 5]),
+        direction=unit(np.array([-1, 0, -1])),
     )
     mats = get_materials()
     boxes, triangles = np_flatten_bvh(bvh)
+    smooth_normals(triangles)
     dev = mc.Device()
     with open("trace.metal", "r") as f:
         kernel = f.read()
