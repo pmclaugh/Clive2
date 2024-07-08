@@ -92,7 +92,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
         return;
     }
     float t = f * dot(edge2, q);
-    if (t > 0) {
+    if (t > DELTA) {
         hit = true;
         t_out = t;
     } else {
@@ -272,8 +272,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float F = degreve_fresnel(i, m, ni, no);
 
     //return F;
-    return D * G * F;
-    //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    //return D * G * F;
+    return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -291,8 +291,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
     //return 1.0f - F;
-    return D * (1.0f - F) * G;
-    //return coeff * num / denom;
+    //return D * (1.0f - F) * G;
+    return coeff * num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -343,7 +343,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 x, y;
         orthonormal(ray.direction, x, y);
         float2 random_roll = random_buffer[id * 16 + 1];
-        ray.direction = random_hemisphere_cosine(x, y, ray.direction, random_roll);
+        ray.direction = random_hemisphere_uniform(x, y, ray.direction, random_roll);
     }
 
     for (int i = 0; i < 8; i++) {
@@ -417,12 +417,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_reflect(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
+                if (i == 0) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
-                if (i == 0) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
+
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
@@ -432,7 +433,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.direction = wo;
         new_ray.inv_direction = 1.0 / wo;
 
-        new_ray.color = material.color * f * ray.color;
+        if (dot(wo, triangle.normal) * dot(wi, triangle.normal) < 0.0f || dot(wi, triangle.normal) > 0.0f) {
+            new_ray.color = material.color * f * ray.color;
+        }
+        else {
+            new_ray.color = f * ray.color;
+        }
 
         new_ray.c_importance = c_p;
         new_ray.l_importance = l_p;
