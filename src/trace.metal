@@ -278,7 +278,7 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
-    float F = schlick_fresnel(i, m, ni, no);
+    float F = degreve_fresnel(i, m, ni, no);
 
     return F;
     //return D * G * F;
@@ -288,7 +288,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
-    float F = schlick_fresnel(i, m, ni, no);
+    float F = degreve_fresnel(i, m, ni, no);
 
     float im = abs(dot(i, m));
     float om = abs(dot(o, m));
@@ -421,7 +421,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             float pm = 1.0f;
             f = 1.0f;
 
-            float fresnel = schlick_fresnel(wi, m, ni, no);
+            float fresnel = degreve_fresnel(wi, m, ni, no);
 
             if (random_roll_b.x > 0.0f && random_roll_b.x <= fresnel) {
                 wo = specular_reflection(-wi, m);
