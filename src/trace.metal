@@ -69,11 +69,10 @@ void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool
 
 
 void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triangle, thread bool &hit, thread float &t_out) {
-
     float3 edge1 = triangle.v1 - triangle.v0;
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
-    float a = abs(dot(edge1, h));
+    float a = dot(edge1, h);
     if (abs(a) < 0.001f) {
         hit = false;
         return;
@@ -92,7 +91,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
         return;
     }
     float t = f * dot(edge2, q);
-    if (t > DELTA) {
+    if (t > 0 && t < t_out) {
         hit = true;
         t_out = t;
     } else {
@@ -417,13 +416,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_reflect(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
-                if (i == 0) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
+
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, triangle.normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
-
+                if (i == 1) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
             }
             pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
