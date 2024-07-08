@@ -72,7 +72,7 @@ void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool
 }
 
 
-void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triangle, thread bool &hit, thread float &t_out) {
+void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triangle, thread bool &hit, thread float &t_out, thread float& u, thread float& v) {
     float3 edge1 = triangle.v1 - triangle.v0;
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
@@ -83,13 +83,13 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
     }
     float f = 1.0 / a;
     float3 s = ray.origin - triangle.v0;
-    float u = f * dot(s, h);
+    u = f * dot(s, h);
     if (u < 0 || u > 1) {
         hit = false;
         return;
     }
     float3 q = cross(s, edge1);
-    float v = f * dot(ray.direction, q);
+    v = f * dot(ray.direction, q);
     if (v < 0 || u + v > 1) {
         hit = false;
         return;
@@ -103,7 +103,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
     }
 }
 
-void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device Triangle *triangles, thread int &best_i, thread float &best_t) {
+void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device Triangle *triangles, thread int &best_i, thread float &best_t, thread float &u_out, thread float &v_out) {
     int stack[64];
     int stack_ptr = 0;
     stack[stack_ptr++] = 0;
@@ -124,10 +124,13 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
                     Triangle triangle = triangles[i];
                     bool hit = false;
                     t = INFINITY;
-                    ray_triangle_intersect(ray, triangle, hit, t);
+                    float u, v;
+                    ray_triangle_intersect(ray, triangle, hit, t, u, v);
                     if (hit && t < best_t) {
                         best_i = i;
                         best_t = t;
+                        u_out = u;
+                        v_out = v;
                     }
                 }
             }
@@ -147,7 +150,8 @@ bool visibility_test(const thread Ray a, const thread Ray b, const device Box *b
 
     int best_i = -1;
     float best_t = t_max;
-    traverse_bvh(test_ray, boxes, triangles, best_i, best_t);
+    float u, v;
+    traverse_bvh(test_ray, boxes, triangles, best_i, best_t, u, v);
     return best_t >= t_max;
 }
 
@@ -335,6 +339,10 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
     }
 }
 
+float3 sample_normal(const thread Triangle &triangle, const thread float u, const thread float v) {
+    return normalize(triangle.n0 * u + triangle.n1 * v + triangle.n2 * (1 - u - v));
+}
+
 kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    const device Box *boxes [[ buffer(1) ]],
                    const device Triangle *triangles [[ buffer(2) ]],
@@ -364,7 +372,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         int best_i = -1;
         float best_t = INFINITY;
-        traverse_bvh(ray, boxes, triangles, best_i, best_t);
+        float u, v;
+        traverse_bvh(ray, boxes, triangles, best_i, best_t, u, v);
 
         if (best_i == -1) {
             break;
@@ -378,20 +387,29 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 n;
         float ni, no;
         float alpha = material.alpha;
+        float3 sampled_normal = sample_normal(triangle, u, v);
+        float3 signed_normal;
         if (dot(-ray.direction, triangle.normal) > 0.0f) {
-            n = triangle.normal;
+            n = sampled_normal;
+            signed_normal = triangle.normal;
+            //n = triangle.normal;
             ni = 1.0f;
             no = material.ior;
         }
         else {
-            n = -triangle.normal;
+            n = -sampled_normal;
+            signed_normal = -triangle.normal;
+            //n = -triangle.normal;
             ni = material.ior;
             no = 1.0f;
         }
 
+        if (i == 0) {float_debug[id] = float4((n + 1.0f) / 2.0f, 1.0f);}
+        //if (i == 0) {float_debug[id] = float4(v);}
+
         Ray new_ray;
         new_ray.origin = ray.origin + ray.direction * best_t;
-        new_ray.normal = triangle.normal;
+        new_ray.normal = sampled_normal;
         new_ray.material = triangle.material;
         new_ray.triangle = best_i;
 
@@ -405,14 +423,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (material.type == 0) {
             if (path.from_camera) {
                 wo = random_hemisphere_cosine(x, y, n, random_roll_a);
-                f = dot(n, wo) / PI;
-                c_p = dot(n, wo) / PI;
+                f = abs(dot(n, wo)) / PI;
+                c_p = abs(dot(n, wo)) / PI;
                 l_p = 1.0f / (2 * PI);
             }
             else {
                 wo = random_hemisphere_uniform(x, y, n, random_roll_a);
-                f = dot(n, wi) / PI;
-                c_p = dot(n, wi) / PI;
+                f = abs(dot(n, wi)) / PI;
+                c_p = abs(dot(n, wi)) / PI;
                 l_p = 1.0f / (2 * PI);
             }
             new_ray.color = material.color * f * ray.color;
@@ -432,7 +450,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 pf = fresnel;
                 if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
                 new_ray.color = material.color * f * ray.color;
-                if (i == 1){float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
+                //if (i == 1){float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 //if (i == 0) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}

@@ -46,6 +46,39 @@ class Triangle:
         a = np.cross(self.v1 - self.v0, self.v2 - self.v0)
         return a / np.linalg.norm(a)
 
+    @property
+    def surface_area(self):
+        e1 = (self.v1 - self.v0)[0:3]
+        e2 = (self.v2 - self.v0)[0:3]
+        return np.linalg.norm(np.cross(e1, e2)) / 2
+
+    @property
+    def v0_angle(self):
+        e1 = self.v1 - self.v0
+        e1 = e1 / np.linalg.norm(e1)
+        e2 = self.v2 - self.v0
+        e2 = e2 / np.linalg.norm(e2)
+        #return np.arccos(np.dot(e1, e2))
+        return np.dot(e1, e2)
+
+    @property
+    def v1_angle(self):
+        e1 = self.v0 - self.v1
+        e1 = e1 / np.linalg.norm(e1)
+        e2 = self.v2 - self.v1
+        e2 = e2 / np.linalg.norm(e2)
+        #return np.arccos(np.dot(e1, e2))
+        return np.dot(e1, e2)
+
+    @property
+    def v2_angle(self):
+        e1 = self.v0 - self.v2
+        e1 = e1 / np.linalg.norm(e1)
+        e2 = self.v1 - self.v2
+        e2 = e2 / np.linalg.norm(e2)
+        #return np.arccos(np.dot(e1, e2))
+        return np.dot(e1, e2)
+
 
 def load_obj(obj_path, offset=None, material=None):
     if offset is None:
@@ -139,26 +172,6 @@ def triangles_for_box(box_min, box_max):
     return tris
 
 
-def local_orthonormal_system(z):
-    if np.abs(z[0]) > np.abs(z[1]):
-        axis = UNIT_Y
-    else:
-        axis = UNIT_X
-    x = np.cross(axis, z)
-    y = np.cross(z, x)
-    return x, y, z
-
-
-def random_hemisphere_uniform_weighted(x_axis, y_axis, z_axis):
-    u1 = np.random.random()
-    u2 = np.random.random()
-    r = np.sqrt(1 - u1 * u1)
-    theta = 2 * np.pi * u2
-    x = r * np.cos(theta)
-    y = r * np.sin(theta)
-    return x_axis * x + y_axis * y + z_axis * u1
-
-
 def fast_generate_light_rays(triangles, num_rays):
     emitters = np.array([[t['v0'], t['v1'], t['v2']] for t in triangles if t['is_light']])
     emitter_surface_area = np.sum([surface_area(t) for t in triangles if t['is_light']])
@@ -215,30 +228,46 @@ def smooth_normals(triangles):
     vertex_triangles = defaultdict(list)
 
     for i, t in enumerate(triangles):
-        vertex_triangles[t['v0'].tobytes()].append((i, 0))
-        vertex_triangles[t['v1'].tobytes()].append((i, 1))
-        vertex_triangles[t['v2'].tobytes()].append((i, 2))
+        vertex_triangles[t.v0.tobytes()].append((i, 0))
+        vertex_triangles[t.v1.tobytes()].append((i, 1))
+        vertex_triangles[t.v2.tobytes()].append((i, 2))
 
-    for i, l in vertex_triangles.items():
-        normals = [triangles[j]['normal'] for (j, _) in l]
-        # todo there is a more correct, weighted way to do this with surface area or angles or something.
-        avg_normal = np.mean(normals, axis=0)
+    for _, l in vertex_triangles.items():
+        avg_normal = np.zeros(3)
         for (j, v) in l:
             if v == 0:
-                triangles[j]['n0'] = avg_normal
+                avg_normal += triangles[j].n * triangles[j].surface_area * triangles[j].v0_angle
             elif v == 1:
-                triangles[j]['n1'] = avg_normal
+                avg_normal += triangles[j].n * triangles[j].surface_area * triangles[j].v1_angle
             else:
-                triangles[j]['n2'] = avg_normal
+                avg_normal += triangles[j].n * triangles[j].surface_area * triangles[j].v2_angle
+
+        for (j, v) in l:
+            if v == 0:
+                triangles[j].n0 = avg_normal
+            elif v == 1:
+                triangles[j].n1 = avg_normal
+            else:
+                triangles[j].n2 = avg_normal
+
+
+def dummy_smooth_normals(triangles):
+    for t in triangles:
+        t.n0 = t.n
+        t.n1 = t.n
+        t.n2 = t.n
 
 
 if __name__ == '__main__':
     tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2]), material=0)
     tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2]), material=5)
+    smooth_normals(tris)
 
-    # manually define a box around the teapots
+    # manually define a box around the teapots, dont smooth it
 
-    tris += triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
+    box_tris = triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
+    dummy_smooth_normals(box_tris)
+    tris += box_tris
 
     bvh = construct_BVH(tris)
     c = Camera(
@@ -247,7 +276,7 @@ if __name__ == '__main__':
     )
     mats = get_materials()
     boxes, triangles = np_flatten_bvh(bvh)
-    smooth_normals(triangles)
+
     dev = mc.Device()
     with open("trace.metal", "r") as f:
         kernel = f.read()
