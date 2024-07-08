@@ -219,8 +219,8 @@ if __name__ == '__main__':
 
     bvh = construct_BVH(tris)
     c = Camera(
-        center=np.array([5, 2, 5]),
-        direction=unit(np.array([-1, 0, -1])),
+        center=np.array([-5, 2, -5]),
+        direction=unit(np.array([1, 0, 1])),
     )
     mats = get_materials()
     boxes, triangles = np_flatten_bvh(bvh)
@@ -297,7 +297,7 @@ if __name__ == '__main__':
         print("camera paths", np.max(camera_paths['length']), np.min(camera_paths['length']))
         print("light paths", np.max(light_paths['length']), np.min(light_paths['length']))
 
-        image = bidirectional_image
+        image = retrieved_camera_debug_image
 
         print(np.sum(np.isnan(image)), "nans in image")
         print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")

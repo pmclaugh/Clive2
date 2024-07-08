@@ -73,7 +73,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
     float a = dot(edge1, h);
-    if (abs(a) < 0.001f) {
+    if (a < 0.001f) {
         hit = false;
         return;
     }
@@ -91,7 +91,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
         return;
     }
     float t = f * dot(edge2, q);
-    if (t > 0 && t < t_out) {
+    if (t > 0.0f) {
         hit = true;
         t_out = t;
     } else {
@@ -118,7 +118,7 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
                 for (int i = box.left; i < box.right; i++) {
                     Triangle triangle = triangles[i];
                     bool hit = false;
-                    float t = INFINITY;
+                    t = INFINITY;
                     ray_triangle_intersect(ray, triangle, hit, t);
                     if (hit && t < best_t) {
                         best_i = i;
@@ -271,8 +271,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float F = degreve_fresnel(i, m, ni, no);
 
     //return F;
-    //return D * G * F;
-    return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    return D * G * F;
+    //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -290,8 +290,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
     //return 1.0f - F;
-    //return D * (1.0f - F) * G;
-    return coeff * num / denom;
+    return D * (1.0f - F) * G;
+    //return coeff * num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
