@@ -216,7 +216,7 @@ float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, cons
 }
 
 float3 specular_reflection(const thread float3 &i, const thread float3 &m) {
-    // in this function, i is the incident direction
+    // in this function, i is incident
     return normalize(i - 2 * dot(i, m) * m);
 }
 
@@ -426,36 +426,31 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 c_p = dot(n, wi) / PI;
                 l_p = 1.0f / (2 * PI);
             }
-            new_ray.color = material.color * f * ray.color;
         } else {
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
             if (dot(m, n) <= 0.0f) {break;}
 
-            float pf = 1.0f;
-            float pm = 1.0f;
-            f = 1.0f;
-
             float fresnel = degreve_fresnel(wi, m, ni, no);
+            float pf = 1.0f;
 
             if (random_roll_b.x > 0.0f && random_roll_b.x <= fresnel) {
                 wo = specular_reflection(-wi, m);
                 f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = fresnel;
-                if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
+                if (dot(wo, n) <= 0.0f) {break;}
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
-                if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
+                if (dot(wo, n) >= 0.0f) {break;}
             }
-
-            if (dot(wi, triangle.normal) > 0.0f) {new_ray.color = material.color * f * ray.color;}
-            else {new_ray.color = f * ray.color;}
-
-            //pm = abs(dot(m, n));
+            float pm = abs(dot(m, n));
             c_p = pm * pf;
             l_p = pm * pf;
         }
+
+        if (dot(wi, triangle.normal) > 0.0f) {new_ray.color = material.color * f * ray.color;}
+        else {new_ray.color = f * ray.color;}
 
         new_ray.direction = wo;
         new_ray.inv_direction = 1.0 / wo;
