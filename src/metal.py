@@ -271,8 +271,10 @@ if __name__ == '__main__':
 
     bvh = construct_BVH(tris)
     c = Camera(
-        center=np.array([0, 2, 8]),
-        direction=unit(np.array([0, 0, -1])),
+        center=np.array([4, 2, 4]),
+        direction=unit(np.array([-1, 0, -1])),
+        pixel_width=1280,
+        pixel_height=720,
     )
     mats = get_materials()
     boxes, triangles = np_flatten_bvh(bvh)
@@ -282,7 +284,7 @@ if __name__ == '__main__':
         kernel = f.read()
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 20
+    samples = 30
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
 
     batch_size = c.pixel_width * c.pixel_height

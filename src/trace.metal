@@ -287,7 +287,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    return F;
+    return F * G;
     //return D * G * F;
     //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
@@ -306,7 +306,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = no * no * D * G * (1 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
-    return 1.0f - F;
+    return (1.0f - F) * G;
     //return D * (1.0f - F) * G;
     //return coeff * num / denom;
 }
@@ -402,9 +402,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             no = 1.0f;
         }
 
-        //if (i == 0) {float_debug[id] = float4((n + 1.0f) / 2.0f, 1.0f);}
-        //if (i == 0) {float_debug[id] = float4(v);}
-
         Ray new_ray;
         new_ray.origin = ray.origin + ray.direction * best_t;
         new_ray.normal = sampled_normal;
@@ -447,20 +444,15 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_reflect(wi, wo, m, signed_n, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
-                new_ray.color = material.color * f * ray.color;
-                //if (i == 0){float_debug[id] = float4((-wi + 1.0f) / 2.0f, 1.0f);}
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, signed_n, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
-                if (dot(wi, triangle.normal) > 0.0f) {new_ray.color = material.color * f * ray.color;}
-                else {new_ray.color = f * ray.color;}
-                //if (i == 1) {float_debug[id] = float4((wo + 1.0f) / 2.0f, 1.0f);}
-                //new_ray.color = material.color * f * ray.color;
             }
 
-            //if (i == 1){float_debug[id] = float4(fresnel);}
+            if (dot(wi, triangle.normal) > 0.0f) {new_ray.color = material.color * f * ray.color;}
+            else {new_ray.color = f * ray.color;}
 
             pm = abs(dot(m, n));
             c_p = pm * pf;
@@ -587,7 +579,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     num = a.l_importance * geometry_term(a, b);
                     denom = c.c_importance * geometry_term(b, c);
                 }
-
                 p_ratios[i] = num / denom;
             }
 
