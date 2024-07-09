@@ -363,6 +363,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 x, y;
         orthonormal(ray.direction, x, y);
         float2 random_roll = random_buffer[id * 16 + 1];
+        ray.normal = ray.direction;
         ray.direction = random_hemisphere_uniform(x, y, ray.direction, random_roll);
     }
 
@@ -388,16 +389,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float ni, no;
         float alpha = material.alpha;
         float3 sampled_normal = sample_normal(triangle, u, v);
-        float3 signed_n;
         if (dot(-ray.direction, triangle.normal) > 0.0f) {
             n = sampled_normal;
-            signed_n = sampled_normal;
             ni = 1.0f;
             no = material.ior;
         }
         else {
             n = -sampled_normal;
-            signed_n = sampled_normal;
             ni = material.ior;
             no = 1.0f;
         }
@@ -441,12 +439,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
             if (random_roll_b.x > 0.0f && random_roll_b.x <= fresnel) {
                 wo = specular_reflection(-wi, m);
-                f = GGX_BRDF_reflect(wi, wo, m, signed_n, ni, no, alpha);
+                f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wi, n) * dot(wo, n) <= 0.0f) {break;}
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
-                f = GGX_BRDF_transmit(wi, wo, m, signed_n, ni, no, alpha);
+                f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wi, n) * dot(wo, n) >= 0.0f) {break;}
             }
@@ -454,7 +452,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             if (dot(wi, triangle.normal) > 0.0f) {new_ray.color = material.color * f * ray.color;}
             else {new_ray.color = f * ray.color;}
 
-            pm = abs(dot(m, n));
+            //pm = abs(dot(m, n));
             c_p = pm * pf;
             l_p = pm * pf;
         }
@@ -615,11 +613,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
-                float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
+                float3 camera_color = prior_camera_color * new_camera_f;
+                if (dot(-prior_camera_direction, camera_ray.normal) > 0.0f) {camera_color *= camera_material.color;}
 
                 Material light_material = materials[light_ray.material];
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
-                float3 light_color = prior_light_color * new_light_f * light_material.color;
+                float3 light_color = prior_light_color * new_light_f;
+                if (dot(dir_l_to_c, light_ray.normal) > 0.0f) {light_color *= light_material.color;}
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
                 float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : 1.0f;
