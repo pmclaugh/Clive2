@@ -279,10 +279,10 @@ if __name__ == '__main__':
     mats = get_materials()
 
     # camera setup
-    samples = 15
+    samples = 5
     c = Camera(
-        center=np.array([4, 2, 4]),
-        direction=unit(np.array([-1, 0, -1])),
+        center=np.array([0, 2, 8]),
+        direction=unit(np.array([0, 0, -1])),
         pixel_width=1280,
         pixel_height=720,
     )
@@ -366,7 +366,7 @@ if __name__ == '__main__':
         print("light paths", np.max(light_paths['length']), np.min(light_paths['length']))
 
         # post processing. tone map, sum, division
-        image = bidirectional_image
+        image = retrieved_camera_debug_image
         print(np.sum(np.isnan(image)), "nans in image")
         print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
         print(np.sum(np.isinf(image)), "infs in image")
