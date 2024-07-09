@@ -405,6 +405,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.normal = sampled_normal;
         new_ray.material = triangle.material;
         new_ray.triangle = best_i;
+        if (triangle.is_light) {new_ray.hit_light = best_i;}
+        else {new_ray.hit_light = -1;}
 
         float3 x, y;
         orthonormal(n, x, y);
@@ -459,9 +461,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.l_importance = l_p;
         if (path.from_camera) {new_ray.tot_importance = ray.tot_importance * c_p;}
         else {new_ray.tot_importance = ray.tot_importance * l_p;}
-
-        if (triangle.is_light) {new_ray.hit_light = best_i;}
-        else {new_ray.hit_light = -1;}
 
         ray = new_ray;
     }
@@ -608,12 +607,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
-                float3 camera_color = prior_camera_color * new_camera_f;
+                float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
                 if (dot(-prior_camera_direction, camera_ray.normal) > 0.0f) {camera_color *= camera_material.color;}
 
                 Material light_material = materials[light_ray.material];
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
-                float3 light_color = prior_light_color * new_light_f;
+                float3 light_color = prior_light_color * new_light_f * light_material.color;
                 if (dot(dir_l_to_c, light_ray.normal) > 0.0f) {light_color *= light_material.color;}
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
