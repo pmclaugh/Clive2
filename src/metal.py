@@ -117,7 +117,7 @@ def get_materials():
     materials['color'][0][:3] = RED
     materials['color'][1][:3] = GREEN
     materials['color'][2][:3] = WHITE
-    materials['color'][3][:3] = WHITE
+    materials['color'][3][:3] = CYAN
     materials['color'][4][:3] = WHITE
     materials['color'][5][:3] = BLUE
     materials['color'][6][:3] = WHITE
@@ -285,8 +285,8 @@ if __name__ == '__main__':
     # camera setup
     samples = 50
     c = Camera(
-        center=np.array([5, 2, 5]),
-        direction=unit(np.array([-1, 0, -1])),
+        center=np.array([-5, 2, -5]),
+        direction=unit(np.array([1, 0, 1])),
         pixel_width=1280,
         pixel_height=720,
         phys_width=1280 / 720,
@@ -357,7 +357,7 @@ if __name__ == '__main__':
         print(np.sum(np.isnan(image)), "nans in image")
         print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
         print(np.sum(np.isinf(image)), "infs in image")
-        summed_image += np.nan_to_num(image)
+        summed_image += np.nan_to_num(image, posinf=0)
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
             break

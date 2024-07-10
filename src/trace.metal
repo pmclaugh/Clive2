@@ -274,14 +274,26 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
     return alpha2 / (PI * denom * denom);
 }
 
+float reflect_jacobian(const thread float3 &m, const thread float3 &o) {
+    return 1.0f / (4.0f * abs(dot(m, o)));
+}
+
+float transmit_jacobian(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float ni, const thread float no) {
+    float cosTheta_i = abs(dot(i, m));
+    float cosTheta_o = abs(dot(o, m));
+    float numerator = no * no * cosTheta_o;
+    float denominator = (ni * cosTheta_i + no * cosTheta_o) * (ni * cosTheta_i + no * cosTheta_o);
+    return numerator / denominator;
+}
+
 float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
     float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
     //return F * G;
-    return D * G * F;
-    //return (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    //return D * G * F;
+    return (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -299,8 +311,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
     //return (1.0f - F) * G;
-    return D * (1.0f - F) * G;
-    //return coeff * num;
+    //return D * (1.0f - F) * G;
+    return coeff * num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -432,7 +444,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             float fresnel = degreve_fresnel(wi, m, ni, no);
             float pf = 1.0f;
 
-            if (random_roll_b.x > 0.0f && random_roll_b.x <= fresnel) {
+            if (random_roll_b.x <= fresnel) {
                 wo = specular_reflection(-wi, m);
                 f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = fresnel;
@@ -446,8 +458,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 new_ray.color = f * ray.color * material.color;
             }
             float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
-            c_p = pm * pf;
-            l_p = pm * pf;
+            float po;
+            if (dot(wo, n) > 0.0f) {
+                po = pf * pm * reflect_jacobian(m, wo);
+            } else {
+                po = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+            }
+            c_p = po;
+            l_p = po;
         }
 
         if (f == 0.0f) {break;}
@@ -611,18 +629,16 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
-                //new_camera_f = 1.0f;
                 float3 camera_color = prior_camera_color * new_camera_f;
                 if (dot(-prior_camera_direction, camera_ray.normal) > 0.0f) {camera_color *= camera_material.color;}
 
                 Material light_material = materials[light_ray.material];
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
-                //new_light_f = 1.0f;
                 float3 light_color = prior_light_color * new_light_f;
                 if (dot(dir_l_to_c, light_ray.normal) > 0.0f) {light_color *= light_material.color;}
 
-                float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
-                float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : 1.0f;
+                float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;
+                float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : camera_path.rays[0].l_importance;
 
                 sample += w * (geometry_term(light_ray, camera_ray) * camera_color * light_color) / (prior_camera_importance * prior_light_importance);
             }
