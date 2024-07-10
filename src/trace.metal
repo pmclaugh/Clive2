@@ -279,8 +279,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    return F * G;
-    //return D * G * F;
+    //return F * G;
+    return D * G * F;
     //return (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
@@ -298,8 +298,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = no * no * D * G * (1 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
-    return (1.0f - F) * G;
-    //return D * (1.0f - F) * G;
+    //return (1.0f - F) * G;
+    return D * (1.0f - F) * G;
     //return coeff * num / denom;
 }
 
@@ -445,7 +445,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
                 new_ray.color = f * ray.color * material.color;
             }
-            float pm = abs(dot(m, n));
+            float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             c_p = pm * pf;
             l_p = pm * pf;
         }
@@ -611,11 +611,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
+                new_camera_f = 1.0f;
                 float3 camera_color = prior_camera_color * new_camera_f;
                 if (dot(-prior_camera_direction, camera_ray.normal) > 0.0f) {camera_color *= camera_material.color;}
 
                 Material light_material = materials[light_ray.material];
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
+                new_light_f = 1.0f;
                 float3 light_color = prior_light_color * new_light_f;
                 if (dot(dir_l_to_c, light_ray.normal) > 0.0f) {light_color *= light_material.color;}
 
