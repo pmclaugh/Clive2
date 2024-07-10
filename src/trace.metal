@@ -300,7 +300,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
 
     //return (1.0f - F) * G;
     return D * (1.0f - F) * G;
-    //return coeff * num / denom;
+    //return coeff * num;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -611,13 +611,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
-                new_camera_f = 1.0f;
+                //new_camera_f = 1.0f;
                 float3 camera_color = prior_camera_color * new_camera_f;
                 if (dot(-prior_camera_direction, camera_ray.normal) > 0.0f) {camera_color *= camera_material.color;}
 
                 Material light_material = materials[light_ray.material];
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
-                new_light_f = 1.0f;
+                //new_light_f = 1.0f;
                 float3 light_color = prior_light_color * new_light_f;
                 if (dot(dir_l_to_c, light_ray.normal) > 0.0f) {light_color *= light_material.color;}
 
