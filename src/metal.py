@@ -191,7 +191,7 @@ def fast_generate_light_rays(triangles, num_rays):
     rays['inv_direction'] = 1 / rays['direction']
     rays['c_importance'] = 1.0  # set in kernel
     rays['l_importance'] = 1.0 / emitter_surface_area
-    rays['tot_importance'] = 1.0 / emitter_surface_area
+    rays['tot_importance'] = 1.0
     rays['from_camera'] = 0
     rays['color'] = np.array([1, 1, 1, 1])
     rays['hit_light'] = -1

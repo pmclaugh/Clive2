@@ -71,7 +71,7 @@ class Camera:
         batch['color'] = np.ones(4)
         batch['c_importance'] = 1.0 / (self.phys_width * self.phys_height)
         batch['l_importance'] = 1.0 / (2 * np.pi)
-        batch['tot_importance'] = 1.0 / (self.phys_width * self.phys_height)
+        batch['tot_importance'] = 1.0
         batch['hit_light'] = -1
         batch['material'] = -1
         batch['normal'] = 0
