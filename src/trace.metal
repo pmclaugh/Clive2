@@ -449,7 +449,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wo, n) <= 0.0f || dot(wo, signed_normal) <= 0.0f) {break;}
-                new_ray.color = f * ray.color;
+                new_ray.color = f * ray.color * material.color;
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
@@ -629,13 +629,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
-                float3 camera_color = prior_camera_color * new_camera_f;
-                if (dot(-prior_camera_direction, camera_ray.normal) > 0.0f) {camera_color *= camera_material.color;}
+                float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;;
 
                 Material light_material = materials[light_ray.material];
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
-                float3 light_color = prior_light_color * new_light_f;
-                if (dot(dir_l_to_c, light_ray.normal) > 0.0f) {light_color *= light_material.color;}
+                float3 light_color = prior_light_color * new_light_f * light_material.color;
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;
                 float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : camera_path.rays[0].l_importance;
