@@ -281,7 +281,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
 
     return F * G;
     //return D * G * F;
-    //return D * G * F / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    //return (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -300,7 +300,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
 
     return (1.0f - F) * G;
     //return D * (1.0f - F) * G;
-    //return coeff * num ;
+    //return coeff * num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
@@ -348,7 +348,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    uint id [[ thread_position_in_grid ]]) {
     Path path;
     path.length = 0;
-    Ray ray = rays[id];
+    Ray ray, new_ray, next_ray;
+    ray = rays[id];
     path.from_camera = ray.from_camera;
     out[id] = float4(0, 0, 0, 1);
 
@@ -361,9 +362,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     }
 
     for (int i = 0; i < 8; i++) {
-        path.rays[i] = ray;
-        path.length = i + 1;
-
         int best_i = -1;
         float best_t = INFINITY;
         float u, v;
@@ -459,10 +457,21 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         new_ray.c_importance = c_p;
         new_ray.l_importance = l_p;
-        if (path.from_camera) {new_ray.tot_importance = ray.tot_importance * c_p;}
-        else {new_ray.tot_importance = ray.tot_importance * l_p;}
+        if (path.from_camera) {
+            next_ray.c_importance = c_p;
+            ray.l_importance = l_p;
+            new_ray.tot_importance = ray.tot_importance * c_p;
+        }
+        else {
+            next_ray.l_importance = l_p;
+            ray.c_importance = c_p;
+            new_ray.tot_importance = ray.tot_importance * l_p;
+        }
 
+        path.rays[i] = ray;
+        path.length = i + 1;
         ray = new_ray;
+        new_ray = next_ray;
     }
     output_paths[id] = path;
 
@@ -506,7 +515,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
     float3 sample = float3(0.0f);
-    int sample_count = 0;
     float p_ratios[32];
 
     for (int t = 0; t < camera_path.length + 1; t++){
@@ -553,12 +561,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i + 1);
                     num = a.l_importance;
-                    denom = b.c_importance * geometry_term(a, b);
+                    denom = a.c_importance * geometry_term(a, b);
                 }
                 else if (i == s + t - 1) {
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i - 1);
-                    num = b.l_importance * geometry_term(a, b);
+                    num = a.l_importance * geometry_term(a, b);
                     denom = a.c_importance;
                 }
                 else {
@@ -566,8 +574,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     a = get_ray(camera_path, light_path, t, s, i - 1);
                     b = get_ray(camera_path, light_path, t, s, i);
                     c = get_ray(camera_path, light_path, t, s, i + 1);
-                    num = a.l_importance * geometry_term(a, b);
-                    denom = c.c_importance * geometry_term(b, c);
+                    num = b.l_importance * geometry_term(a, b);
+                    denom = b.c_importance * geometry_term(b, c);
                 }
                 p_ratios[i] = num / denom;
             }
@@ -616,7 +624,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 sample += w * (geometry_term(light_ray, camera_ray) * camera_color * light_color) / (prior_camera_importance * prior_light_importance);
             }
-            sample_count++;
         }
     }
     out[id] = float4(100.0f * sample, 1.0f);
