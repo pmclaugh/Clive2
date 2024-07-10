@@ -168,6 +168,10 @@ def triangles_for_box(box_min, box_max):
         # ceiling light # NB this assumes box is centered on the origin, at least wrt x and z
         Triangle(left_top_back * shrink, right_top_back * shrink, right_top_front * shrink, material=6, emitter=True),
         Triangle(left_top_back * shrink, right_top_front * shrink, left_top_front * shrink, material=6, emitter=True),
+
+        # wall light
+        # Triangle(left_bottom_front * shrink, right_top_front * shrink, right_bottom_front * shrink, material=6, emitter=True),
+        # Triangle(left_bottom_front * shrink, left_top_front * shrink, right_top_front * shrink, material=6, emitter=True),
     ]
     return tris
 
@@ -260,8 +264,8 @@ def dummy_smooth_normals(triangles):
 
 if __name__ == '__main__':
     # load the teapots
-    tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2]), material=0)
-    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2]), material=5)
+    tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
+    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
     smooth_normals(tris)
 
     # manually define a box around the teapots, don't smooth it
@@ -279,12 +283,14 @@ if __name__ == '__main__':
     mats = get_materials()
 
     # camera setup
-    samples = 5
+    samples = 10
     c = Camera(
         center=np.array([0, 2, 8]),
         direction=unit(np.array([0, 0, -1])),
         pixel_width=1280,
         pixel_height=720,
+        phys_width=1280 / 720,
+        phys_height=1,
     )
 
     # Metal stuff. get device, load and compile kernels
@@ -301,19 +307,13 @@ if __name__ == '__main__':
 
     out_camera_image = dev.buffer(batch_size * 16)
     out_camera_paths = dev.buffer(batch_size * Path.itemsize)
-    out_camera_debug = dev.buffer(batch_size * 4)
-    out_camera_debug_float = dev.buffer(batch_size * 4)
     out_camera_debug_image = dev.buffer(batch_size * 16)
 
     out_light_image = dev.buffer(batch_size * 16)
     out_light_paths = dev.buffer(batch_size * Path.itemsize)
-    out_light_debug = dev.buffer(batch_size * 4)
-    out_light_debug_float = dev.buffer(batch_size * 4)
     out_light_debug_image = dev.buffer(batch_size * 16)
 
     final_out_samples = dev.buffer(batch_size * 16)
-    final_out_debug = dev.buffer(batch_size * 4)
-    final_out_float_debug = dev.buffer(batch_size * 4)
 
     # render loop
     for i in range(samples):
@@ -323,14 +323,12 @@ if __name__ == '__main__':
 
         # trace camera paths
         start_time = time.time()
-        trace_fn(batch_size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug, out_camera_debug_image)
+        trace_fn(batch_size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug_image)
         print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
         # retrieve camera trace outputs
         unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
         camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
-        retrieved_camera_debug = np.frombuffer(out_camera_debug, dtype=np.int32)
-        retrieved_camera_floats = np.frombuffer(out_camera_debug_float, dtype=np.float32)
         retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
         # make light rays and rands
@@ -339,34 +337,23 @@ if __name__ == '__main__':
 
         # trace light paths
         start_time = time.time()
-        trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug, out_light_debug_image)
+        trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug_image)
         print(f"Sample {i} light trace time: {time.time() - start_time}")
 
         # retrieve light trace outputs
         light_paths = np.frombuffer(out_light_paths, dtype=Path)
-        retrieved_light_debug = np.frombuffer(out_light_debug, dtype=np.int32)
-        retrieved_light_floats = np.frombuffer(out_light_debug_float, dtype=np.float32)
         retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
         # join paths
         start_time = time.time()
-        join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples, final_out_debug, final_out_float_debug)
+        join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples)
         print(f"Sample {i} join time: {time.time() - start_time}")
 
         # retrieve joined path outputs
         bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-        retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
-        retrieved_floats = np.frombuffer(final_out_float_debug, dtype=np.float32)
-
-        # some debug output
-        print("camera", retrieved_camera_debug, np.min(retrieved_camera_debug), np.max(retrieved_camera_debug))
-        print("light", retrieved_light_debug, np.min(retrieved_light_debug), np.max(retrieved_light_debug))
-        print("join", retrieved_values, np.min(retrieved_values), np.max(retrieved_values))
-        print("camera paths", np.max(camera_paths['length']), np.min(camera_paths['length']))
-        print("light paths", np.max(light_paths['length']), np.min(light_paths['length']))
 
         # post processing. tone map, sum, division
-        image = retrieved_camera_debug_image
+        image = bidirectional_image
         print(np.sum(np.isnan(image)), "nans in image")
         print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
         print(np.sum(np.isinf(image)), "infs in image")

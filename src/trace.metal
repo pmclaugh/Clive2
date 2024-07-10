@@ -114,7 +114,7 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
         bool hit = false;
         float t = INFINITY;
         ray_box_intersect(ray, box, hit, t);
-        if (hit && (t < best_t)) {
+        if (hit && t < best_t) {
             if (box.right == 0) {
                 stack[stack_ptr++] = box.left;
                 stack[stack_ptr++] = box.left + 1;
@@ -155,14 +155,6 @@ bool visibility_test(const thread Ray a, const thread Ray b, const device Box *b
     return best_t >= t_max;
 }
 
-void local_orthonormal_basis(const thread float3 &n, thread float3 &x, thread float3 &y) {
-    if (abs(n.x) > abs(n.y)) {
-        x = normalize(float3(-n.z, 0, n.x) / sqrt(n.x * n.x + n.z * n.z));
-    } else {
-        x = normalize(float3(0, n.z, -n.y) / sqrt(n.y * n.y + n.z * n.z));
-    }
-    y = normalize(cross(n, x));
-}
 
 void orthonormal(const thread float3 &n, thread float3 &x, thread float3 &y){
     float3 v;
@@ -308,12 +300,14 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
 
     return (1.0f - F) * G;
     //return D * (1.0f - F) * G;
-    //return coeff * num / denom;
+    //return coeff * num ;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
     if (material.type == 0) {
-        return abs(dot(o, n));
+        // todo this is a short term fix so the back of the light stops working as a source.
+        //  but diffuse objects should have valid insides so this needs to be improved.
+        return max(0.0f, dot(o, n));
     }
     else {
         float ni, no, alpha;
@@ -350,8 +344,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    const device float2 *random_buffer [[ buffer(4) ]],
                    device float4 *out [[ buffer(5) ]],
                    device Path *output_paths [[ buffer(6) ]],
-                   device int32_t *debug [[ buffer(7) ]],
-                   device float4 *float_debug [[ buffer(8) ]],
+                   device float4 *float_debug [[ buffer(7) ]],
                    uint id [[ thread_position_in_grid ]]) {
     Path path;
     path.length = 0;
@@ -408,7 +401,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.normal = sampled_normal;
         new_ray.material = triangle.material;
         new_ray.triangle = best_i;
-        if (triangle.is_light) {new_ray.hit_light = best_i;}
+        if (triangle.is_light && dot(-ray.direction, triangle.normal) > 0.0f) {new_ray.hit_light = best_i;}
         else {new_ray.hit_light = -1;}
 
         float3 x, y;
@@ -433,6 +426,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 c_p = dot(n, wi) / PI;
                 l_p = 1.0f / (2 * PI);
             }
+            new_ray.color = material.color * f * ray.color;
         } else {
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
             if (dot(m, n) <= 0.0f || dot(m, signed_normal) <= 0.0f) {break;}
@@ -445,19 +439,20 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wo, n) <= 0.0f || dot(wo, signed_normal) <= 0.0f) {break;}
+                new_ray.color = f * ray.color;
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
+                new_ray.color = f * ray.color * material.color;
             }
             float pm = abs(dot(m, n));
             c_p = pm * pf;
             l_p = pm * pf;
         }
 
-        if (dot(wi, triangle.normal) > 0.0f) {new_ray.color = material.color * f * ray.color;}
-        else {new_ray.color = f * ray.color;}
+        if (f == 0.0f) {break;}
 
         new_ray.direction = wo;
         new_ray.inv_direction = 1.0 / wo;
@@ -505,16 +500,14 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Material *materials [[ buffer(3) ]],
                           const device Box *boxes [[ buffer(4) ]],
                           device float4 *out [[ buffer(5) ]],
-                          device int *debug [[ buffer(6) ]],
-                          device float *float_debug [[ buffer(7) ]],
-                          device Path *output_paths [[ buffer(8) ]],
+                          device float *float_debug [[ buffer(6) ]],
+                          device Path *output_paths [[ buffer(7) ]],
                           uint id [[ thread_position_in_grid ]]) {
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
     float3 sample = float3(0.0f);
     int sample_count = 0;
     float p_ratios[32];
-    debug[id] = light_path.length;
 
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -544,8 +537,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                if (abs(dot(light_ray.normal, dir_l_to_c)) < 0.00001f){continue;}
-                if (abs(dot(camera_ray.normal, -dir_l_to_c)) < 0.00001f){continue;}
+                if (abs(dot(light_ray.normal, dir_l_to_c)) < DELTA){continue;}
+                if (abs(dot(camera_ray.normal, -dir_l_to_c)) < DELTA){continue;}
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)){continue;}
             }
 
@@ -600,9 +593,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 sample += w * (prior_camera_ray.color) / (prior_camera_ray.tot_importance);
             }
             else {
-                float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
-                float dist_l_to_c = length(dir_l_to_c);
-                dir_l_to_c = dir_l_to_c / dist_l_to_c;
+                float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
 
                 float3 prior_camera_color = t > 1 ? camera_path.rays[t - 2].color : float3(1.0f);
                 float3 prior_light_color = s > 1 ? light_path.rays[s - 2].color : float3(1.0f);
@@ -612,12 +603,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
-                float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
+                float3 camera_color = prior_camera_color * new_camera_f;
                 if (dot(-prior_camera_direction, camera_ray.normal) > 0.0f) {camera_color *= camera_material.color;}
 
                 Material light_material = materials[light_ray.material];
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
-                float3 light_color = prior_light_color * new_light_f * light_material.color;
+                float3 light_color = prior_light_color * new_light_f;
                 if (dot(dir_l_to_c, light_ray.normal) > 0.0f) {light_color *= light_material.color;}
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
