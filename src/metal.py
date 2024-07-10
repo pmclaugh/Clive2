@@ -190,8 +190,8 @@ def fast_generate_light_rays(triangles, num_rays):
     rays['normal'] = rays['direction']
     rays['inv_direction'] = 1 / rays['direction']
     rays['c_importance'] = 1.0  # set in kernel
-    rays['l_importance'] = 1.0
-    rays['tot_importance'] = 1.0
+    rays['l_importance'] = 1.0 / emitter_surface_area
+    rays['tot_importance'] = 1.0 / emitter_surface_area
     rays['from_camera'] = 0
     rays['color'] = np.array([1, 1, 1, 1])
     rays['hit_light'] = -1
@@ -283,7 +283,7 @@ if __name__ == '__main__':
     mats = get_materials()
 
     # camera setup
-    samples = 50
+    samples = 15
     c = Camera(
         center=np.array([-5, 2, -5]),
         direction=unit(np.array([1, 0, 1])),
