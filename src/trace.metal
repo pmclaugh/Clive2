@@ -338,6 +338,7 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         else if (dot(i, n) * dot(o, n) < 0 && dot(i, geom_n) * dot(o, geom_n) < 0) {
             float3 m = specular_transmit_half_direction(-i, o, ni, no);
             if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
+            if (dot(i, o) > 0.0f) {return 0.0f;}
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
         else {
@@ -441,7 +442,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 c_p = dot(n, wi) / PI;
                 l_p = 1.0f / (2 * PI);
             }
-            new_ray.color = material.color * f * ray.color;
         } else {
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
             if (dot(m, n) <= 0.0f || dot(m, signed_normal) <= 0.0f) {break;}
@@ -454,13 +454,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wo, n) <= 0.0f || dot(wo, signed_normal) <= 0.0f) {break;}
-                new_ray.color = f * ray.color * material.color;
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = 1.0 - fresnel;
                 if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
-                new_ray.color = f * ray.color * material.color;
             }
             float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             float po;
@@ -472,6 +470,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             c_p = po;
             l_p = po;
         }
+
+        new_ray.color = f * ray.color * material.color;
 
         if (f == 0.0f) {break;}
 
@@ -633,7 +633,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 Material camera_material = materials[camera_ray.material];
                 float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_geom_normal, camera_material);
-                float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;;
+                float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
                 Material light_material = materials[light_ray.material];
                 float3 light_geom_normal = triangles[light_ray.triangle].normal;
