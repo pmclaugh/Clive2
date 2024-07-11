@@ -455,21 +455,49 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wo, n) <= 0.0f || dot(wo, signed_normal) <= 0.0f) {break;}
+
+                float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+                float po;
+                if (dot(wo, n) > 0.0f) {
+                    po = pf * pm * reflect_jacobian(m, wo);
+                } else {
+                    po = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+                }
+                c_p = po;
+                l_p = po;
             } else {
-                wo = GGX_transmit(-wi, m, ni, no);
-                f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
-                pf = 1.0 - fresnel;
-                if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
+                if (material.type == 1) {
+                    wo = GGX_transmit(-wi, m, ni, no);
+                    f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
+                    pf = 1.0 - fresnel;
+                    if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
+                    float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+                    float po;
+                    if (dot(wo, n) > 0.0f) {
+                        po = pf * pm * reflect_jacobian(m, wo);
+                    } else {
+                        po = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+                    }
+                    c_p = po;
+                    l_p = po;
+                }
+                else {
+                    if (path.from_camera) {
+                        wo = random_hemisphere_cosine(x, y, m, random_roll_a);
+                        if (dot(m, wo) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
+                        f = abs(dot(m, wo)) / PI;
+                        c_p = abs(dot(m, wo)) / PI;
+                        l_p = 1.0f / (2 * PI);
+                    }
+                    else {
+                        wo = random_hemisphere_uniform(x, y, m, random_roll_a);
+                        if (dot(m, wo) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
+                        f = abs(dot(m, wi)) / PI;
+                        c_p = abs(dot(m, wi)) / PI;
+                        l_p = 1.0f / (2 * PI);
+                    }
+                }
             }
-            float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
-            float po;
-            if (dot(wo, n) > 0.0f) {
-                po = pf * pm * reflect_jacobian(m, wo);
-            } else {
-                po = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
-            }
-            c_p = po;
-            l_p = po;
         }
 
         new_ray.color = f * ray.color * material.color;
@@ -635,12 +663,14 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 Material camera_material = materials[camera_ray.material];
                 float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_geom_normal, camera_material);
+                new_camera_f = 1.0f;
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
 
                 Material light_material = materials[light_ray.material];
                 float3 light_geom_normal = triangles[light_ray.triangle].normal;
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
+                new_light_f = 1.0f;
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
 

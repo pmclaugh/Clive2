@@ -123,7 +123,7 @@ def get_materials():
     materials['color'][6][:3] = WHITE
     materials['emission'] = np.zeros((7, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
-    materials['type'] = 0
+    materials['type'] = 2
 
     materials['ior'] = 1.5
     materials['alpha'] = 0.01
@@ -285,7 +285,7 @@ if __name__ == '__main__':
     # camera setup
     samples = 100
     c = Camera(
-        center=np.array([5, 2, 5]),
+        center=np.array([5, 0, 5]),
         direction=unit(np.array([-1, 0, -1])),
         pixel_width=1280,
         pixel_height=720,
