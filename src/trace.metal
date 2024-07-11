@@ -282,7 +282,7 @@ float transmit_jacobian(const thread float3 &i, const thread float3 &o, const th
     float cosTheta_i = abs(dot(i, m));
     float cosTheta_o = abs(dot(o, m));
     float numerator = no * no * cosTheta_o;
-    float denominator = (ni * cosTheta_i + no * cosTheta_o) * (ni * cosTheta_i + no * cosTheta_o);
+    float denominator = (ni * cosTheta_i - no * cosTheta_o) * (ni * cosTheta_i - no * cosTheta_o);
     return numerator / denominator;
 }
 
@@ -308,7 +308,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
 
     float coeff = (im * om) / (in * on);
     float num = no * no * D * G * (1 - F);
-    float denom = (ni * im + no * om) * (ni * im + no * om);
+    float denom = (ni * im - no * om) * (ni * im - no * om);
 
     //return (1.0f - F) * G;
     //return D * (1.0f - F) * G;
