@@ -333,13 +333,13 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         if (dot(i, n) * dot(o, n) > 0 && dot(i, geom_n) * dot(o, geom_n) > 0) {
             float3 m = specular_reflect_half_direction(i, o);
             if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
-            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
+            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha) / GGX_D(m, n, alpha);
         }
         else if (dot(i, n) * dot(o, n) < 0 && dot(i, geom_n) * dot(o, geom_n) < 0) {
             float3 m = specular_transmit_half_direction(-i, o, ni, no);
             if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
             if (dot(i, o) > 0.0f) {return 0.0f;}
-            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
+            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha) / GGX_D(m, n, alpha);
         }
         else {
             return 0.0f;
