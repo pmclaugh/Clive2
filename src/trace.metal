@@ -315,10 +315,8 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     return coeff * num / denom;
 }
 
-float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread Material material) {
+float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread Material material) {
     if (material.type == 0) {
-        // todo this is a short term fix so the back of the light stops working as a source.
-        //  but diffuse objects should have valid insides so this needs to be improved.
         return max(0.0f, dot(o, n));
     }
     else {
@@ -332,15 +330,18 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             ni = material.ior;
             no = 1.0f;
         }
-        if (dot(i, n) * dot(o, n) > 0) {
+        if (dot(i, n) * dot(o, n) > 0 && dot(i, geom_n) * dot(o, geom_n) > 0) {
             float3 m = specular_reflect_half_direction(i, o);
             if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
             return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
-        else {
+        else if (dot(i, n) * dot(o, n) < 0 && dot(i, geom_n) * dot(o, geom_n) < 0) {
             float3 m = specular_transmit_half_direction(-i, o, ni, no);
             if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
+        }
+        else {
+            return 0.0f;
         }
     }
 }
@@ -361,18 +362,21 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     Path path;
     path.length = 0;
     Ray ray, new_ray, next_ray;
-    new_ray.c_importance = 1.0f;
     new_ray.l_importance = 1.0f;
     ray = rays[id];
     path.from_camera = ray.from_camera;
     out[id] = float4(0, 0, 0, 1);
 
     if (path.from_camera == 0) {
+        new_ray.l_importance = 1.0f / (2.0f * PI);
         float3 x, y;
         orthonormal(ray.direction, x, y);
         float2 random_roll = random_buffer[id * 16 + 1];
         ray.normal = ray.direction;
         ray.direction = random_hemisphere_uniform(x, y, ray.direction, random_roll);
+    }
+    else {
+        new_ray.c_importance = 1.0f;
     }
 
     for (int i = 0; i < 8; i++) {
@@ -627,11 +631,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float3 prior_light_direction = s > 1 ? light_path.rays[s - 2].direction : light_path.rays[0].direction;
 
                 Material camera_material = materials[camera_ray.material];
-                float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_material);
+                float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
+                float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_geom_normal, camera_material);
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;;
 
                 Material light_material = materials[light_ray.material];
-                float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
+                float3 light_geom_normal = triangles[light_ray.triangle].normal;
+                float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;

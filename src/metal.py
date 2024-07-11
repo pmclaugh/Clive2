@@ -283,7 +283,7 @@ if __name__ == '__main__':
     mats = get_materials()
 
     # camera setup
-    samples = 50
+    samples = 20
     c = Camera(
         center=np.array([-5, 2, -5]),
         direction=unit(np.array([1, 0, 1])),
