@@ -291,8 +291,6 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    //return F * G;
-    //return D * G * F;
     return abs(dot(o, m)) * (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
@@ -310,8 +308,6 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = no * no * D * G * (1 - F);
     float denom = (ni * im - no * om) * (ni * im - no * om);
 
-    //return (1.0f - F) * G;
-    //return D * (1.0f - F) * G;
     return abs(dot(o, m)) * coeff * num / denom;
 }
 
@@ -631,18 +627,15 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float3 prior_camera_direction = t > 1 ? camera_path.rays[t - 2].direction : camera_path.rays[0].direction;
                 float3 prior_light_direction = s > 1 ? light_path.rays[s - 2].direction : light_path.rays[0].direction;
 
-
                 Material camera_material = materials[camera_ray.material];
                 float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
                 float new_camera_f = BRDF(-dir_l_to_c, -prior_camera_direction, camera_ray.normal, camera_geom_normal, camera_material);
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
-
                 Material light_material = materials[light_ray.material];
                 float3 light_geom_normal = triangles[light_ray.triangle].normal;
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
-
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;
                 float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : light_path.rays[0].l_importance;
