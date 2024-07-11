@@ -285,7 +285,7 @@ if __name__ == '__main__':
     # camera setup
     samples = 100
     c = Camera(
-        center=np.array([5, 0, 5]),
+        center=np.array([5, 2, 5]),
         direction=unit(np.array([-1, 0, -1])),
         pixel_width=1280,
         pixel_height=720,

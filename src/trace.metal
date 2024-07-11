@@ -293,7 +293,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
 
     //return F * G;
     //return D * G * F;
-    return (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    return abs(dot(o, m)) * (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -312,7 +312,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
 
     //return (1.0f - F) * G;
     //return D * (1.0f - F) * G;
-    return coeff * num / denom;
+    return abs(dot(o, m)) * coeff * num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread Material material) {
