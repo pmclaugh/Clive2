@@ -361,6 +361,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     Path path;
     path.length = 0;
     Ray ray, new_ray, next_ray;
+    new_ray.c_importance = 1.0f;
+    new_ray.l_importance = 1.0f;
     ray = rays[id];
     path.from_camera = ray.from_camera;
     out[id] = float4(0, 0, 0, 1);
@@ -406,7 +408,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             no = 1.0f;
         }
 
-        Ray new_ray;
         new_ray.origin = ray.origin + ray.direction * best_t;
         new_ray.normal = sampled_normal;
         new_ray.material = triangle.material;
@@ -473,8 +474,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.direction = wo;
         new_ray.inv_direction = 1.0 / wo;
 
-        new_ray.c_importance = c_p;
-        new_ray.l_importance = l_p;
         if (path.from_camera) {
             next_ray.c_importance = c_p;
             ray.l_importance = l_p;
@@ -635,8 +634,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_material);
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
-                float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;
-                float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : camera_path.rays[0].l_importance;
+                float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : 1.0f;
+                float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : 1.0f;
 
                 sample += w * (geometry_term(light_ray, camera_ray) * camera_color * light_color) / (prior_camera_importance * prior_light_importance);
             }
