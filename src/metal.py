@@ -123,7 +123,7 @@ def get_materials():
     materials['color'][6][:3] = WHITE
     materials['emission'] = np.zeros((7, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
-    materials['type'] = 2
+    materials['type'] = 0
 
     materials['ior'] = 1.5
     materials['alpha'] = 0.01
@@ -170,8 +170,8 @@ def triangles_for_box(box_min, box_max):
         Triangle(left_top_back * shrink, right_top_front * shrink, left_top_front * shrink, material=6, emitter=True),
 
         # wall light
-        Triangle(left_bottom_front * shrink, right_top_front * shrink, right_bottom_front * shrink, material=6, emitter=True),
-        Triangle(left_bottom_front * shrink, left_top_front * shrink, right_top_front * shrink, material=6, emitter=True),
+        # Triangle(left_bottom_front * shrink, right_top_front * shrink, right_bottom_front * shrink, material=6, emitter=True),
+        # Triangle(left_bottom_front * shrink, left_top_front * shrink, right_top_front * shrink, material=6, emitter=True),
     ]
     return tris
 
