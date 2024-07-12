@@ -4,12 +4,13 @@ import objloader
 from constants import INVALID, UNIT_X, UNIT_Y, UNIT_Z, RED, BLUE, GREEN, CYAN, WHITE
 from bvh import construct_BVH, np_flatten_bvh
 import cv2
-from utils import timed
 import metalcompute as mc
 import time
 from struct_types import Ray, Material, Path, Box
 from datetime import datetime
 from collections import defaultdict
+import argparse
+import os
 
 
 class Triangle:
@@ -263,6 +264,18 @@ def dummy_smooth_normals(triangles):
 
 
 if __name__ == '__main__':
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--samples', type=int, default=30)
+    parser.add_argument('--width', type=int, default=1280)
+    parser.add_argument('--height', type=int, default=720)
+    parser.add_argument('--frame-number', type=int, default=0)
+    parser.add_argument('--total-frames', type=int, default=1)
+    parser.add_argument('--movie-name', type=str, default='default')
+    args = parser.parse_args()
+
+    os.makedirs(f'../output/{args.movie_name}', exist_ok=True)
+
     # load the teapots
     tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
     tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
@@ -283,13 +296,13 @@ if __name__ == '__main__':
     mats = get_materials()
 
     # camera setup
-    samples = 100
+    samples = args.samples
     c = Camera(
-        center=np.array([-5, 2, -5]),
+        center=np.array([-5, 2, -5 + 8 * args.frame_number / args.total_frames]),
         direction=unit(np.array([1, 0, 1])),
-        pixel_width=1280,
-        pixel_height=720,
-        phys_width=1280 / 720,
+        pixel_width=args.width,
+        pixel_height=args.height,
+        phys_width=args.width / args.height,
         phys_height=1,
     )
 
@@ -371,4 +384,7 @@ if __name__ == '__main__':
         cv2.waitKey(1)
 
     # save the image
-    cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)
+    if args.total_frames == 1:
+        cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)
+    else:
+        cv2.imwrite(f'../output/{args.movie_name}/frame_{args.frame_number}.png', to_display)
