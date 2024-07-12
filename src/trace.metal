@@ -244,13 +244,6 @@ float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thre
     return 0.5f * (r_parallel * r_parallel + r_perpendicular * r_perpendicular);
 }
 
-float schlick_fresnel(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
-    // this function is agnostic about i being incident or wi
-    float cosTheta_i = abs(dot(i, m));
-    float f0 = pow((ni - nt) / (ni + nt), 2);
-    return f0 + (1 - f0) * pow(1 - cosTheta_i, 5);
-}
-
 float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3 &n, const thread float alpha) {
     // this function is agnostic about i being incident or wi
     float mv = dot(m, v);
@@ -311,12 +304,15 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     return abs(dot(o, m)) * coeff * num / denom;
 }
 
+bool plausible_refraction(const thread float3 &i, const thread float3 &o) {
+    return dot(i, o) > 0;
+}
+
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread Material material) {
     if (material.type == 0) {
         return max(0.0f, dot(o, n));
     }
     else {
-        if (dot(i, n) <= 0.0f || dot(i, geom_n) < 0.0f) {return 0.0f;}
         float ni, no, alpha;
         alpha = material.alpha;
         if (dot(i, n) > 0) {
@@ -335,6 +331,7 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         }
         else if (dot(i, n) * dot(o, n) < 0 && dot(i, geom_n) * dot(o, geom_n) < 0) {
             float3 m = specular_transmit_half_direction(-i, o, ni, no);
+            if (not plausible_refraction(-i, o)) {return 0.0f;}
             if (dot(m, n) <= 0.0f || dot(m, geom_n) <= 0.0f) {return 0.0f;}
             if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
