@@ -329,13 +329,14 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         }
         if (dot(i, n) * dot(o, n) > 0 && dot(i, geom_n) * dot(o, geom_n) > 0) {
             float3 m = specular_reflect_half_direction(i, o);
+            if (dot(m, n) <= 0.0f || dot(m, geom_n) <= 0.0f) {return 0.0f;}
             if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
             return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else if (dot(i, n) * dot(o, n) < 0 && dot(i, geom_n) * dot(o, geom_n) < 0) {
             float3 m = specular_transmit_half_direction(-i, o, ni, no);
+            if (dot(m, n) <= 0.0f || dot(m, geom_n) <= 0.0f) {return 0.0f;}
             if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
-            if (dot(i, o) > 0.0f) {return 0.0f;}
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
         else {
@@ -603,12 +604,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float sum = 0.0f;
             if (s == 0) {
-                for (int i = 0; i < s + t; i++){sum += p_ratios[i];}
+                for (int i = 0; i < s + t; i++) {sum += p_ratios[i];}
                 sum += 1.0f;
             }
             else {
                 float p0 = 1.0f / p_ratios[s - 1];
-                for (int i = 0; i < s + t; i++){sum += p_ratios[i] * p0;}
+                for (int i = 0; i < s + t; i++) {sum += p_ratios[i] * p0;}
                 sum += p0;
             }
 
