@@ -266,7 +266,7 @@ def dummy_smooth_normals(triangles):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--samples', type=int, default=30)
+    parser.add_argument('--samples', type=int, default=15)
     parser.add_argument('--width', type=int, default=1280)
     parser.add_argument('--height', type=int, default=720)
     parser.add_argument('--frame-number', type=int, default=0)
@@ -297,9 +297,11 @@ if __name__ == '__main__':
 
     # camera setup
     samples = args.samples
+    theta = 2 * np.pi * args.frame_number / args.total_frames
+    center = np.array([np.cos(theta) * 6, 2, np.sin(theta) * 6])
     c = Camera(
-        center=np.array([-5, 2, -5 + 8 * args.frame_number / args.total_frames]),
-        direction=unit(np.array([1, 0, 1])),
+        center=center,
+        direction=unit(np.array([0, 0, 0]) - center),
         pixel_width=args.width,
         pixel_height=args.height,
         phys_width=args.width / args.height,
@@ -387,4 +389,4 @@ if __name__ == '__main__':
     if args.total_frames == 1:
         cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)
     else:
-        cv2.imwrite(f'../output/{args.movie_name}/frame_{args.frame_number}.png', to_display)
+        cv2.imwrite(f'../output/{args.movie_name}/frame_{args.frame_number:04d}.png', to_display)
