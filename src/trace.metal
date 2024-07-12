@@ -304,8 +304,10 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     return abs(dot(o, m)) * coeff * num / denom;
 }
 
-bool plausible_refraction(const thread float3 &i, const thread float3 &o) {
-    return dot(i, o) > 0;
+bool plausible_refraction(const thread float3 &i, const thread float3 &o, const thread float ni, const thread float no) {
+    float cosTheta_i = abs(dot(i, o));
+    float sinTheta_t2 = (ni / no) * (ni / no) * (1 - cosTheta_i * cosTheta_i);
+    return sinTheta_t2 <= 1.0f;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread Material material) {
@@ -331,9 +333,10 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         }
         else if (dot(i, n) * dot(o, n) < 0 && dot(i, geom_n) * dot(o, geom_n) < 0) {
             float3 m = specular_transmit_half_direction(-i, o, ni, no);
-            if (not plausible_refraction(-i, o)) {return 0.0f;}
+            if (dot(-i, o) <= 0.0f) {return 0.0f;}
             if (dot(m, n) <= 0.0f || dot(m, geom_n) <= 0.0f) {return 0.0f;}
-            if (dot(i, m) * dot(o, m) >= 0.0f) {return 0.0f;}
+            if (dot(i, m) <= 0.0f || dot(o, m) >= 0.0f) {return 0.0f;}
+            if (not plausible_refraction(i, o, ni, no)) {return 0.0f;}
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
         else {
