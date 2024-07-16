@@ -4,11 +4,13 @@ import objloader
 from constants import INVALID, UNIT_X, UNIT_Y, UNIT_Z, RED, BLUE, GREEN, CYAN, WHITE
 from bvh import construct_BVH, np_flatten_bvh
 import cv2
-from utils import timed
 import metalcompute as mc
 import time
 from struct_types import Ray, Material, Path, Box
 from datetime import datetime
+from collections import defaultdict
+import argparse
+import os
 
 
 class Triangle:
@@ -44,6 +46,39 @@ class Triangle:
     def n(self):
         a = np.cross(self.v1 - self.v0, self.v2 - self.v0)
         return a / np.linalg.norm(a)
+
+    @property
+    def surface_area(self):
+        e1 = (self.v1 - self.v0)[0:3]
+        e2 = (self.v2 - self.v0)[0:3]
+        return np.linalg.norm(np.cross(e1, e2)) / 2
+
+    @property
+    def v0_angle(self):
+        e1 = self.v1 - self.v0
+        e1 = e1 / np.linalg.norm(e1)
+        e2 = self.v2 - self.v0
+        e2 = e2 / np.linalg.norm(e2)
+        #return np.arccos(np.dot(e1, e2))
+        return np.dot(e1, e2)
+
+    @property
+    def v1_angle(self):
+        e1 = self.v0 - self.v1
+        e1 = e1 / np.linalg.norm(e1)
+        e2 = self.v2 - self.v1
+        e2 = e2 / np.linalg.norm(e2)
+        #return np.arccos(np.dot(e1, e2))
+        return np.dot(e1, e2)
+
+    @property
+    def v2_angle(self):
+        e1 = self.v0 - self.v2
+        e1 = e1 / np.linalg.norm(e1)
+        e2 = self.v1 - self.v2
+        e2 = e2 / np.linalg.norm(e2)
+        #return np.arccos(np.dot(e1, e2))
+        return np.dot(e1, e2)
 
 
 def load_obj(obj_path, offset=None, material=None):
@@ -83,7 +118,7 @@ def get_materials():
     materials['color'][0][:3] = RED
     materials['color'][1][:3] = GREEN
     materials['color'][2][:3] = WHITE
-    materials['color'][3][:3] = WHITE
+    materials['color'][3][:3] = CYAN
     materials['color'][4][:3] = WHITE
     materials['color'][5][:3] = BLUE
     materials['color'][6][:3] = WHITE
@@ -134,28 +169,12 @@ def triangles_for_box(box_min, box_max):
         # ceiling light # NB this assumes box is centered on the origin, at least wrt x and z
         Triangle(left_top_back * shrink, right_top_back * shrink, right_top_front * shrink, material=6, emitter=True),
         Triangle(left_top_back * shrink, right_top_front * shrink, left_top_front * shrink, material=6, emitter=True),
+
+        # wall light
+        # Triangle(left_bottom_front * shrink, right_top_front * shrink, right_bottom_front * shrink, material=6, emitter=True),
+        # Triangle(left_bottom_front * shrink, left_top_front * shrink, right_top_front * shrink, material=6, emitter=True),
     ]
     return tris
-
-
-def local_orthonormal_system(z):
-    if np.abs(z[0]) > np.abs(z[1]):
-        axis = UNIT_Y
-    else:
-        axis = UNIT_X
-    x = np.cross(axis, z)
-    y = np.cross(z, x)
-    return x, y, z
-
-
-def random_hemisphere_uniform_weighted(x_axis, y_axis, z_axis):
-    u1 = np.random.random()
-    u2 = np.random.random()
-    r = np.sqrt(1 - u1 * u1)
-    theta = 2 * np.pi * u2
-    x = r * np.cos(theta)
-    y = r * np.sin(theta)
-    return x_axis * x + y_axis * y + z_axis * u1
 
 
 def fast_generate_light_rays(triangles, num_rays):
@@ -171,12 +190,13 @@ def fast_generate_light_rays(triangles, num_rays):
     rays['origin'] = points + 0.0001 * rays['direction']
     rays['normal'] = rays['direction']
     rays['inv_direction'] = 1 / rays['direction']
-    rays['c_importance'] = 1.0  # not accessed
-    rays['l_importance'] = 1.0
-    rays['tot_importance'] = 1.0
+    rays['c_importance'] = 1.0  # set in kernel
+    rays['l_importance'] = 1.0 / emitter_surface_area
+    rays['tot_importance'] = 1.0 / emitter_surface_area
     rays['from_camera'] = 0
     rays['color'] = np.array([1, 1, 1, 1])
     rays['hit_light'] = -1
+    rays['triangle'] = -1
     return rays
 
 
@@ -209,96 +229,146 @@ def surface_area(t):
     return np.linalg.norm(np.cross(e1, e2)) / 2
 
 
+def smooth_normals(triangles):
+    vertex_triangles = defaultdict(list)
+
+    for i, t in enumerate(triangles):
+        vertex_triangles[t.v0.tobytes()].append((i, 0))
+        vertex_triangles[t.v1.tobytes()].append((i, 1))
+        vertex_triangles[t.v2.tobytes()].append((i, 2))
+
+    for _, l in vertex_triangles.items():
+        avg_normal = np.zeros(3)
+        for (j, v) in l:
+            if v == 0:
+                avg_normal += triangles[j].n * triangles[j].surface_area * triangles[j].v0_angle
+            elif v == 1:
+                avg_normal += triangles[j].n * triangles[j].surface_area * triangles[j].v1_angle
+            else:
+                avg_normal += triangles[j].n * triangles[j].surface_area * triangles[j].v2_angle
+
+        for (j, v) in l:
+            if v == 0:
+                triangles[j].n0 = avg_normal
+            elif v == 1:
+                triangles[j].n1 = avg_normal
+            else:
+                triangles[j].n2 = avg_normal
+
+
+def dummy_smooth_normals(triangles):
+    for t in triangles:
+        t.n0 = t.n
+        t.n1 = t.n
+        t.n2 = t.n
+
+
 if __name__ == '__main__':
-    tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2]), material=0)
-    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2]), material=5)
 
-    # manually define a box around the teapots
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--samples', type=int, default=15)
+    parser.add_argument('--width', type=int, default=1280)
+    parser.add_argument('--height', type=int, default=720)
+    parser.add_argument('--frame-number', type=int, default=0)
+    parser.add_argument('--total-frames', type=int, default=1)
+    parser.add_argument('--movie-name', type=str, default='default')
+    args = parser.parse_args()
 
-    tris += triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
+    os.makedirs(f'../output/{args.movie_name}', exist_ok=True)
 
+    # load the teapots
+    tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
+    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
+    smooth_normals(tris)
+
+    # manually define a box around the teapots, don't smooth it
+    box_tris = triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
+    dummy_smooth_normals(box_tris)
+    tris += box_tris
+
+    # build and marshall BVH
     bvh = construct_BVH(tris)
-    c = Camera(
-        center=np.array([0, 2, 8]),
-        direction=unit(np.array([0, 0, -1])),
-    )
-    mats = get_materials()
     boxes, triangles = np_flatten_bvh(bvh)
+    boxes = boxes.flatten()
+    triangles = triangles.flatten()
+
+    # load materials (very basic for now)
+    mats = get_materials()
+
+    # camera setup
+    samples = args.samples
+    theta = 2 * np.pi * args.frame_number / args.total_frames
+    center = np.array([np.cos(theta) * 6, 2, np.sin(theta) * 6])
+    c = Camera(
+        center=center,
+        direction=unit(np.array([0, 0, 0]) - center),
+        pixel_width=args.width,
+        pixel_height=args.height,
+        phys_width=args.width / args.height,
+        phys_height=1,
+    )
+
+    # Metal stuff. get device, load and compile kernels
     dev = mc.Device()
     with open("trace.metal", "r") as f:
         kernel = f.read()
+    trace_fn = dev.kernel(kernel).function("generate_paths")
+    join_fn = dev.kernel(kernel).function("connect_paths")
 
+    # make a bunch of buffers
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    samples = 20
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
-
     batch_size = c.pixel_width * c.pixel_height
+
     out_camera_image = dev.buffer(batch_size * 16)
     out_camera_paths = dev.buffer(batch_size * Path.itemsize)
-    out_camera_debug = dev.buffer(batch_size * 4)
-    out_camera_debug_float = dev.buffer(batch_size * 4)
     out_camera_debug_image = dev.buffer(batch_size * 16)
 
     out_light_image = dev.buffer(batch_size * 16)
     out_light_paths = dev.buffer(batch_size * Path.itemsize)
-    out_light_debug = dev.buffer(batch_size * 4)
-    out_light_debug_float = dev.buffer(batch_size * 4)
     out_light_debug_image = dev.buffer(batch_size * 16)
 
     final_out_samples = dev.buffer(batch_size * 16)
-    final_out_debug = dev.buffer(batch_size * 4)
-    final_out_float_debug = dev.buffer(batch_size * 4)
 
-    boxes = boxes.flatten()
-    triangles = triangles.flatten()
-
-    trace_fn = dev.kernel(kernel).function("generate_paths")
-    join_fn = dev.kernel(kernel).function("connect_paths")
-
+    # render loop
     for i in range(samples):
+        # make camera rays and rands
         camera_rays = c.ray_batch_numpy().flatten()
         rands = np.random.rand(camera_rays.size * 64).astype(np.float32)
 
+        # trace camera paths
         start_time = time.time()
-        trace_fn(batch_size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug, out_camera_debug_image)
+        trace_fn(batch_size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug_image)
         print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
+        # retrieve camera trace outputs
+        unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+        camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
+        retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+
+        # make light rays and rands
         light_rays = fast_generate_light_rays(triangles, camera_rays.size)
         rands = np.random.rand(light_rays.size * 64).astype(np.float32)
 
+        # trace light paths
         start_time = time.time()
-        trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug, out_light_debug_image)
+        trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug_image)
         print(f"Sample {i} light trace time: {time.time() - start_time}")
 
-        start_time = time.time()
-        join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples, final_out_debug, final_out_float_debug)
-        print(f"Sample {i} join time: {time.time() - start_time}")
-
-        unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:,:, :3]
-        retrieved_camera_debug = np.frombuffer(out_camera_debug, dtype=np.int32)
-        retrieved_camera_floats = np.frombuffer(out_camera_debug_float, dtype=np.float32)
-        retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-
-        retrieved_light_debug = np.frombuffer(out_light_debug, dtype=np.int32)
-        retrieved_light_floats = np.frombuffer(out_light_debug_float, dtype=np.float32)
+        # retrieve light trace outputs
+        light_paths = np.frombuffer(out_light_paths, dtype=Path)
         retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
+        # join paths
+        start_time = time.time()
+        join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples)
+        print(f"Sample {i} join time: {time.time() - start_time}")
+
+        # retrieve joined path outputs
         bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-        retrieved_values = np.frombuffer(final_out_debug, dtype=np.int32)
-        retrieved_floats = np.frombuffer(final_out_float_debug, dtype=np.float32)
 
-        print("camera", retrieved_camera_debug, np.min(retrieved_camera_debug), np.max(retrieved_camera_debug))
-        print("light", retrieved_light_debug, np.min(retrieved_light_debug), np.max(retrieved_light_debug))
-        print("join", retrieved_values, np.min(retrieved_values), np.max(retrieved_values))
-
-        camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
-        light_paths = np.frombuffer(out_light_paths, dtype=Path)
-
-        print("camera paths", np.max(camera_paths['length']), np.min(camera_paths['length']))
-        print("light paths", np.max(light_paths['length']), np.min(light_paths['length']))
-
+        # post processing. tone map, sum, division
         image = bidirectional_image
-
         print(np.sum(np.isnan(image)), "nans in image")
         print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
         print(np.sum(np.isinf(image)), "infs in image")
@@ -306,15 +376,17 @@ if __name__ == '__main__':
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
             break
-
         to_display = tone_map(summed_image / (i + 1))
-
         if np.any(np.isnan(to_display)):
             print("NaNs in to_display!!!")
             break
 
-        # open a window to display the image
-        # cv2.imshow('debug', tone_map(retrieved_camera_debug_image))
+        # display the image
         cv2.imshow('image', to_display)
         cv2.waitKey(1)
-    cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)
+
+    # save the image
+    if args.total_frames == 1:
+        cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)
+    else:
+        cv2.imwrite(f'../output/{args.movie_name}/frame_{args.frame_number:04d}.png', to_display)

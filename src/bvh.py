@@ -2,6 +2,7 @@ import numpy as np
 from constants import *
 from struct_types import Box, Triangle
 
+
 class TreeBox:
     def __init__(self, triangles):
         self.triangles = triangles
@@ -14,31 +15,6 @@ class TreeBox:
         for triangle in triangles:
             self.min = np.minimum(self.min, triangle.min)
             self.max = np.maximum(self.max, triangle.max)
-
-
-class TriangleGroup:
-    def __init__(self, v0, v1, v2, n, n0, n1, n2, t0, t1, t2):
-        self.v0 = v0
-        self.v1 = v1
-        self.v2 = v2
-        self.n = n
-        self.n0 = n0
-        self.n1 = n1
-        self.n2 = n2
-        self.t0 = t0
-        self.t1 = t1
-        self.t2 = t2
-
-
-class BoxGroup:
-    def __init__(self, box_min, box_max, box_left, box_right):
-        # box coordinates
-        self.min = box_min
-        self.max = box_max
-
-        # left and right children in the bvh or start/stop indices of triangles if right != 0
-        self.left = box_left
-        self.right = box_right
 
 
 def surface_area(mins, maxes):
@@ -148,70 +124,6 @@ def count_boxes(root: TreeBox):
     return count
 
 
-def flatten_BVH(root: TreeBox):
-    box_count = count_boxes(root)
-    mins = np.zeros((box_count, 3), dtype=np.float64)
-    maxes = np.zeros_like(mins)
-    lefts = np.zeros(box_count, dtype=np.int64)
-    rights = np.zeros_like(lefts)
-
-    v0 = np.zeros((len(root.triangles), 3), dtype=np.float64)
-    v1 = np.zeros_like(v0)
-    v2 = np.zeros_like(v0)
-    n = np.zeros_like(v0)
-    n0 = np.zeros_like(v0)
-    n1 = np.zeros_like(v0)
-    n2 = np.zeros_like(v0)
-    t0 = np.zeros_like(v0)
-    t1 = np.zeros_like(v0)
-    t2 = np.zeros_like(v0)
-
-    box_index = 0
-    triangle_index = 0
-    box_queue = [root]
-    while box_queue:
-        box = box_queue[0]
-
-        mins[box_index] = box.min
-        maxes[box_index] = box.max
-
-        if box.right is not None and box.left is not None:
-            # if inner node (non-leaf), left is an index in flat_boxes
-            lefts[box_index] = box_index + len(box_queue)
-            # right will always be at left + 1, so use right as inner-vs-leaf flag
-            rights[box_index] = 0
-            # push children to queue
-            box_queue.append(box.left)
-            box_queue.append(box.right)
-        else:
-            # if leaf, left is index into flat_triangles
-            lefts[box_index] = triangle_index
-
-            for triangle in box.triangles:
-                v0[triangle_index] = triangle.v0
-                v1[triangle_index] = triangle.v1
-                v2[triangle_index] = triangle.v2
-                n[triangle_index] = triangle.n
-                n0[triangle_index] = triangle.n0
-                n1[triangle_index] = triangle.n1
-                n2[triangle_index] = triangle.n2
-                t0[triangle_index] = triangle.t0
-                t1[triangle_index] = triangle.t1
-                t2[triangle_index] = triangle.t2
-                triangle_index += 1
-
-            # so now flat_triangles[left:right] is the triangles in this box. nonzero right signals leaf in traverse.
-            rights[box_index] = triangle_index
-
-        box_index += 1
-        box_queue = box_queue[1:]
-
-    boxes = BoxGroup(mins, maxes, lefts, rights)
-    triangles = TriangleGroup(v0, v1, v2, n, n0, n1, n2, t0, t1, t2)
-
-    return boxes, triangles
-
-
 def np_flatten_bvh(root: TreeBox):
     box_count = count_boxes(root)
     box_arr = np.zeros(box_count, dtype=Box)
@@ -245,6 +157,9 @@ def np_flatten_bvh(root: TreeBox):
                 triangle_arr[triangle_index]['v0'][:3] = triangle.v0
                 triangle_arr[triangle_index]['v1'][:3] = triangle.v1
                 triangle_arr[triangle_index]['v2'][:3] = triangle.v2
+                triangle_arr[triangle_index]['n0'][:3] = triangle.n0
+                triangle_arr[triangle_index]['n1'][:3] = triangle.n1
+                triangle_arr[triangle_index]['n2'][:3] = triangle.n2
                 triangle_arr[triangle_index]['normal'][:3] = triangle.n
                 triangle_arr[triangle_index]['material'] = triangle.material
                 triangle_arr[triangle_index]['is_light'] = triangle.emitter

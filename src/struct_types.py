@@ -8,12 +8,13 @@ Ray = np.dtype([
     ('color', np.float32, 4),
     ('normal', np.float32, 4),
     ('material', np.int32),
+    ('triangle', np.int32),
     ('c_importance', np.float32),
     ('l_importance', np.float32),
     ('tot_importance', np.float32),
     ('hit_light', np.int32),
     ('from_camera', np.int32),
-    ('pad', np.int32, 2),
+    ('pad', np.int32, 1),
 ])
 
 Path = np.dtype([
@@ -35,6 +36,9 @@ Triangle = np.dtype([
     ('v0', np.float32, 4),
     ('v1', np.float32, 4),
     ('v2', np.float32, 4),
+    ('n0', np.float32, 4),
+    ('n1', np.float32, 4),
+    ('n2', np.float32, 4),
     ('normal', np.float32, 4),
     ('material', np.int32),
     ('is_light', np.int32),
