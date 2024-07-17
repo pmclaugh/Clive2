@@ -429,8 +429,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             else {
                 wo = random_hemisphere_uniform(x, y, n, random_roll_a);
                 if (dot(n, wo) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
-                f = dot(n, wi) / PI;
-                c_p = dot(n, wi) / PI;
+                f = dot(n, wo) / PI;
+                c_p = dot(n, wo) / PI;
                 l_p = 1.0f / (2 * PI);
             }
         } else {

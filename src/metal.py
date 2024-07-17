@@ -341,8 +341,8 @@ if __name__ == '__main__':
     # camera setup
     samples = args.samples
     c = Camera(
-        center=np.array([0, 0, 6]),
-        direction=unit(np.array([0, 1, -1])),
+        center=np.array([0, 2, 6]),
+        direction=unit(np.array([0, 0, -1])),
         pixel_width=args.width,
         pixel_height=args.height,
         phys_width=args.width / args.height,
