@@ -422,14 +422,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             if (path.from_camera) {
                 wo = random_hemisphere_cosine(x, y, n, random_roll_a);
                 if (dot(n, wo) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
-                f = dot(n, wo) / PI;
+                f = dot(n, wi) / PI;
                 c_p = dot(n, wo) / PI;
                 l_p = 1.0f / (2 * PI);
             }
             else {
                 wo = random_hemisphere_uniform(x, y, n, random_roll_a);
                 if (dot(n, wo) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
-                f = dot(n, wi) / PI;
+                f = dot(n, wo) / PI;
                 c_p = dot(n, wi) / PI;
                 l_p = 1.0f / (2 * PI);
             }
@@ -480,6 +480,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.tot_importance = ray.tot_importance * l_p;
         }
 
+        ray.from_camera = path.from_camera;
         path.rays[i] = ray;
         path.length = i + 1;
         ray = new_ray;
