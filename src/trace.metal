@@ -306,7 +306,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread Material material) {
     if (material.type == 0) {
-        return max(0.0f, dot(o, n));
+        return abs(dot(o, n));
     }
     else {
         float ni, no, alpha;
@@ -429,8 +429,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             else {
                 wo = random_hemisphere_uniform(x, y, n, random_roll_a);
                 if (dot(n, wo) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
-                f = dot(n, wo) / PI;
-                c_p = dot(n, wo) / PI;
+                f = dot(n, wi) / PI;
+                c_p = dot(n, wi) / PI;
                 l_p = 1.0f / (2 * PI);
             }
         } else {
@@ -628,7 +628,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material light_material = materials[light_ray.material];
                 float3 light_geom_normal = triangles[light_ray.triangle].normal;
-                float new_light_f = BRDF(dir_l_to_c, -prior_light_direction, light_ray.normal, light_geom_normal, light_material);
+                float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;
