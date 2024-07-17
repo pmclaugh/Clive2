@@ -284,7 +284,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    return abs(dot(o, m)) * (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    return (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -301,7 +301,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = no * no * D * G * (1 - F);
     float denom = (ni * im - no * om) * (ni * im - no * om);
 
-    return abs(dot(o, m)) * coeff * num / denom;
+    return coeff * num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread Material material) {

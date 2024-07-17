@@ -301,7 +301,7 @@ def dummy_smooth_normals(triangles):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--samples', type=int, default=15)
+    parser.add_argument('--samples', type=int, default=30)
     parser.add_argument('--width', type=int, default=1280)
     parser.add_argument('--height', type=int, default=720)
     parser.add_argument('--frame-number', type=int, default=0)
@@ -316,7 +316,7 @@ if __name__ == '__main__':
     # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
     # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
 
-    tris += load_ply('../resources/dragon_vrip_res4.ply', offset=np.array([0, -4, 0]), material=0, scale=50)
+    tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=0, scale=50)
 
     smooth_normals(tris)
     # dummy_smooth_normals(tris)

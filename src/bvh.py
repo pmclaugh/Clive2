@@ -76,7 +76,6 @@ def object_split(box: TreeBox):
     return best_sah, left_box, right_box
 
 
-
 def construct_BVH(triangles):
     start_box = TreeBox(triangles)
 
