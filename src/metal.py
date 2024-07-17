@@ -11,6 +11,8 @@ from datetime import datetime
 from collections import defaultdict
 import argparse
 import os
+from plyfile import PlyData
+from functools import cached_property
 
 
 class Triangle:
@@ -42,18 +44,18 @@ class Triangle:
     def max(self):
         return np.maximum(self.v0, np.maximum(self.v1, self.v2))
 
-    @property
+    @cached_property
     def n(self):
         a = np.cross(self.v1 - self.v0, self.v2 - self.v0)
         return a / np.linalg.norm(a)
 
-    @property
+    @cached_property
     def surface_area(self):
         e1 = (self.v1 - self.v0)[0:3]
         e2 = (self.v2 - self.v0)[0:3]
         return np.linalg.norm(np.cross(e1, e2)) / 2
 
-    @property
+    @cached_property
     def v0_angle(self):
         e1 = self.v1 - self.v0
         e1 = e1 / np.linalg.norm(e1)
@@ -62,7 +64,7 @@ class Triangle:
         #return np.arccos(np.dot(e1, e2))
         return np.dot(e1, e2)
 
-    @property
+    @cached_property
     def v1_angle(self):
         e1 = self.v0 - self.v1
         e1 = e1 / np.linalg.norm(e1)
@@ -71,7 +73,7 @@ class Triangle:
         #return np.arccos(np.dot(e1, e2))
         return np.dot(e1, e2)
 
-    @property
+    @cached_property
     def v2_angle(self):
         e1 = self.v0 - self.v2
         e1 = e1 / np.linalg.norm(e1)
@@ -109,6 +111,39 @@ def load_obj(obj_path, offset=None, material=None):
         triangle.emitter = False
 
         triangles.append(triangle)
+    return triangles
+
+
+def load_ply(ply_path, offset=None, material=None, scale=1.0):
+    if offset is None:
+        offset = np.zeros(3)
+    ply = PlyData.read(ply_path)
+    triangles = []
+    for face in ply['face']['vertex_indices']:
+        v0 = np.array([coord * scale for coord in ply['vertex'][face[0]]])
+        v1 = np.array([coord * scale for coord in ply['vertex'][face[1]]])
+        v2 = np.array([coord * scale for coord in ply['vertex'][face[2]]])
+        triangle = Triangle(v0 + offset, v1 + offset, v2 + offset)
+
+        # normals
+        triangle.n0 = INVALID
+        triangle.n1 = INVALID
+        triangle.n2 = INVALID
+
+        # texture UVs
+        triangle.t0 = INVALID
+        triangle.t1 = INVALID
+        triangle.t2 = INVALID
+
+        # material
+        if material is None:
+            triangle.material = 0
+        else:
+            triangle.material = material
+        triangle.emitter = False
+
+        triangles.append(triangle)
+    print('done loading ply')
     return triangles
 
 
@@ -276,10 +311,16 @@ if __name__ == '__main__':
 
     os.makedirs(f'../output/{args.movie_name}', exist_ok=True)
 
+    tris = []
     # load the teapots
-    tris = load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
-    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
+    # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
+    # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
+
+    tris += load_ply('../resources/dragon_vrip_res4.ply', offset=np.array([0, -4, 0]), material=0, scale=50)
+
     smooth_normals(tris)
+    # dummy_smooth_normals(tris)
+    print("done smoothing normals")
 
     # manually define a box around the teapots, don't smooth it
     box_tris = triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
@@ -288,7 +329,9 @@ if __name__ == '__main__':
 
     # build and marshall BVH
     bvh = construct_BVH(tris)
+    print("done building bvh")
     boxes, triangles = np_flatten_bvh(bvh)
+    print("done flattening bvh")
     boxes = boxes.flatten()
     triangles = triangles.flatten()
 
@@ -297,11 +340,9 @@ if __name__ == '__main__':
 
     # camera setup
     samples = args.samples
-    theta = 2 * np.pi * args.frame_number / args.total_frames
-    center = np.array([np.cos(theta) * 6, 2, np.sin(theta) * 6])
     c = Camera(
-        center=center,
-        direction=unit(np.array([0, 0, 0]) - center),
+        center=np.array([0, 0, 6]),
+        direction=unit(np.array([0, 1, -1])),
         pixel_width=args.width,
         pixel_height=args.height,
         phys_width=args.width / args.height,
