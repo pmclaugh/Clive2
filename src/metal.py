@@ -35,12 +35,11 @@ class Triangle:
         self.material = material
         self.emitter = emitter
 
-
-    @property
+    @cached_property
     def min(self):
         return np.minimum(self.v0, np.minimum(self.v1, self.v2))
 
-    @property
+    @cached_property
     def max(self):
         return np.maximum(self.v0, np.maximum(self.v1, self.v2))
 
@@ -301,7 +300,7 @@ def dummy_smooth_normals(triangles):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--samples', type=int, default=30)
+    parser.add_argument('--samples', type=int, default=15)
     parser.add_argument('--width', type=int, default=1280)
     parser.add_argument('--height', type=int, default=720)
     parser.add_argument('--frame-number', type=int, default=0)
@@ -316,7 +315,7 @@ if __name__ == '__main__':
     # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
     # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
 
-    tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=0, scale=50)
+    tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
 
     smooth_normals(tris)
     # dummy_smooth_normals(tris)
@@ -328,8 +327,9 @@ if __name__ == '__main__':
     tris += box_tris
 
     # build and marshall BVH
+    start_time = time.time()
     bvh = construct_BVH(tris)
-    print("done building bvh")
+    print("done building bvh", time.time() - start_time)
     boxes, triangles = np_flatten_bvh(bvh)
     print("done flattening bvh")
     boxes = boxes.flatten()
@@ -341,7 +341,7 @@ if __name__ == '__main__':
     # camera setup
     samples = args.samples
     c = Camera(
-        center=np.array([0, 2, 6]),
+        center=np.array([-3.5, 2, 3]),
         direction=unit(np.array([0, 0, -1])),
         pixel_width=args.width,
         pixel_height=args.height,

@@ -72,7 +72,7 @@ void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool
 }
 
 
-void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triangle, thread bool &hit, thread float &t_out, thread float& u, thread float& v) {
+void ray_triangle_intersect(const thread Ray &ray, const device Triangle &triangle, thread bool &hit, thread float &t_out, thread float& u, thread float& v) {
     float3 edge1 = triangle.v1 - triangle.v0;
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
@@ -81,7 +81,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
         hit = false;
         return;
     }
-    float f = 1.0 / a;
+    float f = 1.0f / a;
     float3 s = ray.origin - triangle.v0;
     u = f * dot(s, h);
     if (u < 0 || u > 1) {
@@ -121,11 +121,10 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
             } else {
                 for (int i = box.left; i < box.right; i++) {
                     if (i == ray.triangle) {continue;}
-                    Triangle triangle = triangles[i];
                     bool hit = false;
                     t = INFINITY;
                     float u, v;
-                    ray_triangle_intersect(ray, triangle, hit, t, u, v);
+                    ray_triangle_intersect(ray, triangles[i], hit, t, u, v);
                     if (hit && t < best_t) {
                         best_i = i;
                         best_t = t;

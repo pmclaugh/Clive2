@@ -31,7 +31,7 @@ CYAN = np.array([.8, .8, 0.3], dtype=np.float64)
 
 # BVH constants
 MAX_MEMBERS = 16
-MAX_DEPTH = 15
+MAX_DEPTH = 16
 SPATIAL_SPLITS = 8
 # not using these til i have better measurements
 TRAVERSAL_COST = 1

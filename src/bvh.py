@@ -4,17 +4,21 @@ from struct_types import Box, Triangle
 
 
 class TreeBox:
-    def __init__(self, triangles):
+    def __init__(self, triangles, box_min=None, box_max=None):
         self.triangles = triangles
         self.left = None
         self.right = None
         self.parent = None
 
-        self.min = INF
-        self.max = NEG_INF
-        for triangle in triangles:
-            self.min = np.minimum(self.min, triangle.min)
-            self.max = np.maximum(self.max, triangle.max)
+        if box_min is None or box_max is None:
+            self.min = INF
+            self.max = NEG_INF
+            for triangle in triangles:
+                self.min = np.minimum(self.min, triangle.min)
+                self.max = np.maximum(self.max, triangle.max)
+        else:
+            self.min = box_min
+            self.max = box_max
 
 
 def surface_area(mins, maxes):
@@ -30,15 +34,14 @@ def volume(b: TreeBox):
 def object_split(box: TreeBox):
     best_sah = np.inf
     best_split = None
-    best_axis = None
+    best_sort = None
 
     triangle_mins = np.array([t.min for t in box.triangles])
     triangle_maxes = np.array([t.max for t in box.triangles])
     triangle_centers = (triangle_mins + triangle_maxes) / 2
 
-    for axis in [UNIT_X, UNIT_Y, UNIT_Z]:
-        axis_only = np.dot(triangle_centers, axis)
-        axis_sorted = np.argsort(axis_only)
+    for axis in [0, 1, 2]:
+        axis_sorted = np.argsort(triangle_centers[:, axis])
 
         ltr_maxes = np.maximum.accumulate(triangle_maxes[axis_sorted])
         ltr_mins = np.minimum.accumulate(triangle_mins[axis_sorted])
@@ -53,25 +56,21 @@ def object_split(box: TreeBox):
             if sah < best_sah:
                 best_sah = sah
                 best_split = (i, left_min, left_max, right_min, right_max)
-                best_axis = axis
+                best_sort = axis_sorted
 
     i, left_min, left_max, right_min, right_max = best_split
     left_triangles = []
     right_triangles = []
-    sort_keys = np.argsort(np.dot(triangle_centers, best_axis))
-    for j, key in enumerate(sort_keys):
+    for j, key in enumerate(best_sort):
         if j <= i:
-            left_triangles.append(box.triangles[sort_keys[j]])
+            left_triangles.append(box.triangles[key])
         else:
-            right_triangles.append(box.triangles[sort_keys[j]])
+            right_triangles.append(box.triangles[key])
 
-    left_box = TreeBox(left_triangles)
-    right_box = TreeBox(right_triangles)
+    left_box = TreeBox(left_triangles, left_min, left_max)
+    right_box = TreeBox(right_triangles, right_min, right_max)
 
-    # print(best_axis, 'produced best split:', best_split)
-    # print('sah', best_sah)
-    # print('left vol:', volume(left_box) / volume(box), 'right vol:', volume(right_box) / volume(box))
-    # print('left count:', len(left_box.triangles), 'right count:', len(right_box.triangles))
+    assert len(left_box.triangles) + len(right_box.triangles) == len(box.triangles)
 
     return best_sah, left_box, right_box
 
@@ -147,6 +146,8 @@ def np_flatten_bvh(root: TreeBox):
             # push children to queue
             box_queue.append(box.left)
             box_queue.append(box.right)
+        elif box.right is not None or box.left is not None:
+            raise ValueError('Box has only one child')
         else:
             # if leaf, left is index into flat_triangles
             box_arr[box_index]['left'] = triangle_index
