@@ -316,9 +316,10 @@ if __name__ == '__main__':
     # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
 
     tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
+    print(len(tris), "triangles")
 
-    smooth_normals(tris)
-    # dummy_smooth_normals(tris)
+    dummy_smooth_normals(tris)
+    # smooth_normals(tris)
     print("done smoothing normals")
 
     # manually define a box around the teapots, don't smooth it
@@ -332,8 +333,8 @@ if __name__ == '__main__':
     print("done building bvh", time.time() - start_time)
     boxes, triangles = np_flatten_bvh(bvh)
     print("done flattening bvh")
-    boxes = boxes.flatten()
-    triangles = triangles.flatten()
+    boxes = boxes
+    triangles = triangles
 
     # load materials (very basic for now)
     mats = get_materials()
@@ -341,7 +342,7 @@ if __name__ == '__main__':
     # camera setup
     samples = args.samples
     c = Camera(
-        center=np.array([-3.5, 2, 3]),
+        center=np.array([-1.5, 2, 3]),
         direction=unit(np.array([0, 0, -1])),
         pixel_width=args.width,
         pixel_height=args.height,
