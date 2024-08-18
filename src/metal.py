@@ -318,8 +318,8 @@ if __name__ == '__main__':
     tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
     print(len(tris), "triangles")
 
-    dummy_smooth_normals(tris)
-    # smooth_normals(tris)
+    # dummy_smooth_normals(tris)
+    smooth_normals(tris)
     print("done smoothing normals")
 
     # manually define a box around the teapots, don't smooth it
