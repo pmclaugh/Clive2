@@ -72,16 +72,16 @@ void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool
 }
 
 
-void ray_triangle_intersect(const thread Ray &ray, const device Triangle &triangle, thread bool &hit, thread float &t_out, thread float& u, thread float& v) {
+void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triangle, thread bool &hit, thread float &t_out, thread float& u, thread float& v) {
     float3 edge1 = triangle.v1 - triangle.v0;
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
     float a = dot(edge1, h);
-    if (abs(a) < 0.00001f) {
+    if (abs(a) < 0.000001f) {
         hit = false;
         return;
     }
-    float f = 1.0f / a;
+    float f = 1.0 / a;
     float3 s = ray.origin - triangle.v0;
     u = f * dot(s, h);
     if (u < 0 || u > 1) {
@@ -121,10 +121,11 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
             } else {
                 for (int i = box.left; i < box.right; i++) {
                     if (i == ray.triangle) {continue;}
+                    Triangle triangle = triangles[i];
                     bool hit = false;
                     t = INFINITY;
                     float u, v;
-                    ray_triangle_intersect(ray, triangles[i], hit, t, u, v);
+                    ray_triangle_intersect(ray, triangle, hit, t, u, v);
                     if (hit && t < best_t) {
                         best_i = i;
                         best_t = t;
@@ -283,7 +284,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    return (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
+    return abs(dot(o, m)) * (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -300,12 +301,12 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = no * no * D * G * (1 - F);
     float denom = (ni * im - no * om) * (ni * im - no * om);
 
-    return coeff * num / denom;
+    return abs(dot(o, m)) * coeff * num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread Material material) {
     if (material.type == 0) {
-        return abs(dot(o, n));
+        return max(0.0f, dot(o, n));
     }
     else {
         float ni, no, alpha;
@@ -420,14 +421,16 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (material.type == 0) {
             if (path.from_camera) {
                 wo = random_hemisphere_cosine(x, y, n, random_roll_a);
-                f = abs(dot(n, wi)) / PI;
-                c_p = abs(dot(n, wo)) / PI;
+                if (dot(n, wo) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
+                f = dot(n, wo) / PI;
+                c_p = dot(n, wo) / PI;
                 l_p = 1.0f / (2 * PI);
             }
             else {
                 wo = random_hemisphere_uniform(x, y, n, random_roll_a);
-                f = abs(dot(n, wo)) / PI;
-                c_p = abs(dot(n, wi)) / PI;
+                if (dot(n, wo) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
+                f = dot(n, wi) / PI;
+                c_p = dot(n, wi) / PI;
                 l_p = 1.0f / (2 * PI);
             }
         } else {
@@ -477,7 +480,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.tot_importance = ray.tot_importance * l_p;
         }
 
-        ray.from_camera = path.from_camera;
         path.rays[i] = ray;
         path.length = i + 1;
         ray = new_ray;
@@ -626,7 +628,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material light_material = materials[light_ray.material];
                 float3 light_geom_normal = triangles[light_ray.triangle].normal;
-                float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
+                float new_light_f = BRDF(dir_l_to_c, -prior_light_direction, light_ray.normal, light_geom_normal, light_material);
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;

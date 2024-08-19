@@ -281,6 +281,8 @@ def smooth_normals(triangles):
             else:
                 avg_normal += triangles[j].n * triangles[j].surface_area * triangles[j].v2_angle
 
+        avg_normal = unit(avg_normal)
+
         for (j, v) in l:
             if v == 0:
                 triangles[j].n0 = avg_normal
@@ -315,7 +317,7 @@ if __name__ == '__main__':
     # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
     # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
 
-    tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
+    tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
     print(len(tris), "triangles")
 
     # dummy_smooth_normals(tris)
