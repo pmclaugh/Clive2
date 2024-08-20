@@ -595,13 +595,24 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 p_ratios[i] = num / denom;
             }
 
-            // next multiply so they are like p1/p0, p2/p0, p3/p0, ...
-            for (int i = 1; i < s + t; i++){p_ratios[i] = p_ratios[i] * p_ratios[i - 1];}
+            float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;
+            float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : light_path.rays[0].l_importance;
+            float p_s = prior_camera_importance * prior_light_importance;
+            float p_i = p_s;
+            for (int i = s; i < s + t; i++){
+                p_ratios[i] = p_ratios[i] * p_i;
+                p_i = p_ratios[i];
+            }
+            p_i = p_s;
+            for (int i = s - 1; i >= 0; i--){
+                p_ratios[i] = p_i / p_ratios[i];
+                p_i = p_ratios[i];
+            }
 
-            float sum = 1.0f;
+            float sum = p_s;
             for (int i = 0; i < s + t; i++) {sum += p_ratios[i];}
 
-            float w = 1.0f / sum;
+            float w = p_s / sum;
 
             if (s == 0) {
                 Ray prior_camera_ray = camera_path.rays[t - 2];
@@ -626,8 +637,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
-                float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;
-                float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : light_path.rays[0].l_importance;
+                // float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;
+                // float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : light_path.rays[0].l_importance;
 
                 sample += w * (geometry_term(light_ray, camera_ray) * camera_color * light_color) / (prior_camera_importance * prior_light_importance);
             }
