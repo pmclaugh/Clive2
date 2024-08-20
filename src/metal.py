@@ -245,21 +245,12 @@ def smooth_normals(triangles):
         vertex_triangles[t.v2.tobytes()].append((i, 2))
 
     for _, l in vertex_triangles.items():
-
-        if len(l) > 2:
-            avg_normal = np.zeros(3)
-            for (j, v) in l:
-                avg_normal += triangles[j].n
-            avg_normal = unit(avg_normal)
-
-            for (j, v) in l:
-                if v == 0:
-                    triangles[j].n0 = avg_normal
-                elif v == 1:
-                    triangles[j].n1 = avg_normal
-                else:
-                    triangles[j].n2 = avg_normal
-        else:
+        
+        avg_normal = np.zeros(3)
+        for (j, v) in l:
+            avg_normal += triangles[j].n
+        normal_mag = np.linalg.norm(avg_normal)
+        if normal_mag == 0:
             for (j, v) in l:
                 if v == 0:
                     triangles[j].n0 = triangles[j].n
@@ -267,6 +258,15 @@ def smooth_normals(triangles):
                     triangles[j].n1 = triangles[j].n
                 else:
                     triangles[j].n2 = triangles[j].n
+        else:
+            for (j, v) in l:
+                if v == 0:
+                    triangles[j].n0 = avg_normal
+                elif v == 1:
+                    triangles[j].n1 = avg_normal
+                else:
+                    triangles[j].n2 = avg_normal
+
 
 
 def dummy_smooth_normals(triangles):
