@@ -91,6 +91,7 @@ def load_ply(ply_path, offset=None, material=None, scale=1.0):
         offset = np.zeros(3)
     ply = PlyData.read(ply_path)
     triangles = []
+    dropped_triangles = 0
     for face in ply['face']['vertex_indices']:
         v0 = np.array([coord * scale for coord in ply['vertex'][face[0]]])
         v1 = np.array([coord * scale for coord in ply['vertex'][face[1]]])
@@ -114,8 +115,11 @@ def load_ply(ply_path, offset=None, material=None, scale=1.0):
             triangle.material = material
         triangle.emitter = False
 
-        triangles.append(triangle)
-    print('done loading ply')
+        if np.any(np.isnan(triangle.n)):
+            dropped_triangles += 1
+        else:
+            triangles.append(triangle)
+    print(f'done loading ply. loaded {len(triangles)} triangles, dropped {dropped_triangles}')
     return triangles
 
 
@@ -295,7 +299,6 @@ if __name__ == '__main__':
     # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
 
     tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
-    print(len(tris), "triangles")
 
     # dummy_smooth_normals(tris)
     smooth_normals(tris)
