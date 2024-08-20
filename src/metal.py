@@ -54,33 +54,6 @@ class Triangle:
         e2 = (self.v2 - self.v0)[0:3]
         return np.linalg.norm(np.cross(e1, e2)) / 2
 
-    @cached_property
-    def v0_angle(self):
-        e1 = self.v1 - self.v0
-        e1 = e1 / np.linalg.norm(e1)
-        e2 = self.v2 - self.v0
-        e2 = e2 / np.linalg.norm(e2)
-        #return np.arccos(np.dot(e1, e2))
-        return np.dot(e1, e2)
-
-    @cached_property
-    def v1_angle(self):
-        e1 = self.v0 - self.v1
-        e1 = e1 / np.linalg.norm(e1)
-        e2 = self.v2 - self.v1
-        e2 = e2 / np.linalg.norm(e2)
-        #return np.arccos(np.dot(e1, e2))
-        return np.dot(e1, e2)
-
-    @cached_property
-    def v2_angle(self):
-        e1 = self.v0 - self.v2
-        e1 = e1 / np.linalg.norm(e1)
-        e2 = self.v1 - self.v2
-        e2 = e2 / np.linalg.norm(e2)
-        #return np.arccos(np.dot(e1, e2))
-        return np.dot(e1, e2)
-
 
 def load_obj(obj_path, offset=None, material=None):
     if offset is None:
@@ -275,11 +248,11 @@ def smooth_normals(triangles):
         avg_normal = np.zeros(3)
         for (j, v) in l:
             if v == 0:
-                avg_normal += triangles[j].n * triangles[j].surface_area * triangles[j].v0_angle
+                avg_normal += triangles[j].n * triangles[j].surface_area
             elif v == 1:
-                avg_normal += triangles[j].n * triangles[j].surface_area * triangles[j].v1_angle
+                avg_normal += triangles[j].n * triangles[j].surface_area
             else:
-                avg_normal += triangles[j].n * triangles[j].surface_area * triangles[j].v2_angle
+                avg_normal += triangles[j].n * triangles[j].surface_area
 
         avg_normal = unit(avg_normal)
 
