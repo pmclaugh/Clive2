@@ -192,7 +192,7 @@ def fast_generate_light_rays(triangles, num_rays):
     rand_us = np.random.rand(num_rays)
     rand_vs = np.random.rand(num_rays)
     rand_ws = 1 - rand_us - rand_vs
-    rays['direction'] = unit(np.array([0, -1, 0, 0]))
+    rays['direction'] = unit(np.array([0, 0, -1, 0]))
     points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:, 2] * rand_ws[:, None]
     rays['origin'] = points + 0.0001 * rays['direction']
     rays['normal'] = rays['direction']

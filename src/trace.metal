@@ -363,7 +363,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.l_importance = 1.0f / (2.0f * PI);
         float3 x, y;
         orthonormal(ray.direction, x, y);
-        float2 random_roll = random_buffer[id * 16 + 1];
+        float2 random_roll = random_buffer[id * 32 + 31];
         ray.normal = ray.direction;
         ray.direction = random_hemisphere_uniform(x, y, ray.direction, random_roll);
     }
@@ -383,8 +383,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         Triangle triangle = triangles[best_i];
         Material material = materials[triangle.material];
-        float2 random_roll_a = random_buffer[id * 16 + 2 * i];
-        float2 random_roll_b = random_buffer[id * 16 + 2 * i + 1];
+        float2 random_roll_a = random_buffer[id * 32 + 2 * i];
+        float2 random_roll_b = random_buffer[id * 32 + 2 * i + 1];
 
         float3 n;
         float ni, no;
