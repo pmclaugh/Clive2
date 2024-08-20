@@ -247,13 +247,7 @@ def smooth_normals(triangles):
     for _, l in vertex_triangles.items():
         avg_normal = np.zeros(3)
         for (j, v) in l:
-            if v == 0:
-                avg_normal += triangles[j].n * triangles[j].surface_area
-            elif v == 1:
-                avg_normal += triangles[j].n * triangles[j].surface_area
-            else:
-                avg_normal += triangles[j].n * triangles[j].surface_area
-
+            avg_normal += triangles[j].n * triangles[j].surface_area
         avg_normal = unit(avg_normal)
 
         for (j, v) in l:
