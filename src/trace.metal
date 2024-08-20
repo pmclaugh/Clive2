@@ -140,8 +140,8 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
 
 bool visibility_test(const thread Ray a, const thread Ray b, const device Box *boxes, const device Triangle *triangles) {
     Ray test_ray;
-    test_ray.origin = a.origin;
-    float3 direction = b.origin - a.origin;
+    test_ray.origin = a.origin + a.normal * 0.0001f;
+    float3 direction = (b.origin + b.normal + 0.0001f) - (a.origin + a.normal * 0.0001f);
     float t_max = length(direction);
     direction = direction / t_max;
     test_ray.direction = direction;
