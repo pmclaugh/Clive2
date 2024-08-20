@@ -408,7 +408,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.normal = sampled_normal;
         new_ray.material = triangle.material;
         new_ray.triangle = best_i;
-        if (triangle.is_light && dot(-ray.direction, triangle.normal) > 0.0f) {new_ray.hit_light = best_i;}
+        if (triangle.is_light) {new_ray.hit_light = best_i;}
         else {new_ray.hit_light = -1;}
 
         float3 x, y;
@@ -429,7 +429,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             else {
                 wo = random_hemisphere_uniform(x, y, n, random_roll_a);
                 if (dot(n, wo) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
-                f = dot(n, wi) / PI;
+                f = dot(n, wo) / PI;
                 c_p = dot(n, wi) / PI;
                 l_p = 1.0f / (2 * PI);
             }
@@ -528,6 +528,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     Path light_path = light_paths[id];
     float3 sample = float3(0.0f);
     float p_ratios[32];
+    int sample_count = 0;
 
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -560,6 +561,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (abs(dot(light_ray.normal, dir_l_to_c)) < DELTA){continue;}
                 if (abs(dot(camera_ray.normal, -dir_l_to_c)) < DELTA){continue;}
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)){continue;}
+
+                sample_count++;
             }
 
             for (int i = 0; i < 32; i++){
@@ -628,7 +631,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material light_material = materials[light_ray.material];
                 float3 light_geom_normal = triangles[light_ray.triangle].normal;
-                float new_light_f = BRDF(dir_l_to_c, -prior_light_direction, light_ray.normal, light_geom_normal, light_material);
+                float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
                 float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;
