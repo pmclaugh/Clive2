@@ -366,6 +366,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         ray.normal = ray.direction;
         ray.direction = random_hemisphere_uniform(x, y, ray.direction, random_roll);
         ray.inv_direction = 1.0f / ray.direction;
+        ray.color *= dot(ray.direction, ray.normal);
     }
     else {
         new_ray.c_importance = 1.0f;
