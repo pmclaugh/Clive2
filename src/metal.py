@@ -200,7 +200,7 @@ def fast_generate_light_rays(triangles, num_rays):
     points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:, 2] * rand_ws[:, None]
     rays['origin'] = points + 0.0001 * rays['direction']
     rays['normal'] = rays['direction']
-    rays['inv_direction'] = 1 / rays['direction']
+    rays['inv_direction'] = 1.0 / rays['direction']
     rays['c_importance'] = 1.0  # set in kernel
     rays['l_importance'] = 1.0 / emitter_surface_area
     rays['tot_importance'] = 1.0 / emitter_surface_area
