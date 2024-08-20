@@ -598,16 +598,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             // next multiply so they are like p1/p0, p2/p0, p3/p0, ...
             for (int i = 1; i < s + t; i++){p_ratios[i] = p_ratios[i] * p_ratios[i - 1];}
 
-            float sum = 0.0f;
-            if (s == 0) {
-                for (int i = 0; i < s + t; i++) {sum += p_ratios[i];}
-                sum += 1.0f;
-            }
-            else {
-                float p0 = 1.0f / p_ratios[s - 1];
-                for (int i = 0; i < s + t; i++) {sum += p_ratios[i] * p0;}
-                sum += p0;
-            }
+            float sum = 1.0f;
+            for (int i = 0; i < s + t; i++) {sum += p_ratios[i];}
 
             float w = 1.0f / sum;
 
