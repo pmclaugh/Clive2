@@ -365,8 +365,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float2 random_roll = random_buffer[id * 16 + 15];
         ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
         ray.inv_direction = 1.0f / ray.direction;
-
         new_ray.l_importance = 1.0f / (2.0f * PI);
+        ray.tot_importance = ray.tot_importance * new_ray.l_importance;
     }
     else {
         new_ray.c_importance = 1.0f;
@@ -650,13 +650,19 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, camera_material);
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
-                Material light_material = materials[light_ray.material];
-                float3 light_geom_normal = triangles[light_ray.triangle].normal;
-                float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
-                float3 light_color = prior_light_color * new_light_f * light_material.color;
-
+                float3 light_color;
+                if (s == 1) {
+                    light_color = float3(abs(dot(light_ray.normal, dir_l_to_c)));
+                    tot_importance = camera_path.rays[t - 2].tot_importance * light_path.rays[0].l_importance;
+                }
+                else {
+                    Material light_material = materials[light_ray.material];
+                    float3 light_geom_normal = triangles[light_ray.triangle].normal;
+                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
+                    light_color = prior_light_color * new_light_f * light_material.color;
+                    tot_importance = camera_path.rays[t - 2].tot_importance * light_path.rays[s - 2].tot_importance;
+                }
                 color = camera_color * light_color;
-                tot_importance = camera_path.rays[t - 2].tot_importance * light_path.rays[s - 2].tot_importance;
             }
             sample += w * geometry_term(light_ray, camera_ray) * color / tot_importance;
         }
