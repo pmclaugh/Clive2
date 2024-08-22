@@ -360,16 +360,17 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
     if (path.from_camera == 0) {
         new_ray.l_importance = 1.0f / (2.0f * PI);
+        ray.normal = ray.direction;
+        ray.tot_importance = ray.tot_importance * new_ray.l_importance;
+
         float3 x, y;
         orthonormal(ray.direction, x, y);
         float2 random_roll = random_buffer[id * 16 + 15];
-        ray.normal = ray.direction;
-        ray.direction = random_hemisphere_uniform(x, y, ray.direction, random_roll);
+        ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
         ray.inv_direction = 1.0f / ray.direction;
-        ray.color *= dot(ray.direction, ray.normal);
     }
     else {
-        new_ray.c_importance = 1.0f;
+        new_ray.c_importance = ray.c_importance;
     }
 
     for (int i = 0; i < 8; i++) {
@@ -449,7 +450,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             } else {
                 wo = GGX_transmit(-wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
-                pf = 1.0 - fresnel;
+                pf = 1.0f - fresnel;
                 if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
             }
             float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
@@ -468,7 +469,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (f == 0.0f) {break;}
 
         new_ray.direction = wo;
-        new_ray.inv_direction = 1.0 / wo;
+        new_ray.inv_direction = 1.0f / wo;
 
         if (path.from_camera) {
             next_ray.c_importance = c_p;
@@ -514,7 +515,6 @@ Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const
     if (i < s) {return light_path.rays[i];}
     else {return camera_path.rays[t + s - i - 1];}
 }
-
 
 kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Path *light_paths [[ buffer(1) ]],

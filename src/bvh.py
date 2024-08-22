@@ -171,7 +171,7 @@ def np_flatten_bvh(root: TreeBox):
         box_index += 1
         box_queue = box_queue[1:]
 
-    print("flattened", box_count, "boxes and", triangle_count, "triangles")
+    print("flattened", box_count, "boxes and", triangle_count, "triangles. should match", triangle_index)
 
     assert box_index == box_count
     assert triangle_index == triangle_count

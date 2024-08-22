@@ -52,6 +52,7 @@ class Camera:
     def ray_batch(self):
         pixels = np.meshgrid(np.arange(self.pixel_width), np.arange(self.pixel_height))
         offsets = np.random.rand(2, self.pixel_height, self.pixel_width)
+        offsets = np.ones_like(offsets) * .5
         x_vectors = np.expand_dims(pixels[0] + offsets[0], axis=2) * self.dx_dp
         y_vectors = np.expand_dims(pixels[1] + offsets[1], axis=2) * self.dy_dp
         origins = self.origin + x_vectors + y_vectors

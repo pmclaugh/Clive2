@@ -21,10 +21,10 @@ INVALID = np.array([np.nan, np.nan, np.nan])
 
 # cv2 color order, colors defined [0, 1]
 BLACK = np.array([0., 0., 0.], dtype=np.float64)
-WHITE = np.array([.8, .8, .8], dtype=np.float64)
+WHITE = np.array([.7, .7, .7], dtype=np.float64)
 GRAY = np.array([.5, .5, .5], dtype=np.float64)
 RED = np.array([0.3, 0.3, .8], dtype=np.float64)
-GREEN = np.array([0.3, .8, 0.3], dtype=np.float64)
+GREEN = np.array([0.541, 0.807, 0.0], dtype=np.float64)
 BLUE = np.array([.8, 0.3, 0.3], dtype=np.float64)
 CYAN = np.array([.8, .8, 0.3], dtype=np.float64)
 

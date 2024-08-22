@@ -89,14 +89,20 @@ def load_obj(obj_path, offset=None, material=None):
 def load_ply(ply_path, offset=None, material=None, scale=1.0):
     if offset is None:
         offset = np.zeros(3)
+    base_load_time = time.time()
     ply = PlyData.read(ply_path)
+    print(f"PlyData.read in {time.time() - base_load_time}")
     triangles = []
     dropped_triangles = 0
+    array_time = time.time()
+    vertices = np.array(list(list(vertex) for vertex in ply['vertex'])) * scale + offset
+    print(f"vertices array in {time.time() - array_time}")
+    face_time = time.time()
     for face in ply['face']['vertex_indices']:
-        v0 = np.array([coord * scale for coord in ply['vertex'][face[0]]])
-        v1 = np.array([coord * scale for coord in ply['vertex'][face[1]]])
-        v2 = np.array([coord * scale for coord in ply['vertex'][face[2]]])
-        triangle = Triangle(v0 + offset, v1 + offset, v2 + offset)
+        v0 = vertices[face[0]]
+        v1 = vertices[face[1]]
+        v2 = vertices[face[2]]
+        triangle = Triangle(v0, v1, v2)
 
         # normals
         triangle.n0 = INVALID
@@ -119,6 +125,7 @@ def load_ply(ply_path, offset=None, material=None, scale=1.0):
             dropped_triangles += 1
         else:
             triangles.append(triangle)
+    print(f"faces in {time.time() - face_time}")
     print(f'done loading ply. loaded {len(triangles)} triangles, dropped {dropped_triangles}')
     return triangles
 
@@ -127,11 +134,11 @@ def get_materials():
     materials = np.zeros(7, dtype=Material)
     materials['color'] = np.zeros((7, 4), dtype=np.float32)
     materials['color'][0][:3] = RED
-    materials['color'][1][:3] = GREEN
+    materials['color'][1][:3] = BLUE
     materials['color'][2][:3] = WHITE
     materials['color'][3][:3] = CYAN
     materials['color'][4][:3] = WHITE
-    materials['color'][5][:3] = BLUE
+    materials['color'][5][:3] = GREEN
     materials['color'][6][:3] = WHITE
     materials['emission'] = np.zeros((7, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
@@ -205,7 +212,7 @@ def fast_generate_light_rays(triangles, num_rays):
     rays['l_importance'] = 1.0 / emitter_surface_area
     rays['tot_importance'] = 1.0 / emitter_surface_area
     rays['from_camera'] = 0
-    rays['color'] = np.array([1, 1, 1, 1])
+    rays['color'] = np.array([1.0, 1.0, 1.0, 1.0])
     rays['hit_light'] = -1
     rays['triangle'] = -1
     return rays
@@ -265,12 +272,11 @@ def smooth_normals(triangles):
         else:
             for (j, v) in l:
                 if v == 0:
-                    triangles[j].n0 = avg_normal
+                    triangles[j].n0 = avg_normal / normal_mag
                 elif v == 1:
-                    triangles[j].n1 = avg_normal
+                    triangles[j].n1 = avg_normal / normal_mag
                 else:
-                    triangles[j].n2 = avg_normal
-
+                    triangles[j].n2 = avg_normal / normal_mag
 
 
 def dummy_smooth_normals(triangles):
@@ -298,11 +304,15 @@ if __name__ == '__main__':
     # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
     # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
 
+    # load the dragon
+    load_time = time.time()
     tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
+    print(f"done loading dragon in {time.time() - load_time}")
 
     # dummy_smooth_normals(tris)
+    smooth_time = time.time()
     smooth_normals(tris)
-    print("done smoothing normals")
+    print("done smoothing normals in", time.time() - smooth_time)
 
     # manually define a box around the teapots, don't smooth it
     box_tris = triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
@@ -356,6 +366,10 @@ if __name__ == '__main__':
 
     # render loop
     for i in range(samples):
+
+        trace_fn = dev.kernel(kernel).function("generate_paths")
+        join_fn = dev.kernel(kernel).function("connect_paths")
+
         # make camera rays and rands
         camera_rays = c.ray_batch_numpy().flatten()
         rands = np.random.rand(camera_rays.size * 64).astype(np.float32)
