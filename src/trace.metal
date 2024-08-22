@@ -626,17 +626,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = prior_camera_ray.color;
                 tot_importance = prior_camera_ray.tot_importance;
             }
-            else if (s == 1){
-                float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
-                float3 prior_camera_direction = camera_path.rays[t - 2].direction;
-                float3 prior_camera_color = camera_path.rays[t - 2].color;
-                Material camera_material = materials[camera_ray.material];
-                float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
-                float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, camera_material);
-                float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
-                color = camera_color * light_path.rays[0].color * abs(dot(light_ray.normal, dir_l_to_c));
-                tot_importance = camera_path.rays[t - 2].tot_importance * light_path.rays[0].tot_importance;
-            }
             else {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 float3 prior_camera_color = camera_path.rays[t - 2].color;
