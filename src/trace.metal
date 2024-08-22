@@ -359,18 +359,17 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     out[id] = float4(0, 0, 0, 1);
 
     if (path.from_camera == 0) {
-        new_ray.l_importance = 1.0f / (2.0f * PI);
         ray.normal = ray.direction;
-        ray.tot_importance = ray.tot_importance * new_ray.l_importance;
-
         float3 x, y;
-        orthonormal(ray.direction, x, y);
+        orthonormal(ray.normal, x, y);
         float2 random_roll = random_buffer[id * 16 + 15];
         ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
         ray.inv_direction = 1.0f / ray.direction;
+
+        new_ray.l_importance = 1.0f / (2.0f * PI);
     }
     else {
-        new_ray.c_importance = ray.c_importance;
+        new_ray.c_importance = 1.0f;
     }
 
     for (int i = 0; i < 8; i++) {
@@ -598,13 +597,17 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;
             float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : light_path.rays[0].l_importance;
+
             float p_s = prior_camera_importance * prior_light_importance;
             float p_i = p_s;
+
             for (int i = s; i < s + t; i++){
                 p_ratios[i] = p_ratios[i] * p_i;
                 p_i = p_ratios[i];
             }
+
             p_i = p_s;
+
             for (int i = s - 1; i >= 0; i--){
                 p_ratios[i] = p_i / p_ratios[i];
                 p_i = p_ratios[i];
@@ -615,18 +618,32 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float w = p_s / sum;
 
+            float3 color;
+            float tot_importance;
+
             if (s == 0) {
                 Ray prior_camera_ray = camera_path.rays[t - 2];
-                sample += w * (prior_camera_ray.color) / (prior_camera_ray.tot_importance);
+                color = prior_camera_ray.color;
+                tot_importance = prior_camera_ray.tot_importance;
+            }
+            else if (s == 1){
+                float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
+                float3 prior_camera_direction = camera_path.rays[t - 2].direction;
+                float3 prior_camera_color = camera_path.rays[t - 2].color;
+                Material camera_material = materials[camera_ray.material];
+                float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
+                float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, camera_material);
+                float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
+                color = camera_color * light_path.rays[0].color * abs(dot(light_ray.normal, dir_l_to_c));
+                tot_importance = camera_path.rays[t - 2].tot_importance * light_path.rays[0].tot_importance;
             }
             else {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
+                float3 prior_camera_color = camera_path.rays[t - 2].color;
+                float3 prior_light_color = light_path.rays[s - 2].color;
 
-                float3 prior_camera_color = t > 1 ? camera_path.rays[t - 2].color : float3(1.0f);
-                float3 prior_light_color = s > 1 ? light_path.rays[s - 2].color : float3(1.0f);
-
-                float3 prior_camera_direction = t > 1 ? camera_path.rays[t - 2].direction : camera_path.rays[0].direction;
-                float3 prior_light_direction = s > 1 ? light_path.rays[s - 2].direction : light_path.rays[0].direction;
+                float3 prior_camera_direction = camera_path.rays[t - 2].direction;
+                float3 prior_light_direction = light_path.rays[s - 2].direction;
 
                 Material camera_material = materials[camera_ray.material];
                 float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
@@ -638,11 +655,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                 float3 light_color = prior_light_color * new_light_f * light_material.color;
 
-                // float prior_camera_importance = t > 1 ? camera_path.rays[t - 2].tot_importance : camera_path.rays[0].c_importance;
-                // float prior_light_importance = s > 1 ? light_path.rays[s - 2].tot_importance : light_path.rays[0].l_importance;
-
-                sample += w * (geometry_term(light_ray, camera_ray) * camera_color * light_color) / (prior_camera_importance * prior_light_importance);
+                color = camera_color * light_color;
+                tot_importance = camera_path.rays[t - 2].tot_importance * light_path.rays[s - 2].tot_importance;
             }
+            sample += w * geometry_term(light_ray, camera_ray) * color / tot_importance;
         }
     }
     out[id] = float4(100.0f * sample, 1.0f);

@@ -35,6 +35,8 @@ class Camera:
         self.dx_dp = self.dx * self.phys_width / self.pixel_width
         self.dy_dp = self.dy * self.phys_height / self.pixel_height
 
+        self.pixel_phys_size = np.linalg.norm(self.dx_dp) * np.linalg.norm(self.dy_dp)
+
         self.origin = center - self.dx * phys_width / 2 - self.dy * phys_height / 2
 
         self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float64)
