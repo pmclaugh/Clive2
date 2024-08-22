@@ -521,8 +521,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Material *materials [[ buffer(3) ]],
                           const device Box *boxes [[ buffer(4) ]],
                           device float4 *out [[ buffer(5) ]],
-                          device float *float_debug [[ buffer(6) ]],
-                          device Path *output_paths [[ buffer(7) ]],
                           uint id [[ thread_position_in_grid ]]) {
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
@@ -545,10 +543,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (camera_ray.hit_light < 0){
                     continue;
                 }
-            }
-            else if (t == 1) {
-                // light ray visibility to camera plane. not yet supported.
-                continue;
             }
             else {
                 light_ray = light_path.rays[s - 1];
@@ -618,38 +612,56 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float w = p_s / sum;
 
-            float3 color;
-            float tot_importance;
+            float3 color = float3(1.0f);
+            float tot_importance = 1.0f;
+
+            float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
 
             if (s == 0) {
                 Ray prior_camera_ray = camera_path.rays[t - 2];
                 color = prior_camera_ray.color;
                 tot_importance = prior_camera_ray.tot_importance;
             }
+            else if (t == 0) {
+                Ray prior_light_ray = light_path.rays[s - 2];
+                color = prior_light_ray.color;
+                tot_importance = prior_light_ray.tot_importance;
+            }
+            else if (s == 1 && t == 1) {
+                color = camera_path.rays[0].color * light_path.rays[0].color * max(0.0f, dot(camera_ray.normal, -dir_l_to_c)) * abs(dot(light_ray.normal, dir_l_to_c));
+                tot_importance = camera_path.rays[0].c_importance * light_path.rays[0].l_importance;
+            }
             else {
-                float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
-                float3 prior_camera_color = camera_path.rays[t - 2].color;
-                float3 prior_light_color = light_path.rays[s - 2].color;
+                float3 camera_color;
+                if (t == 1) {
+                    // camera_color = camera_path.rays[0].color * pow(max(0.0f, dot(camera_ray.normal, -dir_l_to_c)), 5);
+                    // tot_importance *= camera_path.rays[0].c_importance;
+                    camera_color = float3(0.0f);
+                }
+                else{
+                    float3 prior_camera_color = camera_path.rays[t - 2].color;
+                    float3 prior_camera_direction = camera_path.rays[t - 2].direction;
 
-                float3 prior_camera_direction = camera_path.rays[t - 2].direction;
-                float3 prior_light_direction = light_path.rays[s - 2].direction;
-
-                Material camera_material = materials[camera_ray.material];
-                float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
-                float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, camera_material);
-                float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
-
+                    Material camera_material = materials[camera_ray.material];
+                    float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
+                    float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, camera_material);
+                    camera_color = prior_camera_color * new_camera_f * camera_material.color;
+                    tot_importance *= camera_path.rays[t - 2].tot_importance;
+                }
                 float3 light_color;
                 if (s == 1) {
-                    light_color = float3(abs(dot(light_ray.normal, dir_l_to_c)));
-                    tot_importance = camera_path.rays[t - 2].tot_importance * light_path.rays[0].l_importance;
+                    light_color = light_path.rays[0].color * abs(dot(light_ray.normal, dir_l_to_c));
+                    tot_importance *= light_path.rays[0].l_importance;
                 }
                 else {
+                    float3 prior_light_color = light_path.rays[s - 2].color;
+                    float3 prior_light_direction = light_path.rays[s - 2].direction;
+
                     Material light_material = materials[light_ray.material];
                     float3 light_geom_normal = triangles[light_ray.triangle].normal;
                     float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                     light_color = prior_light_color * new_light_f * light_material.color;
-                    tot_importance = camera_path.rays[t - 2].tot_importance * light_path.rays[s - 2].tot_importance;
+                    tot_importance *= light_path.rays[s - 2].tot_importance;
                 }
                 color = camera_color * light_color;
             }
