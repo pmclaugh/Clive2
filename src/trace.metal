@@ -702,7 +702,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float3 color = float3(1.0f);
             float g;
             if (s == 0) {
-                continue;
+                //continue;
                 color = camera_path.rays[t - 2].color;
                 g = 1.0f;
             }
