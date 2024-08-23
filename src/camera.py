@@ -89,8 +89,10 @@ class Camera:
         c = np.zeros(1, dtype=camera_struct)
         c[0]['origin'][:3] = self.origin
         c[0]['focal_point'][:3] = self.focal_point
-        c[0]['dx_dp'][:3] = self.dx_dp
-        c[0]['dy_dp'][:3] = self.dy_dp
+        c[0]['dx'][:3] = self.dx
+        c[0]['dy'][:3] = self.dy
+        c[0]['pixel_width'] = self.pixel_width
+        c[0]['pixel_height'] = self.pixel_height
         return c
 
 def composite_image(camera):
