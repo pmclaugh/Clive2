@@ -167,7 +167,7 @@ def triangles_for_box(box_min, box_max):
     right_bottom_front = box_max - span * UNIT_Y
     right_top_back = box_max - span * UNIT_Z
 
-    shrink = np.array([.25, .99, .25], dtype=np.float32)
+    shrink = np.array([.25, .95, .25], dtype=np.float32)
     tris = [
         # back wall
         Triangle(left_bottom_back, right_bottom_back, right_top_back, material=2),
@@ -209,15 +209,23 @@ def camera_geometry(camera):
     return tris
 
 
+def random_uvs(num):
+    u = np.random.rand(num)
+    v = np.random.rand(num)
+    need_flipped = u + v > 1
+    u[need_flipped] = 1 - u[need_flipped]
+    v[need_flipped] = 1 - v[need_flipped]
+    w = 1 - u - v
+    return u, v, w
+
+
 def fast_generate_light_rays(triangles, num_rays):
     emitter_indices = np.array([i for i, t in enumerate(triangles) if t['is_light']])
     emitters = np.array([[t['v0'], t['v1'], t['v2']] for t in triangles if t['is_light']])
     emitter_surface_area = np.sum([surface_area(t) for t in triangles if t['is_light']])
     rays = np.zeros(num_rays, dtype=Ray)
     choices = np.random.randint(0, len(emitters), num_rays)
-    rand_us = np.random.rand(num_rays)
-    rand_vs = np.random.rand(num_rays)
-    rand_ws = 1 - rand_us - rand_vs
+    rand_us, rand_vs, rand_ws = random_uvs(num_rays)
     rays['direction'] = unit(np.array([0, 0, -1, 0]))
     points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:, 2] * rand_ws[:, None]
     rays['origin'] = points + 0.0001 * rays['direction']

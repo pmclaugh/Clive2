@@ -588,7 +588,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     float p_ratios[32];
     int sample_count = 0;
     int sample_index = id;
-    //out[id] = float4(0.0f, 0.0f, 0.0f, 1.0f);
 
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -615,7 +614,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (hit < 0) {continue;}
                 sample_index = get_sample_index(camera_ray.origin, camera[0]);
                 if (sample_index < 0) {continue;}
-                //camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
                 // this is where a camera ray hits the light source.
@@ -671,7 +669,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float prior_camera_importance;
             if (t == 0) {prior_camera_importance = 1.0f;}
-            else if (t == 1) {prior_camera_importance = camera_path.rays[0].c_importance;}
+            else if (t == 1) {prior_camera_importance = 1.0f;}
             else {prior_camera_importance = camera_path.rays[t - 2].tot_importance;}
 
             float prior_light_importance;
@@ -753,7 +751,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
-            out[sample_index] += 100.0f * float4((g * color) / p_s, 1.0f);
+            out[sample_index] += 100.0f * float4((w * g * color) / p_s, 1.0f);
         }
     }
 }
