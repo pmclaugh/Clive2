@@ -337,7 +337,7 @@ if __name__ == '__main__':
     # camera setup
     c = Camera(
         center=np.array([5, 1.5, 6]),
-        direction=unit(np.array([-1, -.3, -1])),
+        direction=unit(np.array([-1, 0, -1])),
         pixel_width=args.width,
         pixel_height=args.height,
         phys_width=args.width / args.height,

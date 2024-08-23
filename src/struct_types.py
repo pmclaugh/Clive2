@@ -62,5 +62,6 @@ Camera = np.dtype([
     ('dy', np.float32, 4),
     ('pixel_width', np.int32),
     ('pixel_height', np.int32),
-    ('pad', np.int32, 2),
+    ('phys_width', np.float32),
+    ('phys_height', np.float32),
 ])
