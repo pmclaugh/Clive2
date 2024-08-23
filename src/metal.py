@@ -199,9 +199,9 @@ def triangles_for_box(box_min, box_max):
 
 
 def camera_geometry(camera):
-    bottom_corner = camera.origin + camera.dx_dp * camera.phys_width
-    top_corner = camera.origin + camera.dx_dp * camera.phys_width + camera.dy_dp * camera.phys_height
-    other_top_corner = camera.origin + camera.dy_dp * camera.phys_height
+    bottom_corner = camera.origin + camera.dx * camera.phys_width
+    top_corner = camera.origin + camera.dx * camera.phys_width + camera.dy * camera.phys_height
+    other_top_corner = camera.origin + camera.dy * camera.phys_height
     tris = [
         Triangle(camera.origin, bottom_corner, top_corner, material=2, camera=True),
         Triangle(camera.origin, top_corner, other_top_corner, material=2, camera=True),
@@ -210,6 +210,7 @@ def camera_geometry(camera):
 
 
 def fast_generate_light_rays(triangles, num_rays):
+    emitter_indices = np.array([i for i, t in enumerate(triangles) if t['is_light']])
     emitters = np.array([[t['v0'], t['v1'], t['v2']] for t in triangles if t['is_light']])
     emitter_surface_area = np.sum([surface_area(t) for t in triangles if t['is_light']])
     rays = np.zeros(num_rays, dtype=Ray)
@@ -229,7 +230,7 @@ def fast_generate_light_rays(triangles, num_rays):
     rays['color'] = np.array([1.0, 1.0, 1.0, 1.0])
     rays['hit_light'] = -1
     rays['hit_camera'] = -1
-    rays['triangle'] = -1
+    rays['triangle'] = emitter_indices[choices]
     return rays
 
 
@@ -335,8 +336,8 @@ if __name__ == '__main__':
 
     # camera setup
     c = Camera(
-        center=np.array([4, 1.5, 5]),
-        direction=unit(np.array([-1, 0, -1])),
+        center=np.array([5, 1.5, 6]),
+        direction=unit(np.array([-1, -.3, -1])),
         pixel_width=args.width,
         pixel_height=args.height,
         phys_width=args.width / args.height,
@@ -429,7 +430,7 @@ if __name__ == '__main__':
         print(np.sum(np.isnan(image)), "nans in image")
         print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
         print(np.sum(np.isinf(image)), "infs in image")
-        summed_image += np.nan_to_num(image)
+        summed_image += np.nan_to_num(image, posinf=0, neginf=0)
         if np.any(np.isnan(summed_image)):
             print("NaNs in summed image!!!")
             break

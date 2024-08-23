@@ -67,7 +67,7 @@ class Camera:
         batch = np.zeros((self.pixel_height, self.pixel_width), dtype=Ray)
         origins, directions = self.ray_batch()
         batch['origin'] = 0
-        batch['origin'][:, :, :3] = origins
+        batch['origin'][:, :, :3] = origins + 0.0001 * directions
         batch['direction'] = 0
         batch['direction'][:, :, :3] = directions
         batch['inv_direction'] = 0
