@@ -385,10 +385,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.c_importance = 1.0f;
     }
 
-    new_ray.hit_light = -1;
-    new_ray.hit_camera = -1;
-    next_ray.hit_light = -1;
-    next_ray.hit_camera = -1;
+
 
     for (int i = 0; i < 8; i++) {
         int best_i = -1;
@@ -544,23 +541,28 @@ int get_sample_index(const thread float3 &point, const device Camera &camera){
     return y_index * camera.pixel_width + x_index;
 }
 
-Ray map_camera_pixel(const thread float3 &point, const device Camera &camera, const device Triangle *triangles, const device Box *boxes){
-    float3 dir = normalize(point - camera.focal_point);
+int map_camera_pixel(const thread Ray &source, const device Camera &camera, const device Triangle *triangles, const device Box *boxes, thread Ray &hit_ray){
+    float3 dir = normalize(camera.focal_point - source.origin);
     Ray test_ray;
-    test_ray.origin = point;
+    test_ray.origin = source.origin;
     test_ray.direction = dir;
     test_ray.inv_direction = 1.0 / dir;
+    test_ray.triangle = source.triangle;
 
     int best_i = -1;
     float best_t = INFINITY;
     float u, v;
     traverse_bvh(test_ray, boxes, triangles, best_i, best_t, u, v);
 
-    Ray hit_ray;
+    if (best_i < 0) {return -1;}
+    if (triangles[best_i].is_camera == 0) {return -1;}
+    if (dot(test_ray.direction, triangles[best_i].normal) > 0.0f) {return -1;}
+
     hit_ray.origin = test_ray.origin + test_ray.direction * best_t;
     hit_ray.color = float3(1.0f);
+    hit_ray.normal = triangles[best_i].normal;
 
-    return hit_ray;
+    return 1;
 }
 
 kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
@@ -573,11 +575,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           uint id [[ thread_position_in_grid ]]) {
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
-    float3 sample = float3(0.0f);
     float p_ratios[32];
     int sample_count = 0;
-
     int sample_index = id;
+    //out[id] = float4(0.0f, 0.0f, 0.0f, 1.0f);
 
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -600,9 +601,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else if (t == 1) {
                 // light visibility to camera plane. WIP.
                 light_ray = light_path.rays[s - 1];
-                camera_ray = map_camera_pixel(light_ray.origin, camera[0], triangles, boxes);
+                int hit = map_camera_pixel(light_ray, camera[0], triangles, boxes, camera_ray);
+                if (hit < 0) {continue;}
                 sample_index = get_sample_index(camera_ray.origin, camera[0]);
                 if (sample_index < 0) {continue;}
+                continue;
+
             }
             else if (s == 0) {
                 // this is where a camera ray hits the light source.
@@ -697,23 +701,18 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     color = prior_light_color * new_light_f * light_material.color;
                 }
             }
-            else {
+            else if (false) {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 float3 camera_color;
-                if (t == 1) {
-                    // camera_color = camera_path.rays[0].color * pow(max(0.0f, dot(camera_ray.normal, -dir_l_to_c)), 5);
-                    // tot_importance *= camera_path.rays[0].c_importance;
-                    camera_color = float3(0.0f);
-                }
-                else{
-                    float3 prior_camera_color = camera_path.rays[t - 2].color;
-                    float3 prior_camera_direction = camera_path.rays[t - 2].direction;
 
-                    Material camera_material = materials[camera_ray.material];
-                    float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
-                    float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, camera_material);
-                    camera_color = prior_camera_color * new_camera_f * camera_material.color;
-                }
+                float3 prior_camera_color = camera_path.rays[t - 2].color;
+                float3 prior_camera_direction = camera_path.rays[t - 2].direction;
+
+                Material camera_material = materials[camera_ray.material];
+                float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
+                float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, camera_material);
+                camera_color = prior_camera_color * new_camera_f * camera_material.color;
+
                 float3 light_color;
                 if (s == 1) {
                     light_color = light_path.rays[0].color * abs(dot(light_ray.normal, dir_l_to_c));
@@ -729,8 +728,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
                 color = camera_color * light_color;
             }
-            sample += (w * geometry_term(light_ray, camera_ray) * color) / p_s;
+            else {continue;}
+            out[sample_index] += 100.0f * float4((w * geometry_term(light_ray, camera_ray) * color) / p_s, 1.0f);
         }
     }
-    out[sample_index] = float4(100.0f * sample, 1.0f);
 }
