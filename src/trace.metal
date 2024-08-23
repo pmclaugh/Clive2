@@ -17,7 +17,7 @@ struct Ray {
     float tot_importance;
     int32_t hit_light;
     int32_t from_camera;
-    int32_t pad;
+    int32_t hit_camera;
 };
 
 struct Path {
@@ -46,7 +46,8 @@ struct Triangle {
     float3 normal;
     int32_t material;
     int32_t is_light;
-    int32_t pad[2];
+    int32_t is_camera;
+    int32_t pad;
 };
 
 
@@ -373,6 +374,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.c_importance = 1.0f;
     }
 
+    new_ray.hit_light = -1;
+    new_ray.hit_camera = -1;
+    next_ray.hit_light = -1;
+    next_ray.hit_camera = -1;
+
     for (int i = 0; i < 8; i++) {
         int best_i = -1;
         float best_t = INFINITY;
@@ -411,6 +417,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.material = triangle.material;
         new_ray.triangle = best_i;
         if (triangle.is_light) {new_ray.hit_light = best_i;}
+        if (triangle.is_camera) {new_ray.hit_camera = best_i;}
         else {new_ray.hit_light = -1;}
 
         float3 x, y;
@@ -536,6 +543,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             if (t == 0){
                 // this is where a light ray hits the camera plane. not yet supported.
+                light_ray = light_path.rays[s - 1];
+                continue;
+            }
+            else if (t == 1) {
+                // light visibility to camera plane. not yet supported.
                 continue;
             }
             else if (s == 0) {
@@ -553,12 +565,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                if (abs(dot(light_ray.normal, dir_l_to_c)) < DELTA){continue;}
-                if (abs(dot(camera_ray.normal, -dir_l_to_c)) < DELTA){continue;}
-                if (not visibility_test(light_ray, camera_ray, boxes, triangles)){continue;}
-
-                sample_count++;
+                if (abs(dot(light_ray.normal, dir_l_to_c)) < DELTA) {continue;}
+                if (abs(dot(camera_ray.normal, -dir_l_to_c)) < DELTA) {continue;}
+                if (not visibility_test(light_ray, camera_ray, boxes, triangles)) {continue;}
             }
+
+            sample_count++;
 
             for (int i = 0; i < 32; i++){
                 p_ratios[i] = 1.0f;
@@ -628,12 +640,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = prior_light_ray.color;
                 tot_importance = prior_light_ray.tot_importance;
             }
-            else if (s == 1 && t == 1) {
-                color = camera_path.rays[0].color * light_path.rays[0].color * max(0.0f, dot(camera_ray.normal, -dir_l_to_c)) * abs(dot(light_ray.normal, dir_l_to_c));
-                tot_importance = camera_path.rays[0].c_importance * light_path.rays[0].l_importance;
-
-                color = float3(0.0f);
-            }
             else {
                 float3 camera_color;
                 if (t == 1) {
@@ -668,7 +674,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
                 color = camera_color * light_color;
             }
-            sample += w * geometry_term(light_ray, camera_ray) * color / tot_importance;
+            sample += (w * geometry_term(light_ray, camera_ray) * color) / tot_importance;
         }
     }
     out[id] = float4(100.0f * sample, 1.0f);

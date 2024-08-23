@@ -27,13 +27,15 @@ class Triangle:
     t2 = np.zeros(3, dtype=np.float64)
     material = 0
     emitter = False
+    camera = False
 
-    def __init__(self, v0, v1, v2, material=0, emitter=False):
+    def __init__(self, v0, v1, v2, material=0, emitter=False, camera=False):
         self.v0 = v0
         self.v1 = v1
         self.v2 = v2
         self.material = material
         self.emitter = emitter
+        self.camera = camera
 
     @cached_property
     def min(self):
@@ -195,6 +197,17 @@ def triangles_for_box(box_min, box_max):
     return tris
 
 
+def camera_geometry(camera):
+    bottom_corner = camera.origin + camera.dx_dp * camera.phys_width
+    top_corner = camera.origin + camera.dx_dp * camera.phys_width + camera.dy_dp * camera.phys_height
+    other_top_corner = camera.origin + camera.dy_dp * camera.phys_height
+    tris = [
+        Triangle(camera.origin, bottom_corner, top_corner, material=2, camera=True),
+        Triangle(camera.origin, top_corner, other_top_corner, material=2, camera=True),
+    ]
+    return tris
+
+
 def fast_generate_light_rays(triangles, num_rays):
     emitters = np.array([[t['v0'], t['v1'], t['v2']] for t in triangles if t['is_light']])
     emitter_surface_area = np.sum([surface_area(t) for t in triangles if t['is_light']])
@@ -214,6 +227,7 @@ def fast_generate_light_rays(triangles, num_rays):
     rays['from_camera'] = 0
     rays['color'] = np.array([1.0, 1.0, 1.0, 1.0])
     rays['hit_light'] = -1
+    rays['hit_camera'] = -1
     rays['triangle'] = -1
     return rays
 
@@ -305,11 +319,10 @@ if __name__ == '__main__':
     tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
 
     # load the dragon
-    load_time = time.time()
+    # load_time = time.time()
     # tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
-    print(f"done loading dragon in {time.time() - load_time}")
+    # print(f"done loading dragon in {time.time() - load_time}")
 
-    # dummy_smooth_normals(tris)
     smooth_time = time.time()
     smooth_normals(tris)
     print("done smoothing normals in", time.time() - smooth_time)
@@ -318,6 +331,19 @@ if __name__ == '__main__':
     box_tris = triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
     dummy_smooth_normals(box_tris)
     tris += box_tris
+
+    # camera setup
+    c = Camera(
+        center=np.array([4, 1.5, 5]),
+        direction=unit(np.array([-1, 0, -1])),
+        pixel_width=args.width,
+        pixel_height=args.height,
+        phys_width=args.width / args.height,
+        phys_height=1,
+    )
+    camera_tris = camera_geometry(c)
+    dummy_smooth_normals(camera_tris)
+    tris += camera_tris
 
     # build and marshall BVH
     start_time = time.time()
@@ -331,16 +357,9 @@ if __name__ == '__main__':
     # load materials (very basic for now)
     mats = get_materials()
 
-    # camera setup
+
     samples = args.samples
-    c = Camera(
-        center=np.array([4, 1.5, 5]),
-        direction=unit(np.array([-1, 0, -1])),
-        pixel_width=args.width,
-        pixel_height=args.height,
-        phys_width=args.width / args.height,
-        phys_height=1,
-    )
+
 
     # Metal stuff. get device, load and compile kernels
     dev = mc.Device()
