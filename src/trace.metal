@@ -541,10 +541,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             Ray light_ray;
             Ray camera_ray;
 
-            if (t == 0){
-                // this is where a light ray hits the camera plane. not yet supported.
+            if (s == 0 && t == 0) {continue;}
+            else if (t == 0){
+                // this is where a light ray hits the camera plane. WIP.
                 light_ray = light_path.rays[s - 1];
-                continue;
+                if (light_ray.hit_camera < 0){
+                    continue;
+                }
             }
             else if (t == 1) {
                 // light visibility to camera plane. not yet supported.
@@ -628,19 +631,18 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float3 color = float3(1.0f);
             float tot_importance = 1.0f;
 
-            float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
-
             if (s == 0) {
                 Ray prior_camera_ray = camera_path.rays[t - 2];
                 color = prior_camera_ray.color;
                 tot_importance = prior_camera_ray.tot_importance;
             }
             else if (t == 0) {
-                Ray prior_light_ray = light_path.rays[s - 2];
+                Ray prior_light_ray = s > 1 ? light_path.rays[s - 2] : light_path.rays[0];
                 color = prior_light_ray.color;
                 tot_importance = prior_light_ray.tot_importance;
             }
             else {
+                float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 float3 camera_color;
                 if (t == 1) {
                     // camera_color = camera_path.rays[0].color * pow(max(0.0f, dot(camera_ray.normal, -dir_l_to_c)), 5);
