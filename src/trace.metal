@@ -540,6 +540,7 @@ int get_sample_index(const thread float3 &point, const device Camera &camera){
     float y = dot(dir, camera.dy);
     int x_index = int(x * camera.pixel_width);
     int y_index = int(y * camera.pixel_height);
+    if (x_index < 0 || x_index >= camera.pixel_width || y_index < 0 || y_index >= camera.pixel_height) {return -1;}
     return y_index * camera.pixel_width + x_index;
 }
 
@@ -594,12 +595,14 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     continue;
                 }
                 sample_index = get_sample_index(light_ray.origin, camera[0]);
+                if (sample_index < 0) {continue;}
             }
             else if (t == 1) {
                 // light visibility to camera plane. WIP.
                 light_ray = light_path.rays[s - 1];
                 camera_ray = map_camera_pixel(light_ray.origin, camera[0], triangles, boxes);
                 sample_index = get_sample_index(camera_ray.origin, camera[0]);
+                if (sample_index < 0) {continue;}
             }
             else if (s == 0) {
                 // this is where a camera ray hits the light source.
