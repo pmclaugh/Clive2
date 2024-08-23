@@ -61,6 +61,14 @@ struct Material {
 };
 
 
+struct Camera {
+    float3 origin;
+    float3 focal_point;
+    float3 dx_dp;
+    float3 dy_dp;
+};
+
+
 void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool &hit, thread float &t) {
     float3 t0s = (box.min - ray.origin) * ray.inv_direction;
     float3 t1s = (box.max - ray.origin) * ray.inv_direction;
@@ -528,7 +536,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Triangle *triangles [[ buffer(2) ]],
                           const device Material *materials [[ buffer(3) ]],
                           const device Box *boxes [[ buffer(4) ]],
-                          device float4 *out [[ buffer(5) ]],
+                          const device Camera *camera [[ buffer(5) ]],
+                          device float4 *out [[ buffer(6) ]],
                           uint id [[ thread_position_in_grid ]]) {
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];

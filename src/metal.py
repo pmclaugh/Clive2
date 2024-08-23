@@ -7,6 +7,7 @@ import cv2
 import metalcompute as mc
 import time
 from struct_types import Ray, Material, Path, Box
+from struct_types import Camera as camera_struct
 from datetime import datetime
 from collections import defaultdict
 import argparse
@@ -341,6 +342,7 @@ if __name__ == '__main__':
         phys_width=args.width / args.height,
         phys_height=1,
     )
+    camera_arr = c.to_struct()
     camera_tris = camera_geometry(c)
     dummy_smooth_normals(camera_tris)
     tris += camera_tris
@@ -357,9 +359,7 @@ if __name__ == '__main__':
     # load materials (very basic for now)
     mats = get_materials()
 
-
     samples = args.samples
-
 
     # Metal stuff. get device, load and compile kernels
     dev = mc.Device()
@@ -418,7 +418,7 @@ if __name__ == '__main__':
 
         # join paths
         start_time = time.time()
-        join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, final_out_samples)
+        join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr, final_out_samples)
         print(f"Sample {i} join time: {time.time() - start_time}")
 
         # retrieve joined path outputs

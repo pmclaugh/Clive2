@@ -4,6 +4,7 @@ from constants import *
 from primitives import unit, point, vec
 import cv2
 from struct_types import Ray
+from struct_types import Camera as camera_struct
 
 
 
@@ -76,6 +77,7 @@ class Camera:
         batch['l_importance'] = 1.0  # set in kernel
         batch['tot_importance'] = 1.0 / (self.phys_width * self.phys_height)
         batch['hit_light'] = -1
+        batch['hit_camera'] = -1
         batch['material'] = -1
         batch['normal'] = 0
         batch['normal'][:, :, :3] = directions
@@ -83,6 +85,13 @@ class Camera:
         batch['triangle'] = -1
         return batch
 
+    def to_struct(self):
+        c = np.zeros(1, dtype=camera_struct)
+        c[0]['origin'][:3] = self.origin
+        c[0]['focal_point'][:3] = self.focal_point
+        c[0]['dx_dp'][:3] = self.dx_dp
+        c[0]['dy_dp'][:3] = self.dy_dp
+        return c
 
 def composite_image(camera):
     total_image = camera.image * 0
