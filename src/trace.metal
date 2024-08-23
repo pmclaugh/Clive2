@@ -385,8 +385,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.c_importance = 1.0f;
     }
 
-
-
     for (int i = 0; i < 8; i++) {
         int best_i = -1;
         float best_t = INFINITY;
@@ -425,8 +423,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.material = triangle.material;
         new_ray.triangle = best_i;
         if (triangle.is_light) {new_ray.hit_light = best_i;}
-        if (triangle.is_camera) {new_ray.hit_camera = best_i;}
         else {new_ray.hit_light = -1;}
+        if (triangle.is_camera) {new_ray.hit_camera = best_i;}
+        else {new_ray.hit_camera = -1;}
 
         float3 x, y;
         orthonormal(n, x, y);
@@ -605,8 +604,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (hit < 0) {continue;}
                 sample_index = get_sample_index(camera_ray.origin, camera[0]);
                 if (sample_index < 0) {continue;}
-                continue;
-
             }
             else if (s == 0) {
                 // this is where a camera ray hits the light source.
