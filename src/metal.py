@@ -137,11 +137,11 @@ def get_materials():
     materials = np.zeros(7, dtype=Material)
     materials['color'] = np.zeros((7, 4), dtype=np.float32)
     materials['color'][0][:3] = RED
-    materials['color'][1][:3] = BLUE
+    materials['color'][1][:3] = GREEN
     materials['color'][2][:3] = WHITE
     materials['color'][3][:3] = CYAN
     materials['color'][4][:3] = WHITE
-    materials['color'][5][:3] = GREEN
+    materials['color'][5][:3] = BLUE
     materials['color'][6][:3] = WHITE
     materials['emission'] = np.zeros((7, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
@@ -330,7 +330,7 @@ if __name__ == '__main__':
 
     # load the dragon
     # load_time = time.time()
-    # tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
+    # tris += load_ply('../resources/dragon_vrip.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
     # print(f"done loading dragon in {time.time() - load_time}")
 
     smooth_time = time.time()
@@ -435,6 +435,7 @@ if __name__ == '__main__':
 
         # post processing. tone map, sum, division
         image = bidirectional_image
+
         print(np.sum(np.isnan(image)), "nans in image")
         print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
         print(np.sum(np.isinf(image)), "infs in image")
