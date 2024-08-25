@@ -427,7 +427,7 @@ if __name__ == '__main__':
 
         # join paths
         start_time = time.time()
-        join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr, final_out_samples)
+        join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples)
         print(f"Sample {i} join time: {time.time() - start_time}")
 
         # retrieve joined path outputs

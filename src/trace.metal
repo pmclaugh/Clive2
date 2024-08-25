@@ -64,6 +64,7 @@ struct Material {
 struct Camera {
     float3 origin;
     float3 focal_point;
+    float3 direction;
     float3 dx;
     float3 dy;
     int32_t pixel_width;
@@ -154,7 +155,7 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
 bool visibility_test(const thread Ray a, const thread Ray b, const device Box *boxes, const device Triangle *triangles) {
     Ray test_ray;
     test_ray.origin = a.origin + a.normal * 0.0001f;
-    float3 direction = (b.origin + b.normal + 0.0001f) - (a.origin + a.normal * 0.0001f);
+    float3 direction = (b.origin + b.normal * 0.0001f) - (a.origin + a.normal * 0.0001f);
     float t_max = length(direction);
     direction = direction / t_max;
     test_ray.direction = direction;
@@ -445,7 +446,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             }
             else {
                 wo = random_hemisphere_uniform(x, y, n, random_roll_a);
-                if (dot(n, wo) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
+                if (dot(n, wo) <= 0.0f || dot(n, wi) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
                 f = dot(n, wo) / PI;
                 c_p = dot(n, wi) / PI;
                 l_p = 1.0f / (2 * PI);
@@ -546,7 +547,7 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     Ray test_ray;
     test_ray.origin = source.origin;
     test_ray.direction = dir;
-    test_ray.inv_direction = 1.0 / dir;
+    test_ray.inv_direction = 1.0f / dir;
     test_ray.triangle = source.triangle;
 
     int best_i = -1;
@@ -554,7 +555,7 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     float u, v;
     traverse_bvh(test_ray, boxes, triangles, best_i, best_t, u, v);
 
-    if (best_i < 0) {return -1;}
+    if (best_i == -1) {return -1;}
     if (triangles[best_i].is_camera == 0) {return -1;}
     if (dot(test_ray.direction, triangles[best_i].normal) > 0.0f) {return -1;}
 
@@ -596,6 +597,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             Ray camera_ray;
             sample_index = id;
 
+            camera_path = camera_paths[id];
+            light_path = light_paths[id];
+
             if (s + t < 2) {continue;}
             else if (t == 0){
                 // this is where a light ray hits the camera plane. WIP.
@@ -611,9 +615,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 // light visibility to camera plane. WIP.
                 light_ray = light_path.rays[s - 1];
                 int hit = map_camera_pixel(light_ray, camera[0], triangles, boxes, camera_ray);
-                if (hit < 0) {continue;}
+                if (hit == -1) {continue;}
                 sample_index = get_sample_index(camera_ray.origin, camera[0]);
-                if (sample_index < 0) {continue;}
+                if (sample_index == -1) {continue;}
+                camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
                 // this is where a camera ray hits the light source.
@@ -669,7 +674,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float prior_camera_importance;
             if (t == 0) {prior_camera_importance = 1.0f;}
-            else if (t == 1) {prior_camera_importance = 1.0f;}
+            else if (t == 1) {prior_camera_importance = camera_path.rays[0].c_importance;}
             else {prior_camera_importance = camera_path.rays[t - 2].tot_importance;}
 
             float prior_light_importance;
