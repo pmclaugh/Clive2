@@ -79,7 +79,7 @@ class Camera:
         batch['hit_camera'] = -1
         batch['material'] = -1
         batch['normal'] = 0
-        batch['normal'][:, :, :3] = directions
+        batch['normal'][:, :, :3] = self.direction
         batch['from_camera'] = 1
         batch['triangle'] = -1
         return batch
