@@ -612,7 +612,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 // light visibility to camera plane. WIP.
                 light_ray = light_path.rays[s - 1];
                 int hit = map_camera_pixel(light_ray, camera[0], triangles, boxes, camera_ray);
-                if (hit == -1) {continue;}
+                //if (hit == -1) {continue;}
                 sample_index = get_sample_index(camera_ray.origin, camera[0]);
                 if (sample_index == -1) {continue;}
                 camera_ray.c_importance = camera_path.rays[0].c_importance;
@@ -700,8 +700,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float3 color = float3(1.0f);
             float g = 1.0f;
 
-            if (s == 0) {continue; color = camera_path.rays[t - 2].color;}
-            else if (t == 0) {continue; color = light_path.rays[s - 2].color;}
+            if (s == 0) {color = camera_path.rays[t - 2].color;}
+            else if (t == 0) {color = light_path.rays[s - 2].color;}
             else if (t == 1) {
                 //continue;
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
@@ -718,7 +718,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                }
             }
             else {
-                continue;
+                //continue;
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 float3 camera_color = float3(1.0f);
 
@@ -746,7 +746,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
-            out[sample_index] += 100.0f * float4((w * g * color) / p_s, 1.0f);
+            out[sample_index] += float4((w * g * color) / p_s, 1.0f);
         }
     }
 }
