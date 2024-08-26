@@ -1,4 +1,5 @@
 import numpy as np
+import sobol
 from camera import Camera
 import objloader
 from constants import INVALID, UNIT_X, UNIT_Y, UNIT_Z, RED, BLUE, GREEN, CYAN, WHITE
@@ -212,7 +213,7 @@ def camera_geometry(camera):
 def random_uvs(num):
     u = np.random.rand(num)
     v = np.random.rand(num)
-    need_flipped = u + v > 1
+    need_flipped = (u + v) > 1
     u[need_flipped] = 1 - u[need_flipped]
     v[need_flipped] = 1 - v[need_flipped]
     w = 1 - u - v
@@ -226,7 +227,7 @@ def fast_generate_light_rays(triangles, num_rays):
     rays = np.zeros(num_rays, dtype=Ray)
     choices = np.random.randint(0, len(emitters), num_rays)
     rand_us, rand_vs, rand_ws = random_uvs(num_rays)
-    rays['direction'] = unit(np.array([0, 0, -1, 0]))
+    rays['direction'] = unit(np.array([0, -1, 0, 0]))
     points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:, 2] * rand_ws[:, None]
     rays['origin'] = points + 0.0001 * rays['direction']
     rays['normal'] = rays['direction']
@@ -330,7 +331,7 @@ if __name__ == '__main__':
 
     # load the dragon
     # load_time = time.time()
-    # tris += load_ply('../resources/dragon_vrip.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
+    # tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
     # print(f"done loading dragon in {time.time() - load_time}")
 
     smooth_time = time.time()
@@ -382,18 +383,18 @@ if __name__ == '__main__':
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
     batch_size = c.pixel_width * c.pixel_height
 
-    out_camera_image = dev.buffer(batch_size * 16)
-    out_camera_paths = dev.buffer(batch_size * Path.itemsize)
-    out_camera_debug_image = dev.buffer(batch_size * 16)
-
-    out_light_image = dev.buffer(batch_size * 16)
-    out_light_paths = dev.buffer(batch_size * Path.itemsize)
-    out_light_debug_image = dev.buffer(batch_size * 16)
-
-    final_out_samples = dev.buffer(batch_size * 16)
-
     # render loop
     for i in range(samples):
+
+        out_camera_image = dev.buffer(batch_size * 16)
+        out_camera_paths = dev.buffer(batch_size * Path.itemsize)
+        out_camera_debug_image = dev.buffer(batch_size * 16)
+
+        out_light_image = dev.buffer(batch_size * 16)
+        out_light_paths = dev.buffer(batch_size * Path.itemsize)
+        out_light_debug_image = dev.buffer(batch_size * 16)
+
+        final_out_samples = dev.buffer(batch_size * 16)
 
         trace_fn = dev.kernel(kernel).function("generate_paths")
         join_fn = dev.kernel(kernel).function("connect_paths")

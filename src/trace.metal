@@ -523,7 +523,7 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
     light_cos = abs(dot(b.normal, delta));
 
     float g = camera_cos * light_cos / (dist * dist);
-    return max(DELTA, g);
+    return g;
 }
 
 
@@ -547,7 +547,7 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     Ray test_ray;
     test_ray.origin = source.origin;
     test_ray.direction = dir;
-    test_ray.inv_direction = 1.0f / dir;
+    test_ray.inv_direction = normalize(1.0f / dir);
     test_ray.triangle = source.triangle;
 
     int best_i = -1;
@@ -618,6 +618,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (hit == -1) {continue;}
                 sample_index = get_sample_index(camera_ray.origin, camera[0]);
                 if (sample_index == -1) {continue;}
+                camera_ray.c_importance = camera_path.rays[0].c_importance;
+                camera_ray.tot_importance = camera_path.rays[0].tot_importance;
                 camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
@@ -709,7 +711,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_path.rays[t - 2].color;
                 g = 1.0f;
             }
-            else if (t == 0 || t == 1) {
+            else if (t == 1) {
                 //continue;
                 if (s == 1) {color = light_ray.color;}
                 else if (t == 1){
