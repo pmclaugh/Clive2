@@ -384,7 +384,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         ray.tot_importance = ray.tot_importance * new_ray.l_importance;
     }
     else {
-        new_ray.c_importance = 1.0f;
+        new_ray.c_importance = ray.c_importance;
     }
 
     for (int i = 0; i < 8; i++) {
@@ -702,7 +702,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float sum = p_s;
             for (int i = 0; i < s + t; i++) {sum += p_ratios[i];}
 
-            float w = p_s / sum;
+            float w;
+            if (sum > 0.0f) {w = p_s / sum;}
+            else {w = 0.0f;}
 
             float3 color = float3(1.0f);
             float g;
