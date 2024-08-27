@@ -1,5 +1,4 @@
 import numpy as np
-import sobol
 from camera import Camera
 import objloader
 from constants import INVALID, UNIT_X, UNIT_Y, UNIT_Z, RED, BLUE, GREEN, CYAN, WHITE
@@ -7,14 +6,14 @@ from bvh import construct_BVH, np_flatten_bvh
 import cv2
 import metalcompute as mc
 import time
-from struct_types import Ray, Material, Path, Box
-from struct_types import Camera as camera_struct
+from struct_types import Ray, Material, Path
 from datetime import datetime
 from collections import defaultdict
 import argparse
 import os
 from plyfile import PlyData
 from functools import cached_property
+from scipy.stats.qmc import Sobol
 
 
 class Triangle:
@@ -311,6 +310,14 @@ def dummy_smooth_normals(triangles):
         t.n2 = t.n
 
 
+def sobol_rands(batch_size, sample_count):
+    seq_length = int(np.ceil(np.log2(batch_size)))
+    # sobol_seq = sobol.random_base2(seq_length)
+    # sobol_rands = np.tile(sobol_seq, (1, sample_count)).astype(np.float32)
+    sobol_rands = np.array([Sobol(2).random(batch_size) for _ in range(16)]).astype(np.float32).flatten('F')
+    return sobol_rands
+
+
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
@@ -385,7 +392,6 @@ if __name__ == '__main__':
 
     # render loop
     for i in range(samples):
-
         out_camera_image = dev.buffer(batch_size * 16)
         out_camera_paths = dev.buffer(batch_size * Path.itemsize)
         out_camera_debug_image = dev.buffer(batch_size * 16)
@@ -401,7 +407,8 @@ if __name__ == '__main__':
 
         # make camera rays and rands
         camera_rays = c.ray_batch_numpy().flatten()
-        rands = np.random.rand(camera_rays.size * 64).astype(np.float32)
+        # rands = np.random.rand(camera_rays.size * 64).astype(np.float32)
+        rands = sobol_rands(batch_size, samples)
 
         # trace camera paths
         start_time = time.time()
@@ -415,7 +422,8 @@ if __name__ == '__main__':
 
         # make light rays and rands
         light_rays = fast_generate_light_rays(triangles, camera_rays.size)
-        rands = np.random.rand(light_rays.size * 64).astype(np.float32)
+        # rands = np.random.rand(light_rays.size * 64).astype(np.float32)
+        rands = sobol_rands(batch_size, samples)
 
         # trace light paths
         start_time = time.time()
