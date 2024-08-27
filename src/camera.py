@@ -79,7 +79,7 @@ class Camera:
         batch['hit_camera'] = -1
         batch['material'] = -1
         batch['normal'] = 0
-        batch['normal'][:, :, :3] = self.direction
+        batch['normal'][:, :, :3] = directions
         batch['from_camera'] = 1
         batch['triangle'] = -1
         return batch
@@ -96,6 +96,7 @@ class Camera:
         c[0]['phys_width'] = self.phys_width
         c[0]['phys_height'] = self.phys_height
         return c
+
 
 def composite_image(camera):
     total_image = camera.image * 0

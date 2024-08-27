@@ -482,7 +482,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         new_ray.color = f * ray.color * material.color;
 
-        //if (f == 0.0f) {break;}
+        if (f == 0.0f) {break;}
 
         new_ray.direction = wo;
         new_ray.inv_direction = 1.0f / wo;
@@ -522,8 +522,7 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
     camera_cos = abs(dot(a.normal, delta));
     light_cos = abs(dot(b.normal, delta));
 
-    float g = camera_cos * light_cos / (dist * dist);
-    return g;
+    return (camera_cos * light_cos) / (dist * dist);
 }
 
 
@@ -701,9 +700,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float g = 1.0f;
 
             if (s == 0) {color = camera_path.rays[t - 2].color;}
-            else if (t == 0) {color = light_path.rays[s - 2].color;}
+            else if (t == 0) {continue; color = light_path.rays[s - 2].color;}
             else if (t == 1) {
-                //continue;
+                continue;
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 if (s == 1) {color = light_ray.color * abs(dot(light_ray.normal, dir_l_to_c));}
                 else {
@@ -718,7 +717,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                }
             }
             else {
-                //continue;
+                continue;
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 float3 camera_color = float3(1.0f);
 

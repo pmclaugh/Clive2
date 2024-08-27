@@ -326,8 +326,8 @@ if __name__ == '__main__':
 
     tris = []
     # load the teapots
-    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
-    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
+    # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
+    # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
 
     # load the dragon
     # load_time = time.time()
@@ -345,7 +345,7 @@ if __name__ == '__main__':
 
     # camera setup
     c = Camera(
-        center=np.array([5, 1.5, 6]),
+        center=np.array([4, 1.5, 5]),
         direction=unit(np.array([-1, 0, -1])),
         pixel_width=args.width,
         pixel_height=args.height,
