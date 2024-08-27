@@ -561,7 +561,7 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     hit_ray.origin = test_ray.origin + test_ray.direction * best_t;
     hit_ray.color = float3(1.0f);
     hit_ray.direction = -dir;
-    hit_ray.normal = camera.direction;
+    hit_ray.normal = -dir;
     hit_ray.material = triangles[best_i].material;
     hit_ray.triangle = best_i;
     hit_ray.hit_camera = best_i;
@@ -699,10 +699,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float3 color = float3(1.0f);
             float g = 1.0f;
 
-            if (s == 0) {color = camera_path.rays[t - 2].color;}
+            if (s == 0) {continue; color = camera_path.rays[t - 2].color;}
             else if (t == 0) {continue; color = light_path.rays[s - 2].color;}
             else if (t == 1) {
-                continue;
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 if (s == 1) {color = light_ray.color * abs(dot(light_ray.normal, dir_l_to_c));}
                 else {
@@ -718,6 +717,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
             else {
                 continue;
+
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 float3 camera_color = float3(1.0f);
 

@@ -326,8 +326,8 @@ if __name__ == '__main__':
 
     tris = []
     # load the teapots
-    # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
-    # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
+    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
+    tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
 
     # load the dragon
     # load_time = time.time()
