@@ -101,19 +101,17 @@ class Camera:
 
     @property
     def adaptive_grid(self):
-        # do a weighted roll over variances to determine pixel samples
-        # prefix sum variances
         variance_roller = np.cumsum(self.variances).flatten()
         rolls = np.random.rand(self.pixel_height * self.pixel_width) * np.max(variance_roller)
         picks = np.searchsorted(variance_roller, rolls)
         map = np.zeros((2, self.pixel_height, self.pixel_width), dtype=np.int32)
-        map[0] = np.reshape(picks % self.pixel_height, (self.pixel_width, self.pixel_height))
-        map[1] = np.reshape(picks // self.pixel_height, (self.pixel_width, self.pixel_height))
+        map[0] = np.reshape(picks // self.pixel_height, (self.pixel_height, self.pixel_width))
+        map[1] = np.reshape(picks % self.pixel_height, (self.pixel_height, self.pixel_width))
         return map
 
     def process_samples(self, samples, map):
         sample_intensities = np.sum(samples, axis=2)
-        for (i, j) in zip(map[0], map[1]):
+        for (i, j) in zip(map[0].flatten(), map[1].flatten()):
             self.image[j, i] += samples[j, i]
             self.sample_counts[j, i] += 1
             delta = sample_intensities[j, i] - self.var_means[j, i]
