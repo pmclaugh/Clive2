@@ -687,6 +687,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else {prior_light_importance = light_path.rays[s - 2].tot_importance;}
 
             float p_s = prior_camera_importance * prior_light_importance;
+            if (p_s == 0.0f) {continue;}
             float p_i = p_s;
 
             for (int i = s; i < s + t; i++) {
