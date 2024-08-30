@@ -25,7 +25,7 @@ class Camera:
         self.pixel_width = pixel_width
         self.pixel_height = pixel_height
         self.samples = 0
-        self.sample_counts = np.ones((pixel_height, pixel_width), dtype=np.int64)
+        self.sample_counts = np.zeros((pixel_height, pixel_width), dtype=np.int64)
         self.variances = np.zeros_like(self.sample_counts, dtype=np.float64)
         self.var_means = np.zeros_like(self.sample_counts, dtype=np.float64)
         self.var_m2 = np.zeros_like(self.sample_counts, dtype=np.float64)
@@ -106,25 +106,20 @@ class Camera:
         rolls = np.random.rand(self.pixel_height * self.pixel_width) * np.max(variance_roller)
         picks = np.searchsorted(variance_roller, rolls)
         pixel_map = np.zeros((2, self.pixel_height, self.pixel_width), dtype=np.int32)
-        pixel_map[0] = np.reshape(picks % self.pixel_width, (self.pixel_height, self.pixel_width))
-        pixel_map[1] = np.reshape(picks // self.pixel_width, (self.pixel_height, self.pixel_width))
+        pixel_map[0] = np.minimum(self.pixel_width - 1, np.reshape(picks % self.pixel_width, (self.pixel_height, self.pixel_width)))
+        pixel_map[1] = np.minimum(self.pixel_height - 1, np.reshape(picks // self.pixel_width, (self.pixel_height, self.pixel_width)))
 
         pick_counts = defaultdict(int)
         for pick in picks:
             pick_counts[pick] += 1
-
-        global max_pixel_key, max_val, max_var, max_mean
-        max_pixel_key = max(pick_counts, key=pick_counts.get)
-        max_val = pick_counts[max_pixel_key]
-        max_var = self.variances.flatten()[max_pixel_key]
-        max_mean = self.var_means.flatten()[max_pixel_key]
-        print(f"the most picked pixel was {max_pixel_key} with {max_val} samples. it has mean {max_mean} and variance {max_var}")
 
         return pixel_map, self.variances.reshape(self.pixel_height, self.pixel_width) / np.sum(self.variances)
 
     def process_samples(self, samples, pixel_map, increment=True):
         sample_intensities = np.linalg.norm(samples, axis=2)
         first = np.all(self.sample_counts == 0)
+        if increment:
+            np.add.at(self.sample_counts, (pixel_map[1], pixel_map[0]), 1)
         if first:
             delta = np.zeros_like(sample_intensities)
             self.var_means = sample_intensities
@@ -140,8 +135,6 @@ class Camera:
         this_image = np.zeros_like(self.image)
         np.add.at(this_image, (pixel_map[1], pixel_map[0]), samples)
         self.image += this_image
-        if increment:
-            np.add.at(self.sample_counts, (pixel_map[1], pixel_map[0]), 1)
         return this_image
 
     def get_image(self):
