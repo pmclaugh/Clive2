@@ -66,7 +66,7 @@ class Camera:
             weights = np.ones(batch.shape) / (self.phys_width * self.phys_height)
             origins, directions, indices, pixels = self.ray_batch(grid)
 
-        # weights = np.ones(batch.shape) / (self.phys_width * self.phys_height)
+        weights = np.ones(batch.shape) / (self.phys_width * self.phys_height)
 
         batch['origin'][:, :, :3] = origins + 0.0001 * directions
         batch['direction'][:, :, :3] = directions

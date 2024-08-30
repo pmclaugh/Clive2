@@ -593,6 +593,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     int sample_index;
     bool primary = true;
 
+    out_image[id] = float4(0, 0, 0, 1);
+
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
 
