@@ -3,8 +3,14 @@ import numba
 from constants import *
 from primitives import unit, point, vec
 import cv2
+from collections import defaultdict
 from struct_types import Ray
 from struct_types import Camera as camera_struct
+
+max_pixel_key = None
+max_val = None
+max_var = None
+max_mean = None
 
 
 class Camera:
@@ -19,9 +25,9 @@ class Camera:
         self.pixel_width = pixel_width
         self.pixel_height = pixel_height
         self.samples = 0
-        self.sample_counts = np.zeros((pixel_height, pixel_width), dtype=np.int64)
+        self.sample_counts = np.ones((pixel_height, pixel_width), dtype=np.int64)
         self.variances = np.zeros_like(self.sample_counts, dtype=np.float64)
-        self.var_means = np.zeros_like(self.sample_counts, dtype=np.float64)
+        self.var_means = np.ones_like(self.sample_counts, dtype=np.float64)
         self.var_m2 = np.zeros_like(self.sample_counts, dtype=np.float64)
 
         if abs(self.direction[0]) < FLOAT_TOLERANCE:
@@ -59,12 +65,11 @@ class Camera:
             grid = self.grid
             weights = np.ones(batch.shape) / (self.phys_width * self.phys_height)
             origins, directions, indices, pixels = self.ray_batch(grid)
-        weights = np.ones(batch.shape) / (self.phys_width * self.phys_height)
-        batch['origin'] = 0
+
+        # weights = np.ones(batch.shape) / (self.phys_width * self.phys_height)
+
         batch['origin'][:, :, :3] = origins + 0.0001 * directions
-        batch['direction'] = 0
         batch['direction'][:, :, :3] = directions
-        batch['inv_direction'] = 0
         batch['inv_direction'][:, :, :3] = 1.0 / directions
         batch['color'] = np.ones(4)
         batch['c_importance'] = weights
@@ -73,13 +78,12 @@ class Camera:
         batch['hit_light'] = -1
         batch['hit_camera'] = -1
         batch['material'] = -1
-        batch['normal'] = 0
         batch['normal'][:, :, :3] = directions
         batch['from_camera'] = 1
         batch['triangle'] = -1
-        batch['i'] = pixels[0]
-        batch['j'] = pixels[1]
-        return batch, pixels
+        batch['i'] = self.grid[0]
+        batch['j'] = self.grid[1]
+        return batch, grid
 
     def to_struct(self):
         c = np.zeros(1, dtype=camera_struct)
@@ -97,48 +101,73 @@ class Camera:
     @property
     def adaptive_grid(self):
         variance_roller = np.cumsum(self.variances).flatten()
+        if np.any(np.isnan(variance_roller)):
+            print(np.sum(np.isnan(variance_roller)), "nans in variance roller")
         rolls = np.random.rand(self.pixel_height * self.pixel_width) * np.max(variance_roller)
         picks = np.searchsorted(variance_roller, rolls)
         pixel_map = np.zeros((2, self.pixel_height, self.pixel_width), dtype=np.int32)
         pixel_map[0] = np.reshape(picks % self.pixel_width, (self.pixel_height, self.pixel_width))
         pixel_map[1] = np.reshape(picks // self.pixel_width, (self.pixel_height, self.pixel_width))
+
+        pick_counts = defaultdict(int)
+        for pick in picks:
+            pick_counts[pick] += 1
+
+        global max_pixel_key, max_val, max_var, max_mean
+        max_pixel_key = max(pick_counts, key=pick_counts.get)
+        max_val = pick_counts[max_pixel_key]
+        max_var = self.variances.flatten()[max_pixel_key]
+        max_mean = self.var_means.flatten()[max_pixel_key]
+        print(f"the most picked pixel was {max_pixel_key} with {max_val} samples. it has mean {max_mean} and variance {max_var}")
+
         return pixel_map, self.variances.reshape(self.pixel_height, self.pixel_width) / np.sum(self.variances)
 
     def process_samples(self, samples, pixel_map, increment=True):
         sample_intensities = np.sum(samples, axis=2)
+        this_image = np.zeros_like(self.image)
         for n, (i, j) in enumerate(zip(pixel_map[0].flatten(), pixel_map[1].flatten())):
-            self.image[j, i] += samples[n // self.pixel_width, n % self.pixel_width]
+            sample = samples[n // self.pixel_width, n % self.pixel_width]
+            this_image[j, i] += sample
             if increment:
                 self.sample_counts[j, i] += 1
             delta = sample_intensities[j, i] - self.var_means[j, i]
             self.var_means[j, i] += delta / self.sample_counts[j, i]
             delta2 = sample_intensities[j, i] - self.var_means[j, i]
             self.var_m2[j, i] += delta * delta2
-        self.variances = self.var_m2 / (self.var_means * self.sample_counts)
+        self.variances = self.var_m2 / (self.sample_counts - 1)
+        self.image += this_image
+
+        global max_pixel_key, max_val, max_var, max_mean
+        if max_pixel_key is not None:
+            max_var = self.variances.flatten()[max_pixel_key]
+            max_mean = self.var_means.flatten()[max_pixel_key]
+            print(f"after sample, the most picked pixel ({max_pixel_key}) has mean {max_mean} and variance {max_var}")
+            max_pixel_key = None
+            max_val = None
+            max_var = None
+            max_mean = None
+
+        return this_image
+
+    def fast_process_samples(self, samples, pixel_map, increment=True):
+        this_image = np.zeros_like(self.image)
+        np.add.at(this_image, (pixel_map[1], pixel_map[0]), samples)
+        self.image += this_image
+        if increment:
+            self.sample_counts[pixel_map[1], pixel_map[0]] += 1
+        return this_image
 
     def get_image(self):
-        return tone_map(self.image / (self.sample_counts.reshape(self.pixel_height, self.pixel_width, 1)))
+        return tone_map(self.image / (self.sample_counts.reshape(self.pixel_height, self.pixel_width, 1).astype(float)))
 
     @property
     def grid(self):
         return np.array(np.meshgrid(np.arange(self.pixel_width), np.arange(self.pixel_height)))
 
 
-def composite_image(camera):
-    total_image = camera.image * 0
-    for s, row in enumerate(camera.images):
-        for t, sub_image in enumerate(row):
-            sample_counts = np.sum(camera.sample_counts)
-            if sample_counts > 0:
-                weighted_sub_image = np.nan_to_num(sub_image) * camera.sample_counts[s][t] / sample_counts
-                total_image += weighted_sub_image
-                cv2.imwrite('../renders/components/%ds_%dt.jpg' % (s, t), tone_map(weighted_sub_image))
-    return tone_map(total_image)
-
-
 def tone_map(image):
-    tone_vector = point(0.0722, 0.7152, 0.2126)
-    # tone_vector = ONES
+    print(f"min {np.min(image)} max {np.max(image)}")
+    tone_vector = np.array([0.0722, 0.7152, 0.2126])
     tone_sums = np.sum(image * tone_vector, axis=2)
     log_tone_sums = np.log(0.1 + tone_sums)
     per_pixel_lts = np.sum(log_tone_sums) / np.prod(image.shape[:2])

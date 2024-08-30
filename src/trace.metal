@@ -602,7 +602,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             Ray camera_ray;
             camera_path = camera_paths[id];
             light_path = light_paths[id];
-            sample_index = camera_path.rays[0].j * camera[0].pixel_width + camera_path.rays[0].i;
+            sample_index = id;
+            primary = true;
 
 
             if (s + t < 2) {continue;}
@@ -623,7 +624,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 sample_index = get_sample_index(camera_ray.origin, camera[0]);
                 if (sample_index == -1) {continue;}
                 camera_ray.c_importance = camera_path.rays[0].c_importance;
-                camera_ray.tot_importance = camera_path.rays[0].tot_importance;
+                //camera_ray.c_importance = 1.0f;
+                camera_ray.tot_importance = camera_path.rays[0].c_importance;
+                //camera_ray.tot_importance = 1.0f;
                 camera_path.rays[0] = camera_ray;
                 primary = false;
             }
@@ -675,7 +678,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float prior_camera_importance;
             if (t == 0) {prior_camera_importance = 1.0f;}
-            else if (t == 1) {prior_camera_importance = camera_path.rays[0].c_importance;}
+            else if (t == 1) {prior_camera_importance = 1.0f;}
             else {prior_camera_importance = camera_path.rays[t - 2].tot_importance;}
 
             float prior_light_importance;
@@ -711,6 +714,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             if (s == 0) {color = camera_path.rays[t - 2].color;}
             else if (t == 0) {continue; color = light_path.rays[s - 2].color;}
             else if (t == 1) {
+                continue;
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 if (s == 1) {color = light_ray.color * abs(dot(light_ray.normal, dir_l_to_c));}
                 else {
