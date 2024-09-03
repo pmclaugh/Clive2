@@ -445,12 +445,11 @@ if __name__ == '__main__':
         # print(np.sum(np.isinf(bidirectional_secondary_image)), "infs in secondary image")
         # bidirectional_secondary_image = np.nan_to_num(bidirectional_secondary_image, posinf=0.0, neginf=0.0)
 
-        single_sample_image = c.process_samples(bidirectional_image, camera_ray_map)
+        c.process_samples(bidirectional_image, camera_ray_map)
         # c.process_samples(bidirectional_secondary_image, camera_ray_map, increment=False)
 
         # post processing. tone map, sum, division
         image = c.get_image()
-        # image = tone_map(bidirectional_image)
 
         # display the image
         cv2.imshow('image', image)

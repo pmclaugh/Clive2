@@ -7,11 +7,6 @@ from collections import defaultdict
 from struct_types import Ray
 from struct_types import Camera as camera_struct
 
-max_pixel_key = None
-max_val = None
-max_var = None
-max_mean = None
-
 
 class Camera:
     def __init__(self, center=point(0, 0, 0), direction=vec(1, 0, 0), phys_width=1.0, phys_height=1.0,
@@ -27,8 +22,8 @@ class Camera:
         self.samples = 0
         self.sample_counts = np.zeros((pixel_height, pixel_width), dtype=np.int64)
         self.variances = np.zeros_like(self.sample_counts, dtype=np.float64)
-        self.var_means = np.zeros_like(self.sample_counts, dtype=np.float64)
-        self.var_m2 = np.zeros_like(self.sample_counts, dtype=np.float64)
+        self.means = np.zeros_like(self.sample_counts, dtype=np.float64)
+        self.m2 = np.zeros_like(self.sample_counts, dtype=np.float64)
 
         if abs(self.direction[0]) < FLOAT_TOLERANCE:
             self.dx = UNIT_X if direction[2] > 0 else UNIT_X * -1
@@ -101,25 +96,22 @@ class Camera:
     @property
     def adaptive_grid(self):
         variance_roller = np.cumsum(self.variances.flatten())
+
         if np.any(np.isnan(variance_roller)):
             print(np.sum(np.isnan(variance_roller)), "nans in variance roller")
+
         rolls = np.random.rand(self.pixel_height * self.pixel_width) * np.max(variance_roller)
         picks = np.searchsorted(variance_roller, rolls)
         pixel_map = np.zeros((2, self.pixel_height, self.pixel_width), dtype=np.int32)
-        pixel_map[0] = np.minimum(self.pixel_width - 1, np.reshape(picks % self.pixel_width, (self.pixel_height, self.pixel_width)))
-        pixel_map[1] = np.minimum(self.pixel_height - 1, np.reshape(picks // self.pixel_width, (self.pixel_height, self.pixel_width)))
+
+        pixel_map[0] = np.reshape(picks % self.pixel_width, (self.pixel_height, self.pixel_width))
+        pixel_map[1] = np.reshape(picks // self.pixel_width, (self.pixel_height, self.pixel_width))
 
         pick_counts = defaultdict(int)
         for pick in picks:
             pick_counts[pick] += 1
 
-        global max_pixel_key, max_val, max_var, max_mean
-        max_pixel_key = max(pick_counts, key=pick_counts.get)
-        max_val = pick_counts[max_pixel_key]
-        max_var = self.variances[max_pixel_key // self.pixel_width, max_pixel_key % self.pixel_width]
-        max_mean = self.var_means[max_pixel_key // self.pixel_width, max_pixel_key % self.pixel_width]
-        print(f"max pixel key {max_pixel_key} with {max_val} samples")
-        print(f"max variance {max_var} mean {max_mean}")
+        print(f"max pick count {np.max(list(pick_counts.values()))}, min pick count {np.min(list(pick_counts.values()))}")
 
         return pixel_map, self.variances.reshape(self.pixel_height, self.pixel_width) / np.sum(self.variances)
 
@@ -127,35 +119,29 @@ class Camera:
         sample_intensities = np.linalg.norm(samples, axis=2)
         first = np.all(self.sample_counts == 0)
 
-        if increment:
-            np.add.at(self.sample_counts, (pixel_map[1], pixel_map[0]), 1)
-
         if first:
-            delta = np.zeros_like(sample_intensities)
-            self.var_means = sample_intensities[pixel_map[1], pixel_map[0]]
+            self.means[:] = sample_intensities
+            self.sample_counts += 1
+            self.image += samples
         else:
-            delta = sample_intensities - self.var_means[pixel_map[1], pixel_map[0]]
-            np.add.at(self.var_means, (pixel_map[1], pixel_map[0]), delta / self.sample_counts[pixel_map[1], pixel_map[0]])
+            for n, (i, j) in enumerate(zip(pixel_map[1].flatten(), pixel_map[0].flatten())):
+                # i, j are the pixel
+                # a, b are the sample
 
-        delta2 = sample_intensities - self.var_means[pixel_map[1], pixel_map[0]]
-        np.add.at(self.var_m2, (pixel_map[1], pixel_map[0]), delta * delta2)
+                a, b = n // self.pixel_width, n % self.pixel_width
 
-        if not first:
-            self.variances = self.var_m2 / (self.sample_counts - 1)
+                if increment:
+                    self.sample_counts[i, j] += 1
 
-        this_image = np.zeros_like(self.image)
-        np.add.at(this_image, (pixel_map[1], pixel_map[0]), samples)
-        self.image += this_image
+                delta = sample_intensities[a, b] - self.means[i, j]
+                self.means[i, j] += delta / self.sample_counts[i, j]
+                delta2 = sample_intensities[a, b] - self.means[i, j]
+                self.m2[i, j] += delta * delta2
 
-        global max_pixel_key, max_val, max_var, max_mean
-        if max_pixel_key is not None:
-            max_val = self.sample_counts[max_pixel_key // self.pixel_width, max_pixel_key % self.pixel_width]
-            max_var = self.variances[max_pixel_key // self.pixel_width, max_pixel_key % self.pixel_width]
-            max_mean = self.var_means[max_pixel_key // self.pixel_width, max_pixel_key % self.pixel_width]
-            print(f"after sampling, max pixel key {max_pixel_key} with {max_val} samples")
-            print(f"max variance {max_var} mean {max_mean}")
+                self.image[i, j] += samples[a, b]
 
-        return this_image
+            self.variances = self.m2 / (self.sample_counts - 1)
+            print(f"max variance {np.max(self.variances)}, min variance {np.min(self.variances)}")
 
     def get_image(self):
         return tone_map(self.image / (self.sample_counts.reshape(self.pixel_height, self.pixel_width, 1).astype(float)))
