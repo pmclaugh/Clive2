@@ -623,10 +623,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (hit == -1) {continue;}
                 sample_index = get_sample_index(camera_ray.origin, camera[0]);
                 if (sample_index == -1) {continue;}
-                camera_ray.c_importance = camera_path.rays[0].c_importance;
-                //camera_ray.c_importance = 1.0f;
-                camera_ray.tot_importance = camera_path.rays[0].c_importance;
-                //camera_ray.tot_importance = 1.0f;
+                //camera_ray.c_importance = camera_path.rays[0].c_importance;
+                camera_ray.c_importance = 1.0f;
+                //camera_ray.tot_importance = camera_path.rays[0].c_importance;
+                camera_ray.tot_importance = 1.0f;
                 camera_path.rays[0] = camera_ray;
                 primary = false;
             }
