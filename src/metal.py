@@ -399,7 +399,7 @@ if __name__ == '__main__':
         join_fn = dev.kernel(kernel).function("connect_paths")
 
         # make camera rays and rands
-        camera_rays, camera_ray_map = c.ray_batch_numpy(adaptive=i > 2)
+        camera_rays, camera_ray_map = c.ray_batch_numpy(adaptive=i > 5)
         rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
 
         # trace camera paths
