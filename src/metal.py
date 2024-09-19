@@ -258,7 +258,7 @@ def tone_map(image):
     per_pixel_lts = np.sum(log_tone_sums) / np.prod(image.shape[:2])
     Lw = np.exp(per_pixel_lts)
     result = image * 2. / Lw
-    return (255.0 * result / (result + 1)).astype(np.uint8)
+    return (255 * result / (result + 1)).astype(np.uint8)
 
 
 def unit(v):
@@ -313,7 +313,7 @@ def dummy_smooth_normals(triangles):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--samples', type=int, default=20)
+    parser.add_argument('--samples', type=int, default=50)
     parser.add_argument('--width', type=int, default=1280)
     parser.add_argument('--height', type=int, default=720)
     parser.add_argument('--frame-number', type=int, default=0)
@@ -345,7 +345,7 @@ if __name__ == '__main__':
     # camera setup
     c = Camera(
         center=np.array([4, 1.5, 5]),
-        direction=unit(np.array([-1, -0.2, -1])),
+        direction=unit(np.array([-1, 0, -1])),
         pixel_width=args.width,
         pixel_height=args.height,
         phys_width=args.width / args.height,
@@ -437,19 +437,18 @@ if __name__ == '__main__':
         print(np.sum(np.isnan(bidirectional_image)), "nans in image")
         print(np.sum(np.any(np.isnan(bidirectional_image), axis=2)), "pixels with nans")
         print(np.sum(np.isinf(bidirectional_image)), "infs in image")
-        bidirectional_image = np.nan_to_num(bidirectional_image, posinf=0.0, neginf=0.0)
+        bidirectional_image = np.nan_to_num(bidirectional_image, posinf=0, neginf=0)
 
         print(np.sum(np.isnan(bidirectional_secondary_image)), "nans in secondary image")
         print(np.sum(np.any(np.isnan(bidirectional_secondary_image), axis=2)), "pixels with nans in secondary image")
         print(np.sum(np.isinf(bidirectional_secondary_image)), "infs in secondary image")
-        bidirectional_secondary_image = np.nan_to_num(bidirectional_secondary_image, posinf=0.0, neginf=0.0)
+        bidirectional_secondary_image = np.nan_to_num(bidirectional_secondary_image, posinf=0, neginf=0)
 
-        single_sample_image = c.fast_process_samples(bidirectional_image, camera_ray_map)
-        c.fast_process_samples(bidirectional_secondary_image, camera_ray_map, increment=False)
+        c.process_samples(bidirectional_image, camera_ray_map)
+        c.process_samples(bidirectional_secondary_image, c.grid, increment=False)
 
         # post processing. tone map, sum, division
         image = c.get_image()
-        # image = tone_map(bidirectional_image)
 
         # display the image
         cv2.imshow('image', image)
