@@ -100,7 +100,7 @@ class Camera:
 
     @property
     def adaptive_grid(self):
-        variance_roller = np.cumsum(self.variances.flatten())
+        variance_roller = np.cumsum(self.variances).flatten()
         if np.any(np.isnan(variance_roller)):
             print(np.sum(np.isnan(variance_roller)), "nans in variance roller")
         rolls = np.random.rand(self.pixel_height * self.pixel_width) * np.max(variance_roller)
@@ -132,14 +132,13 @@ class Camera:
 
         if first:
             delta = np.zeros_like(sample_intensities)
-            self.var_means = sample_intensities[pixel_map[1], pixel_map[0]]
+            self.var_means = sample_intensities
         else:
             delta = sample_intensities - self.var_means[pixel_map[1], pixel_map[0]]
             np.add.at(self.var_means, (pixel_map[1], pixel_map[0]), delta / self.sample_counts[pixel_map[1], pixel_map[0]])
 
         delta2 = sample_intensities - self.var_means[pixel_map[1], pixel_map[0]]
         np.add.at(self.var_m2, (pixel_map[1], pixel_map[0]), delta * delta2)
-
         if not first:
             self.variances = self.var_m2 / (self.sample_counts - 1)
 

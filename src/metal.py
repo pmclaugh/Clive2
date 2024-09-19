@@ -384,7 +384,6 @@ if __name__ == '__main__':
 
     # render loop
     for i in range(samples):
-        print("--------------------")
         out_camera_image = dev.buffer(batch_size * 16)
         out_camera_paths = dev.buffer(batch_size * Path.itemsize)
         out_camera_debug_image = dev.buffer(batch_size * 16)
@@ -406,7 +405,7 @@ if __name__ == '__main__':
         # trace camera paths
         start_time = time.time()
         trace_fn(batch_size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug_image)
-        # print(f"Sample {i} camera trace time: {time.time() - start_time}")
+        print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
         # retrieve camera trace outputs
         unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
@@ -418,32 +417,32 @@ if __name__ == '__main__':
         rands = np.random.rand(light_rays.size * 32).astype(np.float32)
 
         # trace light paths
-        # start_time = time.time()
+        start_time = time.time()
         trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug_image)
-        # print(f"Sample {i} light trace time: {time.time() - start_time}")
+        print(f"Sample {i} light trace time: {time.time() - start_time}")
 
         # retrieve light trace outputs
         light_paths = np.frombuffer(out_light_paths, dtype=Path)
         retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
         # join paths
-        # start_time = time.time()
+        start_time = time.time()
         join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples, final_out_secondary_samples)
-        # print(f"Sample {i} join time: {time.time() - start_time}")
+        print(f"Sample {i} join time: {time.time() - start_time}")
 
         # retrieve joined path outputs
         bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-        # bidirectional_secondary_image = np.frombuffer(final_out_secondary_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+        bidirectional_secondary_image = np.frombuffer(final_out_secondary_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
-        # print(np.sum(np.isnan(bidirectional_image)), "nans in image")
-        # print(np.sum(np.any(np.isnan(bidirectional_image), axis=2)), "pixels with nans")
-        # print(np.sum(np.isinf(bidirectional_image)), "infs in image")
+        print(np.sum(np.isnan(bidirectional_image)), "nans in image")
+        print(np.sum(np.any(np.isnan(bidirectional_image), axis=2)), "pixels with nans")
+        print(np.sum(np.isinf(bidirectional_image)), "infs in image")
         bidirectional_image = np.nan_to_num(bidirectional_image, posinf=0.0, neginf=0.0)
 
-        # print(np.sum(np.isnan(bidirectional_secondary_image)), "nans in secondary image")
-        # print(np.sum(np.any(np.isnan(bidirectional_secondary_image), axis=2)), "pixels with nans in secondary image")
-        # print(np.sum(np.isinf(bidirectional_secondary_image)), "infs in secondary image")
-        # bidirectional_secondary_image = np.nan_to_num(bidirectional_secondary_image, posinf=0.0, neginf=0.0)
+        print(np.sum(np.isnan(bidirectional_secondary_image)), "nans in secondary image")
+        print(np.sum(np.any(np.isnan(bidirectional_secondary_image), axis=2)), "pixels with nans in secondary image")
+        print(np.sum(np.isinf(bidirectional_secondary_image)), "infs in secondary image")
+        bidirectional_secondary_image = np.nan_to_num(bidirectional_secondary_image, posinf=0.0, neginf=0.0)
 
         single_sample_image = c.process_samples(bidirectional_image, camera_ray_map)
         # c.process_samples(bidirectional_secondary_image, camera_ray_map, increment=False)
