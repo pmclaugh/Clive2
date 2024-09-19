@@ -113,29 +113,19 @@ class Camera:
         for pick in picks:
             pick_counts[pick] += 1
 
-        global max_pixel_key, max_val, max_var, max_mean
-        max_pixel_key = max(pick_counts, key=pick_counts.get)
-        max_val = pick_counts[max_pixel_key]
-        max_var = self.variances[max_pixel_key // self.pixel_width, max_pixel_key % self.pixel_width]
-        max_mean = self.var_means[max_pixel_key // self.pixel_width, max_pixel_key % self.pixel_width]
-        print(f"max pixel key {max_pixel_key} with {max_val} samples")
-        print(f"max variance {max_var} mean {max_mean}")
-
         return pixel_map, self.variances.reshape(self.pixel_height, self.pixel_width) / np.sum(self.variances)
 
     def process_samples(self, samples, pixel_map, increment=True):
         sample_intensities = np.linalg.norm(samples, axis=2)
         first = np.all(self.sample_counts == 0)
-
         if increment:
             np.add.at(self.sample_counts, (pixel_map[1], pixel_map[0]), 1)
-
         if first:
             delta = np.zeros_like(sample_intensities)
             self.var_means = sample_intensities
         else:
             delta = sample_intensities - self.var_means[pixel_map[1], pixel_map[0]]
-            np.add.at(self.var_means, (pixel_map[1], pixel_map[0]), delta / self.sample_counts[pixel_map[1], pixel_map[0]])
+            np.add.at(self.var_means, (pixel_map[1], pixel_map[0]), delta)
 
         delta2 = sample_intensities - self.var_means[pixel_map[1], pixel_map[0]]
         np.add.at(self.var_m2, (pixel_map[1], pixel_map[0]), delta * delta2)
@@ -145,15 +135,6 @@ class Camera:
         this_image = np.zeros_like(self.image)
         np.add.at(this_image, (pixel_map[1], pixel_map[0]), samples)
         self.image += this_image
-
-        global max_pixel_key, max_val, max_var, max_mean
-        if max_pixel_key is not None:
-            max_val = self.sample_counts[max_pixel_key // self.pixel_width, max_pixel_key % self.pixel_width]
-            max_var = self.variances[max_pixel_key // self.pixel_width, max_pixel_key % self.pixel_width]
-            max_mean = self.var_means[max_pixel_key // self.pixel_width, max_pixel_key % self.pixel_width]
-            print(f"after sampling, max pixel key {max_pixel_key} with {max_val} samples")
-            print(f"max variance {max_var} mean {max_mean}")
-
         return this_image
 
     def get_image(self):
