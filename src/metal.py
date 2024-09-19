@@ -399,7 +399,7 @@ if __name__ == '__main__':
         join_fn = dev.kernel(kernel).function("connect_paths")
 
         # make camera rays and rands
-        camera_rays, camera_ray_map = c.ray_batch_numpy(adaptive=i > 2)
+        camera_rays, camera_ray_map = c.ray_batch_numpy(adaptive=False)
         rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
 
         # trace camera paths
@@ -444,8 +444,8 @@ if __name__ == '__main__':
         print(np.sum(np.isinf(bidirectional_secondary_image)), "infs in secondary image")
         bidirectional_secondary_image = np.nan_to_num(bidirectional_secondary_image, posinf=0.0, neginf=0.0)
 
-        single_sample_image = c.process_samples(bidirectional_image, camera_ray_map)
-        c.process_samples(bidirectional_secondary_image, camera_ray_map, increment=False)
+        single_sample_image = c.fast_process_samples(bidirectional_image, camera_ray_map)
+        c.fast_process_samples(bidirectional_secondary_image, camera_ray_map, increment=False)
 
         # post processing. tone map, sum, division
         image = c.get_image()

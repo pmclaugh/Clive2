@@ -123,19 +123,38 @@ class Camera:
         return pixel_map, self.variances.reshape(self.pixel_height, self.pixel_width) / np.sum(self.variances)
 
     def process_samples(self, samples, pixel_map, increment=True):
-        sample_intensities = np.linalg.norm(samples, axis=2)
-
-        delta = sample_intensities - self.var_means[pixel_map[1], pixel_map[0]]
-        np.add.at(self.var_means, (pixel_map[1], pixel_map[0]), delta)
-        delta2 = sample_intensities - self.var_means[pixel_map[1], pixel_map[0]]
-        np.add.at(self.var_m2, (pixel_map[1], pixel_map[0]), delta * delta2)
+        sample_intensities = np.sum(samples, axis=2)
+        this_image = np.zeros_like(self.image)
+        for n, (i, j) in enumerate(zip(pixel_map[0].flatten(), pixel_map[1].flatten())):
+            sample = samples[n // self.pixel_width, n % self.pixel_width]
+            this_image[j, i] += sample
+            if increment:
+                self.sample_counts[j, i] += 1
+            delta = sample_intensities[j, i] - self.var_means[j, i]
+            self.var_means[j, i] += delta / self.sample_counts[j, i]
+            delta2 = sample_intensities[j, i] - self.var_means[j, i]
+            self.var_m2[j, i] += delta * delta2
         self.variances = self.var_m2 / (self.sample_counts - 1)
+        self.image += this_image
 
+        global max_pixel_key, max_val, max_var, max_mean
+        if max_pixel_key is not None:
+            max_var = self.variances.flatten()[max_pixel_key]
+            max_mean = self.var_means.flatten()[max_pixel_key]
+            print(f"after sample, the most picked pixel ({max_pixel_key}) has mean {max_mean} and variance {max_var}")
+            max_pixel_key = None
+            max_val = None
+            max_var = None
+            max_mean = None
+
+        return this_image
+
+    def fast_process_samples(self, samples, pixel_map, increment=True):
         this_image = np.zeros_like(self.image)
         np.add.at(this_image, (pixel_map[1], pixel_map[0]), samples)
         self.image += this_image
         if increment:
-            np.add.at(self.sample_counts, (pixel_map[1], pixel_map[0]), 1)
+            self.sample_counts[pixel_map[1], pixel_map[0]] += 1
         return this_image
 
     def get_image(self):
