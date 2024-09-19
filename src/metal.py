@@ -313,7 +313,7 @@ def dummy_smooth_normals(triangles):
 if __name__ == '__main__':
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--samples', type=int, default=50)
+    parser.add_argument('--samples', type=int, default=15)
     parser.add_argument('--width', type=int, default=1280)
     parser.add_argument('--height', type=int, default=720)
     parser.add_argument('--frame-number', type=int, default=0)
@@ -399,7 +399,7 @@ if __name__ == '__main__':
         join_fn = dev.kernel(kernel).function("connect_paths")
 
         # make camera rays and rands
-        camera_rays, camera_ray_map = c.ray_batch_numpy(adaptive=False)
+        camera_rays, camera_ray_map = c.ray_batch_numpy(adaptive=i > 4)
         rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
 
         # trace camera paths
@@ -456,6 +456,6 @@ if __name__ == '__main__':
 
     # save the image
     if args.total_frames == 1:
-        cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', image)
+        cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)
     else:
-        cv2.imwrite(f'../output/{args.movie_name}/frame_{args.frame_number:04d}.png', image)
+        cv2.imwrite(f'../output/{args.movie_name}/frame_{args.frame_number:04d}.png', to_display)

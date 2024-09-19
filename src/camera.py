@@ -40,6 +40,15 @@ class Camera:
         self.origin = center - self.dx * phys_width / 2 - self.dy * phys_height / 2
         self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float64)
 
+    def make_ray(self, i, j):
+        n1 = np.random.random()
+        n2 = np.random.random()
+        origin = self.origin + self.dx_dp * (j + n1) + self.dy_dp * (i + n2)
+        ray = Ray(origin, unit(self.focal_point - origin))
+        ray.i = i
+        ray.j = j
+        return ray
+
     def ray_batch(self, pixels):
         indices = pixels[0] * self.pixel_width + pixels[1]
         offsets = np.random.rand(2, self.pixel_height, self.pixel_width)
@@ -53,13 +62,9 @@ class Camera:
     def ray_batch_numpy(self, adaptive=False):
         batch = np.zeros((self.pixel_height, self.pixel_width), dtype=Ray)
         if adaptive:
-            grid, weights = self.adaptive_grid
-            origins, directions, indices, pixels = self.ray_batch(grid)
+            origins, directions, indices, pixels = self.ray_batch(self.adaptive_grid)
         else:
-            grid = self.grid
-            weights = np.ones(batch.shape) / (self.phys_width * self.phys_height)
-            origins, directions, indices, pixels = self.ray_batch(grid)
-        weights = np.ones(batch.shape) / (self.phys_width * self.phys_height)
+            origins, directions, indices, pixels = self.ray_batch(self.grid)
         batch['origin'] = 0
         batch['origin'][:, :, :3] = origins + 0.0001 * directions
         batch['direction'] = 0
@@ -67,9 +72,9 @@ class Camera:
         batch['inv_direction'] = 0
         batch['inv_direction'][:, :, :3] = 1.0 / directions
         batch['color'] = np.ones(4)
-        batch['c_importance'] = weights
+        batch['c_importance'] = 1.0 / (self.phys_width * self.phys_height)
         batch['l_importance'] = 1.0  # set in kernel
-        batch['tot_importance'] = weights
+        batch['tot_importance'] = 1.0 / (self.phys_width * self.phys_height)
         batch['hit_light'] = -1
         batch['hit_camera'] = -1
         batch['material'] = -1
@@ -114,7 +119,7 @@ class Camera:
             self.var_means[j, i] += delta / self.sample_counts[j, i]
             delta2 = sample_intensities[j, i] - self.var_means[j, i]
             self.var_m2[j, i] += delta * delta2
-        self.variances = self.var_m2 / (self.var_means * self.sample_counts)
+        self.variances = self.var_m2 / self.sample_counts
 
     def get_image(self):
         return tone_map(self.image / (self.sample_counts.reshape(self.pixel_height, self.pixel_width, 1)))
