@@ -82,8 +82,8 @@ class Camera:
         batch['normal'][:, :, :3] = directions
         batch['from_camera'] = 1
         batch['triangle'] = -1
-        batch['i'] = pixels[0]
-        batch['j'] = pixels[1]
+        batch['i'] = indices % self.pixel_height
+        batch['j'] = indices // self.pixel_width
         return batch, pixels
 
     def to_struct(self):
