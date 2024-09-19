@@ -104,17 +104,16 @@ class Camera:
         variance_roller = np.cumsum(self.variances).flatten()
         rolls = np.random.rand(self.pixel_height * self.pixel_width) * np.max(variance_roller)
         picks = np.searchsorted(variance_roller, rolls)
-        pixel_map = np.zeros((2, self.pixel_height, self.pixel_width), dtype=np.int32)
-        pixel_map[0] = np.reshape(picks % self.pixel_width, (self.pixel_height, self.pixel_width))
-        pixel_map[1] = np.reshape(picks // self.pixel_width, (self.pixel_height, self.pixel_width))
-        return pixel_map, self.variances.reshape(self.pixel_height, self.pixel_width) / np.sum(self.variances)
+        map = np.zeros((2, self.pixel_height, self.pixel_width), dtype=np.int32)
+        map[0] = np.reshape(picks // self.pixel_height, (self.pixel_height, self.pixel_width))
+        map[1] = np.reshape(picks % self.pixel_height, (self.pixel_height, self.pixel_width))
+        return map
 
-    def process_samples(self, samples, pixel_map, increment=True):
+    def process_samples(self, samples, map):
         sample_intensities = np.sum(samples, axis=2)
-        for n, (i, j) in enumerate(zip(pixel_map[0].flatten(), pixel_map[1].flatten())):
-            self.image[j, i] += samples[n // self.pixel_width, n % self.pixel_width]
-            if increment:
-                self.sample_counts[j, i] += 1
+        for (i, j) in zip(map[0].flatten(), map[1].flatten()):
+            self.image[j, i] += samples[j, i]
+            self.sample_counts[j, i] += 1
             delta = sample_intensities[j, i] - self.var_means[j, i]
             self.var_means[j, i] += delta / self.sample_counts[j, i]
             delta2 = sample_intensities[j, i] - self.var_means[j, i]
