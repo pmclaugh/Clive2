@@ -398,8 +398,13 @@ if __name__ == '__main__':
         join_fn = dev.kernel(kernel).function("connect_paths")
 
         # make camera rays and rands
+        camera_ray_start_time = time.time()
         camera_rays = c.ray_batch_numpy().flatten()
-        rands = np.random.rand(camera_rays.size * 64).astype(np.float32)
+        print(f"Create camera rays in {time.time() - camera_ray_start_time}")
+
+        rand_start_time = time.time()
+        rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
+        print(f"Create camera rands in {time.time() - rand_start_time}")
 
         # trace camera paths
         start_time = time.time()
@@ -412,8 +417,13 @@ if __name__ == '__main__':
         retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
         # make light rays and rands
+        light_ray_start_time = time.time()
         light_rays = fast_generate_light_rays(triangles, camera_rays.size)
-        rands = np.random.rand(light_rays.size * 64).astype(np.float32)
+        print(f"Create light rays in {time.time() - light_ray_start_time}")
+
+        rand_start_time = time.time()
+        rands = np.random.rand(light_rays.size * 32).astype(np.float32)
+        print(f"Create light rands in {time.time() - rand_start_time}")
 
         # trace light paths
         start_time = time.time()
@@ -428,6 +438,8 @@ if __name__ == '__main__':
         start_time = time.time()
         join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples)
         print(f"Sample {i} join time: {time.time() - start_time}")
+
+        post_start_time = time.time()
 
         # retrieve joined path outputs
         bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
@@ -449,6 +461,7 @@ if __name__ == '__main__':
 
         # display the image
         cv2.imshow('image', to_display)
+        print(f"Post processing time: {time.time() - post_start_time}")
         cv2.waitKey(1)
 
     # save the image

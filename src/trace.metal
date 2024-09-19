@@ -701,7 +701,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float g = 1.0f;
 
             if (s == 0) {color = camera_path.rays[t - 2].color;}
-            else if (t == 0) {continue; color = light_path.rays[s - 2].color;}
+            else if (t == 0) {color = light_path.rays[s - 2].color;}
             else if (t == 1) {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 if (s == 1) {color = light_ray.color * abs(dot(light_ray.normal, dir_l_to_c));}
