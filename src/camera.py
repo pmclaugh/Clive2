@@ -23,7 +23,6 @@ class Camera:
         self.sample_counts = np.zeros((pixel_height, pixel_width), dtype=np.int64)
         self.variances = np.zeros_like(self.sample_counts, dtype=np.float64)
         self.means = np.zeros_like(self.sample_counts, dtype=np.float64)
-        self.sums = np.zeros_like(self.sample_counts, dtype=np.float64)
         self.m2 = np.zeros_like(self.sample_counts, dtype=np.float64)
 
         if abs(self.direction[0]) < FLOAT_TOLERANCE:
@@ -112,50 +111,37 @@ class Camera:
         for pick in picks:
             pick_counts[pick] += 1
 
-        max_pick = 0
-        max_count = 0
-        for pick, count in pick_counts.items():
-            if count > max_count:
-                max_pick = pick
-                max_count = count
-
-        print(f"max pick count {max_count} at {max_pick}, min pick count {np.min(list(pick_counts.values()))}")
-
-        print(f"sum of picks {np.sum(list(pick_counts.values()))}")
+        print(f"max pick count {np.max(list(pick_counts.values()))}, min pick count {np.min(list(pick_counts.values()))}")
 
         return pixel_map, self.variances.reshape(self.pixel_height, self.pixel_width) / np.sum(self.variances)
 
-    def process_samples(self, samples, pixel_map, increment=True, adaptive=False):
-        if not adaptive:
-            self.sample_counts += 1
-            self.image += samples
-            return
-
+    def process_samples(self, samples, pixel_map, increment=True):
         sample_intensities = np.linalg.norm(samples, axis=2)
         first = np.all(self.sample_counts == 0)
-        this_sample_counts = np.zeros_like(self.sample_counts)
-        for n, (i, j) in enumerate(zip(pixel_map[1].flatten(), pixel_map[0].flatten())):
-            # i, j are the pixel
-            # a, b are the sample
 
-            a, b = n // self.pixel_width, n % self.pixel_width
+        if first:
+            self.means[:] = sample_intensities
+            self.sample_counts += 1
+            self.image += samples
+        else:
+            for n, (i, j) in enumerate(zip(pixel_map[1].flatten(), pixel_map[0].flatten())):
+                # i, j are the pixel
+                # a, b are the sample
 
-            if increment:
-                self.sample_counts[i, j] += 1
-                this_sample_counts[i, j] += 1
+                a, b = n // self.pixel_width, n % self.pixel_width
 
-            delta = sample_intensities[a, b] - self.means[i, j]
-            self.means[i, j] += delta / self.sample_counts[i, j]
-            delta2 = sample_intensities[a, b] - self.means[i, j]
-            self.m2[i, j] += delta * delta2
+                if increment:
+                    self.sample_counts[i, j] += 1
 
-            self.image[i, j] += samples[a, b]
+                delta = sample_intensities[a, b] - self.means[i, j]
+                self.means[i, j] += delta / self.sample_counts[i, j]
+                delta2 = sample_intensities[a, b] - self.means[i, j]
+                self.m2[i, j] += delta * delta2
 
-        if not first:
+                self.image[i, j] += samples[a, b]
+
             self.variances = self.m2 / (self.sample_counts - 1)
-        print(f"max variance {np.max(self.variances)}, min variance {np.min(self.variances)}")
-        print("sample count", np.sum(this_sample_counts))
-        print("most sampled", np.max(this_sample_counts), "at", np.argmax(this_sample_counts))
+            print(f"max variance {np.max(self.variances)}, min variance {np.min(self.variances)}")
 
     def get_image(self):
         return tone_map(self.image / (self.sample_counts.reshape(self.pixel_height, self.pixel_width, 1).astype(float)))
