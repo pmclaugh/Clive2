@@ -393,14 +393,13 @@ if __name__ == '__main__':
         out_light_debug_image = dev.buffer(batch_size * 16)
 
         final_out_samples = dev.buffer(batch_size * 16)
-        final_out_secondary_samples = dev.buffer(batch_size * 16)
 
         trace_fn = dev.kernel(kernel).function("generate_paths")
         join_fn = dev.kernel(kernel).function("connect_paths")
 
         # make camera rays and rands
-        camera_rays, camera_ray_map = c.ray_batch_numpy(adaptive=i > 5)
-        rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
+        camera_rays = c.ray_batch_numpy().flatten()
+        rands = np.random.rand(camera_rays.size * 64).astype(np.float32)
 
         # trace camera paths
         start_time = time.time()
@@ -414,7 +413,7 @@ if __name__ == '__main__':
 
         # make light rays and rands
         light_rays = fast_generate_light_rays(triangles, camera_rays.size)
-        rands = np.random.rand(light_rays.size * 32).astype(np.float32)
+        rands = np.random.rand(light_rays.size * 64).astype(np.float32)
 
         # trace light paths
         start_time = time.time()
@@ -427,31 +426,29 @@ if __name__ == '__main__':
 
         # join paths
         start_time = time.time()
-        join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples, final_out_secondary_samples)
+        join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples)
         print(f"Sample {i} join time: {time.time() - start_time}")
 
         # retrieve joined path outputs
         bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-        bidirectional_secondary_image = np.frombuffer(final_out_secondary_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-
-        print(np.sum(np.isnan(bidirectional_image)), "nans in image")
-        print(np.sum(np.any(np.isnan(bidirectional_image), axis=2)), "pixels with nans")
-        print(np.sum(np.isinf(bidirectional_image)), "infs in image")
-        bidirectional_image = np.nan_to_num(bidirectional_image, posinf=0, neginf=0)
-
-        print(np.sum(np.isnan(bidirectional_secondary_image)), "nans in secondary image")
-        print(np.sum(np.any(np.isnan(bidirectional_secondary_image), axis=2)), "pixels with nans in secondary image")
-        print(np.sum(np.isinf(bidirectional_secondary_image)), "infs in secondary image")
-        bidirectional_secondary_image = np.nan_to_num(bidirectional_secondary_image, posinf=0, neginf=0)
-
-        c.process_samples(bidirectional_image, camera_ray_map)
-        c.process_samples(bidirectional_secondary_image, c.grid)
 
         # post processing. tone map, sum, division
-        image = c.get_image()
+        image = bidirectional_image
+
+        print(np.sum(np.isnan(image)), "nans in image")
+        print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
+        print(np.sum(np.isinf(image)), "infs in image")
+        summed_image += np.nan_to_num(image, posinf=0, neginf=0)
+        if np.any(np.isnan(summed_image)):
+            print("NaNs in summed image!!!")
+            break
+        to_display = tone_map(summed_image / (i + 1))
+        if np.any(np.isnan(to_display)):
+            print("NaNs in to_display!!!")
+            break
 
         # display the image
-        cv2.imshow('image', image)
+        cv2.imshow('image', to_display)
         cv2.waitKey(1)
 
     # save the image

@@ -18,9 +18,6 @@ struct Ray {
     int32_t hit_light;
     int32_t from_camera;
     int32_t hit_camera;
-    int32_t i;
-    int32_t j;
-    int32_t pad[2];
 };
 
 struct Path {
@@ -582,26 +579,24 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Material *materials [[ buffer(3) ]],
                           const device Box *boxes [[ buffer(4) ]],
                           const device Camera *camera [[ buffer(5) ]],
-                          device float4 *out_image [[ buffer(6) ]],
-                          device float4 *out_secondary_image [[ buffer(7) ]],
+                          device float4 *out [[ buffer(6) ]],
                           uint id [[ thread_position_in_grid ]]) {
 
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
 
     float p_ratios[32];
-    int sample_index;
-    bool primary = true;
+    int sample_index = id;
 
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
 
             Ray light_ray;
             Ray camera_ray;
+            sample_index = id;
+
             camera_path = camera_paths[id];
             light_path = light_paths[id];
-            sample_index = camera_path.rays[0].j * camera[0].pixel_width + camera_path.rays[0].i;
-
 
             if (s + t < 2) {continue;}
             else if (t == 0){
@@ -610,7 +605,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (light_ray.hit_camera < 0) {continue;}
                 sample_index = get_sample_index(light_ray.origin, camera[0]);
                 if (sample_index < 0) {continue;}
-                primary = false;
                 continue;
             }
             else if (t == 1) {
@@ -623,7 +617,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 camera_ray.c_importance = camera_path.rays[0].c_importance;
                 camera_ray.tot_importance = camera_path.rays[0].tot_importance;
                 camera_path.rays[0] = camera_ray;
-                primary = false;
             }
             else if (s == 0) {
                 // this is where a camera ray hits the light source.
@@ -752,8 +745,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
-            if (primary) {out_image[sample_index] += float4((w * g * color) / p_s, 1.0f);}
-            else {out_secondary_image[sample_index] += float4((w * g * color) / p_s, 1.0f);}
+            out[sample_index] += float4((w * g * color) / p_s, 1.0f);
         }
     }
 }

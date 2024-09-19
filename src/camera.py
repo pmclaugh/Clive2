@@ -7,6 +7,8 @@ from struct_types import Ray
 from struct_types import Camera as camera_struct
 
 
+
+
 class Camera:
     def __init__(self, center=point(0, 0, 0), direction=vec(1, 0, 0), phys_width=1.0, phys_height=1.0,
                  pixel_width=1280, pixel_height=720):
@@ -19,10 +21,7 @@ class Camera:
         self.pixel_width = pixel_width
         self.pixel_height = pixel_height
         self.samples = 0
-        self.sample_counts = np.zeros((pixel_height, pixel_width), dtype=np.int64)
-        self.variances = np.zeros_like(self.sample_counts, dtype=np.float64)
-        self.var_means = np.zeros_like(self.sample_counts, dtype=np.float64)
-        self.var_m2 = np.zeros_like(self.sample_counts, dtype=np.float64)
+        self.sample_counts = np.zeros((MAX_BOUNCES + 2, MAX_BOUNCES + 2), dtype=np.int64)
 
         if abs(self.direction[0]) < FLOAT_TOLERANCE:
             self.dx = UNIT_X if direction[2] > 0 else UNIT_X * -1
@@ -36,9 +35,13 @@ class Camera:
 
         self.dx_dp = self.dx * self.phys_width / self.pixel_width
         self.dy_dp = self.dy * self.phys_height / self.pixel_height
+
         self.pixel_phys_size = np.linalg.norm(self.dx_dp) * np.linalg.norm(self.dy_dp)
+
         self.origin = center - self.dx * phys_width / 2 - self.dy * phys_height / 2
+
         self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float64)
+        self.images = np.zeros((MAX_BOUNCES + 2, MAX_BOUNCES + 2, pixel_height, pixel_width, 3), dtype=np.float64)
 
     def make_ray(self, i, j):
         n1 = np.random.random()
@@ -49,22 +52,19 @@ class Camera:
         ray.j = j
         return ray
 
-    def ray_batch(self, pixels):
-        indices = pixels[0] * self.pixel_width + pixels[1]
+    def ray_batch(self):
+        pixels = np.meshgrid(np.arange(self.pixel_width), np.arange(self.pixel_height))
         offsets = np.random.rand(2, self.pixel_height, self.pixel_width)
         x_vectors = np.expand_dims(pixels[0] + offsets[0], axis=2) * self.dx_dp
         y_vectors = np.expand_dims(pixels[1] + offsets[1], axis=2) * self.dy_dp
         origins = self.origin + x_vectors + y_vectors
         directions = self.focal_point - origins
         directions = directions / np.linalg.norm(directions, axis=2)[:, :, np.newaxis]
-        return origins, directions, indices, pixels
+        return origins, directions
 
-    def ray_batch_numpy(self, adaptive=False):
+    def ray_batch_numpy(self):
         batch = np.zeros((self.pixel_height, self.pixel_width), dtype=Ray)
-        if adaptive:
-            origins, directions, indices, pixels = self.ray_batch(self.adaptive_grid)
-        else:
-            origins, directions, indices, pixels = self.ray_batch(self.grid)
+        origins, directions = self.ray_batch()
         batch['origin'] = 0
         batch['origin'][:, :, :3] = origins + 0.0001 * directions
         batch['direction'] = 0
@@ -82,9 +82,7 @@ class Camera:
         batch['normal'][:, :, :3] = directions
         batch['from_camera'] = 1
         batch['triangle'] = -1
-        batch['i'] = indices % self.pixel_height
-        batch['j'] = indices // self.pixel_width
-        return batch, pixels
+        return batch
 
     def to_struct(self):
         c = np.zeros(1, dtype=camera_struct)
@@ -98,36 +96,6 @@ class Camera:
         c[0]['phys_width'] = self.phys_width
         c[0]['phys_height'] = self.phys_height
         return c
-
-    @property
-    def adaptive_grid(self):
-        # do a weighted roll over variances to determine pixel samples
-        # prefix sum variances
-        variance_roller = np.cumsum(self.variances).flatten()
-        rolls = np.random.rand(self.pixel_height * self.pixel_width) * np.max(variance_roller)
-        picks = np.searchsorted(variance_roller, rolls)
-        map = np.zeros((2, self.pixel_height, self.pixel_width), dtype=np.int32)
-        map[0] = np.reshape(picks % self.pixel_height, (self.pixel_width, self.pixel_height))
-        map[1] = np.reshape(picks // self.pixel_height, (self.pixel_width, self.pixel_height))
-        return map
-
-    def process_samples(self, samples, map):
-        sample_intensities = np.sum(samples, axis=2)
-        for (i, j) in zip(map[0], map[1]):
-            self.image[j, i] += samples[j, i]
-            self.sample_counts[j, i] += 1
-            delta = sample_intensities[j, i] - self.var_means[j, i]
-            self.var_means[j, i] += delta / self.sample_counts[j, i]
-            delta2 = sample_intensities[j, i] - self.var_means[j, i]
-            self.var_m2[j, i] += delta * delta2
-        self.variances = self.var_m2 / self.sample_counts
-
-    def get_image(self):
-        return tone_map(self.image / (self.sample_counts.reshape(self.pixel_height, self.pixel_width, 1)))
-
-    @property
-    def grid(self):
-        return np.array(np.meshgrid(np.arange(self.pixel_width), np.arange(self.pixel_height)))
 
 
 def composite_image(camera):
