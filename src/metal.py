@@ -445,7 +445,7 @@ if __name__ == '__main__':
         bidirectional_secondary_image = np.nan_to_num(bidirectional_secondary_image, posinf=0.0, neginf=0.0)
 
         single_sample_image = c.process_samples(bidirectional_image, camera_ray_map)
-        # c.process_samples(bidirectional_secondary_image, camera_ray_map, increment=False)
+        c.process_samples(bidirectional_secondary_image, camera_ray_map, increment=False)
 
         # post processing. tone map, sum, division
         image = c.get_image()
