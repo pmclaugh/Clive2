@@ -27,7 +27,7 @@ class Camera:
         self.samples = 0
         self.sample_counts = np.ones((pixel_height, pixel_width), dtype=np.int64)
         self.variances = np.zeros_like(self.sample_counts, dtype=np.float64)
-        self.var_means = np.zeros_like(self.sample_counts, dtype=np.float64)
+        self.var_means = np.ones_like(self.sample_counts, dtype=np.float64)
         self.var_m2 = np.zeros_like(self.sample_counts, dtype=np.float64)
 
         if abs(self.direction[0]) < FLOAT_TOLERANCE:
@@ -124,18 +124,12 @@ class Camera:
 
     def process_samples(self, samples, pixel_map, increment=True):
         sample_intensities = np.linalg.norm(samples, axis=2)
-        first = np.all(self.sample_counts == 0)
-        if first:
-            delta = np.zeros_like(sample_intensities)
-            self.var_means = sample_intensities
-        else:
-            delta = sample_intensities - self.var_means[pixel_map[1], pixel_map[0]]
-            np.add.at(self.var_means, (pixel_map[1], pixel_map[0]), delta)
 
+        delta = sample_intensities - self.var_means[pixel_map[1], pixel_map[0]]
+        np.add.at(self.var_means, (pixel_map[1], pixel_map[0]), delta)
         delta2 = sample_intensities - self.var_means[pixel_map[1], pixel_map[0]]
         np.add.at(self.var_m2, (pixel_map[1], pixel_map[0]), delta * delta2)
-        if not first:
-            self.variances = self.var_m2 / (self.sample_counts - 1)
+        self.variances = self.var_m2 / (self.sample_counts - 1)
 
         this_image = np.zeros_like(self.image)
         np.add.at(this_image, (pixel_map[1], pixel_map[0]), samples)
