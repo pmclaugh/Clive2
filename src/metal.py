@@ -382,18 +382,18 @@ if __name__ == '__main__':
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
     batch_size = c.pixel_width * c.pixel_height
 
+    out_camera_image = dev.buffer(batch_size * 16)
+    out_camera_paths = dev.buffer(batch_size * Path.itemsize)
+    out_camera_debug_image = dev.buffer(batch_size * 16)
+
+    out_light_image = dev.buffer(batch_size * 16)
+    out_light_paths = dev.buffer(batch_size * Path.itemsize)
+    out_light_debug_image = dev.buffer(batch_size * 16)
+
+    final_out_samples = dev.buffer(batch_size * 16)
+
     # render loop
     for i in range(samples):
-        out_camera_image = dev.buffer(batch_size * 16)
-        out_camera_paths = dev.buffer(batch_size * Path.itemsize)
-        out_camera_debug_image = dev.buffer(batch_size * 16)
-
-        out_light_image = dev.buffer(batch_size * 16)
-        out_light_paths = dev.buffer(batch_size * Path.itemsize)
-        out_light_debug_image = dev.buffer(batch_size * 16)
-
-        final_out_samples = dev.buffer(batch_size * 16)
-
         trace_fn = dev.kernel(kernel).function("generate_paths")
         join_fn = dev.kernel(kernel).function("connect_paths")
 

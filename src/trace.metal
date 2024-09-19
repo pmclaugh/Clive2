@@ -318,7 +318,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     return coeff * num / denom;
 }
 
-float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread float3 &signed_n, const thread Material material) {
+float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread Material material) {
     if (material.type == 0) {
         return abs(dot(o, n));
     }
@@ -337,14 +337,14 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             float3 m = specular_reflect_half_direction(i, o);
             if (dot(m, n) <= 0.0f || dot(m, geom_n) <= 0.0f) {return 0.0f;}
             if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
-            return GGX_BRDF_reflect(i, o, m, signed_n, ni, no, alpha);
+            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
         }
         else if (dot(i, geom_n) * dot(o, geom_n) < 0 && dot(i, n) * dot(o, n) < 0) {
             float3 m = specular_transmit_half_direction(-i, o, ni, no);
             //if (dot(-i, o) <= 0.0f) {return 0.0f;}
             if (dot(m, n) <= 0.0f || dot(m, geom_n) <= 0.0f) {return 0.0f;}
             if (dot(i, m) <= 0.0f || dot(o, m) >= 0.0f) {return 0.0f;}
-            return GGX_BRDF_transmit(i, o, m, signed_n, ni, no, alpha);
+            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
         }
         else {
             return 0.0f;
@@ -587,6 +587,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
     float p_ratios[32];
     int sample_index = id;
+    out[id] = float4(0.0f);
 
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -710,8 +711,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                     Material light_material = materials[light_ray.material];
                     float3 light_geom_normal = triangles[light_ray.triangle].normal;
-                    float3 signed_light_normal = light_geom_normal * sign(dot(light_geom_normal, dir_l_to_c));
-                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, signed_light_normal, light_material);
+                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                     color = prior_light_color * new_light_f * light_material.color;
                     g = geometry_term(light_ray, camera_ray);
                }
@@ -727,8 +727,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
-                float3 signed_camera_normal = camera_geom_normal * sign(dot(camera_geom_normal, -dir_l_to_c));
-                float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, signed_camera_normal, camera_material);
+                float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, camera_material);
                 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
                 float3 light_color = float3(1.0f);
@@ -741,8 +740,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                     Material light_material = materials[light_ray.material];
                     float3 light_geom_normal = triangles[light_ray.triangle].normal;
-                    float3 signed_light_normal = light_geom_normal * sign(dot(light_geom_normal, dir_l_to_c));
-                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, signed_light_normal, light_material);
+                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                     light_color = prior_light_color * new_light_f * light_material.color;
                 }
                 color = camera_color * light_color;
