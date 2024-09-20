@@ -373,7 +373,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     out[id] = float4(0, 0, 0, 1);
 
     if (path.from_camera == 0) {
-        ray.normal = ray.direction;
         float3 x, y;
         orthonormal(ray.normal, x, y);
         float2 random_roll = random_buffer[id * 16 + 15];
@@ -520,9 +519,9 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
 
     float camera_cos, light_cos;
     camera_cos = abs(dot(a.normal, delta));
-    light_cos = abs(dot(b.normal, delta));
+    light_cos = abs(dot(b.normal, -delta));
 
-    return (camera_cos * light_cos) / (dist);
+    return (camera_cos * light_cos) / (dist * dist);
 }
 
 
@@ -593,7 +592,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
         for (int s = 0; s < light_path.length + 1; s++){
 
             Ray light_ray;
+            light_ray.triangle = -1;
             Ray camera_ray;
+            camera_ray.triangle = -1;
             sample_index = id;
 
             camera_path = camera_paths[id];
@@ -605,8 +606,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 light_ray = light_path.rays[s - 1];
                 if (light_ray.hit_camera < 0) {continue;}
                 sample_index = get_sample_index(light_ray.origin, camera[0]);
-                if (sample_index < 0) {continue;}
-                continue;
+                if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
                 // light visibility to camera plane. WIP.
@@ -632,10 +632,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                if (abs(dot(light_ray.normal, dir_l_to_c)) < 0) {continue;}
-                if (abs(dot(camera_ray.normal, -dir_l_to_c)) < 0) {continue;}
+                if (abs(dot(light_ray.normal, dir_l_to_c)) < DELTA) {continue;}
+                if (abs(dot(camera_ray.normal, -dir_l_to_c)) < DELTA) {continue;}
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)) {continue;}
             }
+
+            if (light_ray.triangle == camera_ray.triangle) {continue;}
 
             for (int i = 0; i < 32; i++) {p_ratios[i] = 1.0f;}
 
@@ -700,8 +702,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float3 color = float3(1.0f);
             float g = 1.0f;
 
-            if (s == 0) {color = camera_path.rays[t - 2].color;}
-            else if (t == 0) {color = light_path.rays[s - 2].color;}
+            if (s == 0) {continue; color = camera_path.rays[t - 2].color;}
+            else if (t == 0) {continue; color = light_path.rays[s - 2].color;}
             else if (t == 1) {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 if (s == 1) {color = light_ray.color * abs(dot(light_ray.normal, dir_l_to_c));}
@@ -717,8 +719,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                }
             }
             else {
-                // continue;
-
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 float3 camera_color = float3(1.0f);
 
