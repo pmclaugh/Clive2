@@ -678,32 +678,33 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else {prior_light_importance = light_path.rays[s - 2].tot_importance;}
 
             float p_s = prior_camera_importance * prior_light_importance;
-            float p_i = p_s;
+
+            float p_i = 1.0f;
 
             for (int i = s; i < s + t; i++) {
                 p_ratios[i] = p_ratios[i] * p_i;
                 p_i = p_ratios[i];
             }
 
-            p_i = p_s;
+            p_i = 1.0f;
 
             for (int i = s - 1; i >= 0; i--) {
                 p_ratios[i] = p_i / p_ratios[i];
                 p_i = p_ratios[i];
             }
 
-            float sum = p_s;
+            float sum = 1.0f;
             for (int i = 0; i < s + t; i++) {sum += p_ratios[i];}
 
             float w;
-            if (sum > 0.0f) {w = p_s / sum;}
+            if (sum > 0.0f) {w = 1.0f / sum;}
             else {w = 0.0f;}
 
             float3 color = float3(1.0f);
             float g = 1.0f;
 
-            if (s == 0) {continue; color = camera_path.rays[t - 2].color;}
-            else if (t == 0) {continue; color = light_path.rays[s - 2].color;}
+            if (s == 0) {color = camera_path.rays[t - 2].color;}
+            else if (t == 0) {color = light_path.rays[s - 2].color;}
             else if (t == 1) {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 if (s == 1) {color = light_ray.color * abs(dot(light_ray.normal, dir_l_to_c));}
