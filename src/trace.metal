@@ -636,6 +636,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
 
             if (light_ray.triangle == camera_ray.triangle) {continue;}
+            if (materials[light_ray.material].type == 1 || materials[camera_ray.material].type == 1) {continue;}
 
             float p_ratios[32];
             float p_values[32];
@@ -696,15 +697,15 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             for (int i = 0; i < s + t + 1; i++) {
                 if (materials[get_ray(camera_path, light_path, t, s, i).material].type == 1) {
-                    p_ratios[i] = 0.0f;
+                    p_values[i] = 0.0f;
                     if (i < s + t) {
-                        p_ratios[i + 1] = 0.0f;
+                        p_values[i + 1] = 0.0f;
                     }
                 }
             }
 
             float sum = 0.0f;
-            for (int i = 0; i < s + t; i++) {sum += p_values[i];}
+            for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}
 
             float w;
             if (sum > 0.0f && p_values[s] > 0.0f) {w = p_values[s] / sum;}
