@@ -65,11 +65,8 @@ class Camera:
     def ray_batch_numpy(self):
         batch = np.zeros((self.pixel_height, self.pixel_width), dtype=Ray)
         origins, directions = self.ray_batch()
-        batch['origin'] = 0
         batch['origin'][:, :, :3] = origins + 0.0001 * directions
-        batch['direction'] = 0
         batch['direction'][:, :, :3] = directions
-        batch['inv_direction'] = 0
         batch['inv_direction'][:, :, :3] = 1.0 / directions
         batch['color'] = np.ones(4)
         batch['c_importance'] = 1.0 / (self.phys_width * self.phys_height)
@@ -77,8 +74,6 @@ class Camera:
         batch['tot_importance'] = 1.0 / (self.phys_width * self.phys_height)
         batch['hit_light'] = -1
         batch['hit_camera'] = -1
-        batch['material'] = -1
-        batch['normal'] = 0
         batch['normal'][:, :, :3] = directions
         batch['from_camera'] = 1
         batch['triangle'] = -1

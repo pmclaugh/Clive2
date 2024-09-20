@@ -380,7 +380,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         ray.inv_direction = 1.0f / ray.direction;
         ray.color *= dot(ray.direction, ray.normal) / PI;
         new_ray.l_importance = dot(ray.direction, ray.normal) / PI;
-        ray.tot_importance = ray.tot_importance * new_ray.l_importance;
     }
     else {
         new_ray.c_importance = ray.c_importance;
@@ -669,12 +668,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float prior_camera_importance;
             if (t == 0) {prior_camera_importance = 1.0f;}
-            else if (t == 1) {prior_camera_importance = camera_path.rays[0].c_importance;}
+            else if (t == 1) {prior_camera_importance = camera_path.rays[0].tot_importance;}
             else {prior_camera_importance = camera_path.rays[t - 2].tot_importance;}
 
             float prior_light_importance;
             if (s == 0) {prior_light_importance = 1.0f;}
-            else if (s == 1) {prior_light_importance = light_path.rays[0].l_importance;}
+            else if (s == 1) {prior_light_importance = light_path.rays[0].tot_importance;}
             else {prior_light_importance = light_path.rays[s - 2].tot_importance;}
 
             float p_s = prior_camera_importance * prior_light_importance;
