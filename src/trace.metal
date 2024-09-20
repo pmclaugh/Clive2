@@ -583,7 +583,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
 
-    float p_ratios[32];
     int sample_index = id;
     out[id] = float4(0.0f);
 
@@ -638,7 +637,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             if (light_ray.triangle == camera_ray.triangle) {continue;}
 
-            for (int i = 0; i < 32; i++) {p_ratios[i] = 1.0f;}
+            float p_ratios[32];
+            float p_values[32];
 
             // set up p_ratios like p1/p0, p2/p1, p3/p2, ... out to pk+1/pk, where k = s + t - 1
             for (int i = 0; i < s + t; i++) {
@@ -676,26 +676,39 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float p_s = prior_camera_importance * prior_light_importance;
 
-            float p_i = 1.0f;
+            float p_i = p_s;
 
             for (int i = s; i < s + t; i++) {
                 p_ratios[i] = p_ratios[i] * p_i;
+                p_values[i + 1] = p_ratios[i];
                 p_i = p_ratios[i];
             }
 
-            p_i = 1.0f;
+            p_i = p_s;
 
             for (int i = s - 1; i >= 0; i--) {
                 p_ratios[i] = p_i / p_ratios[i];
+                p_values[i] = p_ratios[i];
                 p_i = p_ratios[i];
             }
 
-            float sum = 1.0f;
-            for (int i = 0; i < s + t; i++) {sum += p_ratios[i];}
+            p_values[s] = p_s;
+
+            for (int i = 0; i < s + t + 1; i++) {
+                if (materials[get_ray(camera_path, light_path, t, s, i).material].type == 1) {
+                    p_ratios[i] = 0.0f;
+                    if (i < s + t) {
+                        p_ratios[i + 1] = 0.0f;
+                    }
+                }
+            }
+
+            float sum = 0.0f;
+            for (int i = 0; i < s + t; i++) {sum += p_values[i];}
 
             float w;
-            if (sum > 0.0f) {w = 1.0f / sum;}
-            else {w = 0.0f;}
+            if (sum > 0.0f && p_values[s] > 0.0f) {w = p_values[s] / sum;}
+            else {continue;}
 
             float3 color = float3(1.0f);
             float g = 1.0f;
