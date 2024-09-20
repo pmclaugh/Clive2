@@ -341,7 +341,7 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         }
         else if (dot(i, geom_n) * dot(o, geom_n) < 0 && dot(i, n) * dot(o, n) < 0) {
             float3 m = specular_transmit_half_direction(-i, o, ni, no);
-            //if (dot(-i, o) <= 0.0f) {return 0.0f;}
+            if (dot(-i, o) <= 0.0f) {return 0.0f;}
             if (dot(m, n) <= 0.0f || dot(m, geom_n) <= 0.0f) {return 0.0f;}
             if (dot(i, m) <= 0.0f || dot(o, m) >= 0.0f) {return 0.0f;}
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
