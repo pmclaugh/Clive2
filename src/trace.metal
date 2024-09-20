@@ -566,7 +566,7 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     hit_ray.hit_light = -1;
     hit_ray.c_importance = 1.0f / (camera.phys_width * camera.phys_height);
     hit_ray.l_importance = 1.0f / (2.0f * PI);
-    hit_ray.tot_importance = 1.0f;
+    hit_ray.tot_importance = hit_ray.c_importance;
 
     return 1;
 }
@@ -601,14 +601,14 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             if (s + t < 2) {continue;}
             else if (t == 0){
-                // this is where a light ray hits the camera plane. WIP.
+                // light ray hits the camera plane
                 light_ray = light_path.rays[s - 1];
                 if (light_ray.hit_camera < 0) {continue;}
                 sample_index = get_sample_index(light_ray.origin, camera[0]);
                 if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
-                // light visibility to camera plane. WIP.
+                // light visibility to camera plane
                 light_ray = light_path.rays[s - 1];
                 int hit = map_camera_pixel(light_ray, camera[0], triangles, boxes, camera_ray);
                 if (hit == -1) {continue;}
@@ -619,7 +619,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
-                // this is where a camera ray hits the light source.
+                // camera ray hits a light source
                 camera_ray = camera_path.rays[t - 1];
                 if (camera_ray.hit_light < 0) {continue;}
             }
@@ -730,7 +730,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 float3 light_color = float3(1.0f);
                 if (s == 1) {
-                    light_color = light_path.rays[0].color * abs(dot(light_ray.normal, dir_l_to_c));
+                    light_color = materials[light_ray.material].emission * abs(dot(light_ray.normal, dir_l_to_c));
                 }
                 else {
                     float3 prior_light_color = light_path.rays[s - 2].color;

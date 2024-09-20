@@ -239,6 +239,7 @@ def fast_generate_light_rays(triangles, num_rays):
     rays['hit_light'] = -1
     rays['hit_camera'] = -1
     rays['triangle'] = emitter_indices[choices]
+    rays['material'] = 6
     return rays
 
 
