@@ -516,13 +516,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 float geometry_term(const thread Ray &a, const thread Ray &b){
     float3 delta = b.origin - a.origin;
     float dist = length(delta);
-    delta = delta / dist;
+    delta = normalize(delta);
 
     float camera_cos, light_cos;
     camera_cos = abs(dot(a.normal, delta));
     light_cos = abs(dot(b.normal, delta));
 
-    return (camera_cos * light_cos) / (dist * dist);
+    return (camera_cos * light_cos) / (dist);
 }
 
 
@@ -632,8 +632,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                if (abs(dot(light_ray.normal, dir_l_to_c)) < DELTA) {continue;}
-                if (abs(dot(camera_ray.normal, -dir_l_to_c)) < DELTA) {continue;}
+                if (abs(dot(light_ray.normal, dir_l_to_c)) < 0) {continue;}
+                if (abs(dot(camera_ray.normal, -dir_l_to_c)) < 0) {continue;}
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)) {continue;}
             }
 
@@ -713,7 +713,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     float3 light_geom_normal = triangles[light_ray.triangle].normal;
                     float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                     color = prior_light_color * new_light_f * light_material.color;
-                    g = geometry_term(light_ray, camera_ray);
+                    g = geometry_term(camera_ray, light_ray);
                }
             }
             else {
