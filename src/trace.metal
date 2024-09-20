@@ -668,13 +668,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float prior_camera_importance;
             if (t == 0) {prior_camera_importance = 1.0f;}
-            else if (t == 1) {prior_camera_importance = camera_path.rays[0].tot_importance;}
-            else {prior_camera_importance = camera_path.rays[t - 2].tot_importance;}
+            else {prior_camera_importance = camera_path.rays[t - 1].tot_importance;}
 
             float prior_light_importance;
             if (s == 0) {prior_light_importance = 1.0f;}
-            else if (s == 1) {prior_light_importance = light_path.rays[0].tot_importance;}
-            else {prior_light_importance = light_path.rays[s - 2].tot_importance;}
+            else {prior_light_importance = light_path.rays[s - 1].tot_importance;}
 
             float p_s = prior_camera_importance * prior_light_importance;
 
