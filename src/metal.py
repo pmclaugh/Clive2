@@ -319,9 +319,17 @@ if __name__ == '__main__':
     parser.add_argument('--frame-number', type=int, default=0)
     parser.add_argument('--total-frames', type=int, default=1)
     parser.add_argument('--movie-name', type=str, default='default')
+    parser.add_argument('--save-on-quit', action='store_true')
     args = parser.parse_args()
 
     os.makedirs(f'../output/{args.movie_name}', exist_ok=True)
+
+    # Metal stuff. get device, load and compile kernels
+    dev = mc.Device()
+    with open("trace.metal", "r") as f:
+        kernel = f.read()
+    trace_fn = dev.kernel(kernel).function("generate_paths")
+    join_fn = dev.kernel(kernel).function("connect_paths")
 
     tris = []
     # load the teapots
@@ -362,20 +370,12 @@ if __name__ == '__main__':
     print("done building bvh", time.time() - start_time)
     boxes, triangles = np_flatten_bvh(bvh)
     print("done flattening bvh")
-    boxes = boxes
-    triangles = triangles
+
+    box_buffer = dev.buffer(boxes.size * boxes.itemsize)
+    tri_buffer = dev.buffer(triangles.size * triangles.itemsize)
 
     # load materials (very basic for now)
     mats = get_materials()
-
-    samples = args.samples
-
-    # Metal stuff. get device, load and compile kernels
-    dev = mc.Device()
-    with open("trace.metal", "r") as f:
-        kernel = f.read()
-    trace_fn = dev.kernel(kernel).function("generate_paths")
-    join_fn = dev.kernel(kernel).function("connect_paths")
 
     # make a bunch of buffers
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
@@ -392,78 +392,83 @@ if __name__ == '__main__':
 
     final_out_samples = dev.buffer(batch_size * 16)
 
-    # render loop
-    for i in range(samples):
-        trace_fn = dev.kernel(kernel).function("generate_paths")
-        join_fn = dev.kernel(kernel).function("connect_paths")
+    try:
+        # render loop
+        for i in range(args.samples):
+            trace_fn = dev.kernel(kernel).function("generate_paths")
+            join_fn = dev.kernel(kernel).function("connect_paths")
 
-        # make camera rays and rands
-        camera_ray_start_time = time.time()
-        camera_rays = c.ray_batch_numpy().flatten()
-        print(f"Create camera rays in {time.time() - camera_ray_start_time}")
+            # make camera rays and rands
+            camera_ray_start_time = time.time()
+            camera_rays = c.ray_batch_numpy().flatten()
+            print(f"Create camera rays in {time.time() - camera_ray_start_time}")
 
-        rand_start_time = time.time()
-        rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
-        print(f"Create camera rands in {time.time() - rand_start_time}")
+            rand_start_time = time.time()
+            rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
+            print(f"Create camera rands in {time.time() - rand_start_time}")
 
-        # trace camera paths
-        start_time = time.time()
-        trace_fn(batch_size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug_image)
-        print(f"Sample {i} camera trace time: {time.time() - start_time}")
+            # trace camera paths
+            start_time = time.time()
+            trace_fn(batch_size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug_image)
+            print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
-        # retrieve camera trace outputs
-        unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-        camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
-        retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+            # retrieve camera trace outputs
+            unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+            camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
+            retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
-        # make light rays and rands
-        light_ray_start_time = time.time()
-        light_rays = fast_generate_light_rays(triangles, camera_rays.size)
-        print(f"Create light rays in {time.time() - light_ray_start_time}")
+            # make light rays and rands
+            light_ray_start_time = time.time()
+            light_rays = fast_generate_light_rays(triangles, camera_rays.size)
+            print(f"Create light rays in {time.time() - light_ray_start_time}")
 
-        rand_start_time = time.time()
-        rands = np.random.rand(light_rays.size * 32).astype(np.float32)
-        print(f"Create light rands in {time.time() - rand_start_time}")
+            rand_start_time = time.time()
+            rands = np.random.rand(light_rays.size * 32).astype(np.float32)
+            print(f"Create light rands in {time.time() - rand_start_time}")
 
-        # trace light paths
-        start_time = time.time()
-        trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug_image)
-        print(f"Sample {i} light trace time: {time.time() - start_time}")
+            # trace light paths
+            start_time = time.time()
+            trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug_image)
+            print(f"Sample {i} light trace time: {time.time() - start_time}")
 
-        # retrieve light trace outputs
-        light_paths = np.frombuffer(out_light_paths, dtype=Path)
-        retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+            # retrieve light trace outputs
+            light_paths = np.frombuffer(out_light_paths, dtype=Path)
+            retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
-        # join paths
-        start_time = time.time()
-        join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples)
-        print(f"Sample {i} join time: {time.time() - start_time}")
+            # join paths
+            start_time = time.time()
+            join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples)
+            print(f"Sample {i} join time: {time.time() - start_time}")
 
-        post_start_time = time.time()
+            post_start_time = time.time()
 
-        # retrieve joined path outputs
-        bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+            # retrieve joined path outputs
+            bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
-        # post processing. tone map, sum, division
-        image = bidirectional_image
+            # post processing. tone map, sum, division
+            image = bidirectional_image
 
-        print(np.sum(np.isnan(image)), "nans in image")
-        print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
-        print(np.sum(np.isinf(image)), "infs in image")
-        summed_image += np.nan_to_num(image, posinf=0, neginf=0)
-        if np.any(np.isnan(summed_image)):
-            print("NaNs in summed image!!!")
-            break
-        to_display = tone_map(summed_image / (i + 1))
-        if np.any(np.isnan(to_display)):
-            print("NaNs in to_display!!!")
-            break
+            print(np.sum(np.isnan(image)), "nans in image")
+            print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
+            print(np.sum(np.isinf(image)), "infs in image")
+            summed_image += np.nan_to_num(image, posinf=0, neginf=0)
+            if np.any(np.isnan(summed_image)):
+                print("NaNs in summed image!!!")
+                break
+            to_display = tone_map(summed_image / (i + 1))
+            if np.any(np.isnan(to_display)):
+                print("NaNs in to_display!!!")
+                break
 
-        # display the image
-        cv2.imshow('image', to_display)
-        print(f"Post processing time: {time.time() - post_start_time}")
-        cv2.waitKey(1)
-
+            # display the image
+            cv2.imshow('image', to_display)
+            print(f"Post processing time: {time.time() - post_start_time}")
+            cv2.waitKey(1)
+    except KeyboardInterrupt:
+        if args.save_on_quit:
+            pass
+        else:
+            raise
     # save the image
     if args.total_frames == 1:
         cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)
