@@ -339,7 +339,7 @@ if __name__ == '__main__':
 
     # load the dragon
     # load_time = time.time()
-    # tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=4, scale=50)
+    # tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
     # print(f"done loading dragon in {time.time() - load_time}")
 
     smooth_time = time.time()
