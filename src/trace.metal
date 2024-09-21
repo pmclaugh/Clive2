@@ -625,6 +625,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else {
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
+                if (materials[light_ray.material].type == 1 || materials[camera_ray.material].type == 1) {continue;}
 
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
                 float dist_l_to_c = length(dir_l_to_c);
@@ -634,9 +635,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (abs(dot(camera_ray.normal, -dir_l_to_c)) < DELTA) {continue;}
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)) {continue;}
             }
-
             if (light_ray.triangle == camera_ray.triangle) {continue;}
-            if (materials[light_ray.material].type == 1 || materials[camera_ray.material].type == 1) {continue;}
 
             float p_ratios[32];
             float p_values[32];
