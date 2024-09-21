@@ -321,6 +321,7 @@ if __name__ == '__main__':
     parser.add_argument('--total-frames', type=int, default=1)
     parser.add_argument('--movie-name', type=str, default='default')
     parser.add_argument('--save-on-quit', action='store_true')
+    parser.add_argument("--scene", type=str, default="teapots")
     args = parser.parse_args()
 
     os.makedirs(f'../output/{args.movie_name}', exist_ok=True)
@@ -333,14 +334,21 @@ if __name__ == '__main__':
     join_fn = dev.kernel(kernel).function("connect_paths")
 
     tris = []
-    # load the teapots
-    # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
-    # tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
-
-    # load the dragon
-    load_time = time.time()
-    tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
-    print(f"done loading dragon in {time.time() - load_time}")
+    if args.scene == "teapots":
+        # load the teapots
+        tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
+        tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
+        cam_center = np.array([4, 1.5, 5])
+        cam_dir = unit(np.array([-1, 0, -1]))
+    elif args.scene == "dragon":
+        # load the dragon
+        load_time = time.time()
+        tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
+        print(f"done loading dragon in {time.time() - load_time}")
+        cam_center = np.array([0, 1.5, 5])
+        cam_dir = unit(np.array([0, 0, -1]))
+    else:
+        raise ValueError(f"Unknown scene {args.scene}")
 
     smooth_time = time.time()
     smooth_normals(tris)
@@ -353,8 +361,8 @@ if __name__ == '__main__':
 
     # camera setup
     c = Camera(
-        center=np.array([0, 1.5, 5]),
-        direction=unit(np.array([0, 0, -1])),
+        center=cam_center,
+        direction=cam_dir,
         pixel_width=args.width,
         pixel_height=args.height,
         phys_width=args.width / args.height,
