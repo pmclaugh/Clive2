@@ -488,12 +488,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (path.from_camera) {
             next_ray.c_importance = c_p;
             ray.l_importance = l_p;
-            new_ray.tot_importance = ray.tot_importance * c_p;
+            new_ray.tot_importance = ray.tot_importance * new_ray.c_importance;
         }
         else {
             next_ray.l_importance = l_p;
             ray.c_importance = c_p;
-            new_ray.tot_importance = ray.tot_importance * l_p;
+            new_ray.tot_importance = ray.tot_importance * new_ray.l_importance;
         }
 
         path.rays[i] = ray;
