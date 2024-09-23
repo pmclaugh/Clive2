@@ -505,7 +505,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
     for (int i = path.length - 1; i >= 0; i--){
         if (path.rays[i].hit_light >= 0){
-            out[id] = float4(path.rays[i - 1].color / path.rays[i - 1].tot_importance, 1);
+            out[id] = float4(path.rays[i - 1].color / path.rays[i].tot_importance, 1);
         }
     }
 }
