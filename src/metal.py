@@ -464,7 +464,7 @@ if __name__ == '__main__':
             if np.any(np.isnan(summed_image)):
                 print("NaNs in summed image!!!")
                 break
-            to_display = tone_map(summed_image)
+            to_display = summed_image / (i + 1)
             if np.any(np.isnan(to_display)):
                 print("NaNs in to_display!!!")
                 break
