@@ -591,6 +591,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
 
+            if (s + t < 2) {continue;}
+            if (s + t > 8) {continue;}
+
             Ray light_ray;
             light_ray.triangle = -1;
             Ray camera_ray;
@@ -600,8 +603,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             camera_path = camera_paths[id];
             light_path = light_paths[id];
 
-            if (s + t < 2) {continue;}
-            else if (t == 0){
+
+            if (t == 0){
                 continue;
                 // light ray hits the camera plane
                 light_ray = light_path.rays[s - 1];
@@ -625,8 +628,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (camera_ray.hit_light < 0) {continue;}
             }
             else {
+                // regular join
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
+
+                // skip specular joins
                 if (materials[light_ray.material].type == 1) {continue;}
                 if (materials[camera_ray.material].type == 1) {continue;}
                 if (s > 1) {
@@ -638,8 +644,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                // if (abs(dot(light_ray.normal, dir_l_to_c)) < DELTA) {continue;}
-                // if (abs(dot(camera_ray.normal, -dir_l_to_c)) < DELTA) {continue;}
+                // backface culling for joins
                 if (dot(light_ray.normal, dir_l_to_c) < DELTA) {continue;}
                 if (dot(camera_ray.normal, -dir_l_to_c) < DELTA) {continue;}
 
@@ -707,11 +712,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             for (int i = 0; i < s + t + 1; i++) {
                 if (materials[get_ray(camera_path, light_path, t, s, i).material].type == 1) {
                     p_values[i] = 0.0f;
-                    if (i < s + t) {
-                        p_values[i + 1] = 0.0f;
-                    }
+                    p_values[i + 1] = 0.0f;
                 }
             }
+
+            // no t == 0
+            p_values[s + t] = 0.0f;
 
             float sum = 0.0f;
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}
