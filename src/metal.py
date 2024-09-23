@@ -343,7 +343,7 @@ if __name__ == '__main__':
     elif args.scene == "dragon":
         # load the dragon
         load_time = time.time()
-        tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
+        tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
         print(f"done loading dragon in {time.time() - load_time}")
         cam_center = np.array([0, 1.5, 5])
         cam_dir = unit(np.array([0, 0, -1]))
@@ -464,7 +464,7 @@ if __name__ == '__main__':
             if np.any(np.isnan(summed_image)):
                 print("NaNs in summed image!!!")
                 break
-            to_display = tone_map(summed_image / (i + 1))
+            to_display = tone_map(summed_image)
             if np.any(np.isnan(to_display)):
                 print("NaNs in to_display!!!")
                 break

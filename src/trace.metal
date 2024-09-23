@@ -600,6 +600,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             if (s + t < 2) {continue;}
             else if (t == 0){
+                continue;
                 // light ray hits the camera plane
                 light_ray = light_path.rays[s - 1];
                 if (light_ray.hit_camera < 0) {continue;}
@@ -609,12 +610,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else if (t == 1) {
                 // light visibility to camera plane
                 light_ray = light_path.rays[s - 1];
+                if (materials[light_ray.material].type == 1) {continue;}
                 int hit = map_camera_pixel(light_ray, camera[0], triangles, boxes, camera_ray);
                 if (hit == -1) {continue;}
                 sample_index = get_sample_index(camera_ray.origin, camera[0]);
                 if (sample_index == -1) {continue;}
-                camera_ray.c_importance = camera_path.rays[0].c_importance;
-                camera_ray.tot_importance = camera_path.rays[0].tot_importance;
+                camera_ray.c_importance = 1.0f;
+                camera_ray.tot_importance = 1.0f;
                 camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
