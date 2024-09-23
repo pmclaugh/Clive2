@@ -529,7 +529,7 @@ Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const
     else {return camera_path.rays[t + s - i - 1];}
 }
 
-int get_sample_index(const thread float3 &point, const device Camera &camera){
+int get_sample_index(const thread float3 &point, const thread Camera &camera){
     float3 dir = point - camera.origin;
     float x = dot(dir, camera.dx) / camera.phys_width;
     float y = dot(dir, camera.dy) / camera.phys_height;
@@ -564,9 +564,9 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     hit_ray.triangle = best_i;
     hit_ray.hit_camera = best_i;
     hit_ray.hit_light = -1;
-    hit_ray.c_importance = 1.0f / (camera.phys_width * camera.phys_height);
+    hit_ray.c_importance = 1.0f;
     hit_ray.l_importance = 1.0f / (2.0f * PI);
-    hit_ray.tot_importance = hit_ray.c_importance;
+    hit_ray.tot_importance = 1.0f;
 
     return 1;
 }
@@ -586,6 +586,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     int sample_index = id;
     out[id] = float4(0.0f);
 
+    Camera c = camera[0];
+
     for (int t = 0; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
 
@@ -604,7 +606,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 // light ray hits the camera plane
                 light_ray = light_path.rays[s - 1];
                 if (light_ray.hit_camera < 0) {continue;}
-                sample_index = get_sample_index(light_ray.origin, camera[0]);
+                sample_index = get_sample_index(light_ray.origin, c);
                 if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
@@ -613,10 +615,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (materials[light_ray.material].type == 1) {continue;}
                 int hit = map_camera_pixel(light_ray, camera[0], triangles, boxes, camera_ray);
                 if (hit == -1) {continue;}
-                sample_index = get_sample_index(camera_ray.origin, camera[0]);
+                sample_index = get_sample_index(camera_ray.origin, c);
                 if (sample_index == -1) {continue;}
-                camera_ray.c_importance = 1.0f;
-                camera_ray.tot_importance = 1.0f;
                 camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
@@ -627,14 +627,22 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else {
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
-                if (materials[light_ray.material].type == 1 || materials[camera_ray.material].type == 1) {continue;}
+                if (materials[light_ray.material].type == 1) {continue;}
+                if (materials[camera_ray.material].type == 1) {continue;}
+                if (s > 1) {
+                    Ray prior_light_ray = light_path.rays[s - 2];
+                    if (materials[prior_light_ray.material].type == 1) {continue;}
+                }
 
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
                 float dist_l_to_c = length(dir_l_to_c);
                 dir_l_to_c = dir_l_to_c / dist_l_to_c;
 
-                if (abs(dot(light_ray.normal, dir_l_to_c)) < DELTA) {continue;}
-                if (abs(dot(camera_ray.normal, -dir_l_to_c)) < DELTA) {continue;}
+                // if (abs(dot(light_ray.normal, dir_l_to_c)) < DELTA) {continue;}
+                // if (abs(dot(camera_ray.normal, -dir_l_to_c)) < DELTA) {continue;}
+                if (dot(light_ray.normal, dir_l_to_c) < DELTA) {continue;}
+                if (dot(camera_ray.normal, -dir_l_to_c) < DELTA) {continue;}
+
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)) {continue;}
             }
             if (light_ray.triangle == camera_ray.triangle) {continue;}
