@@ -77,6 +77,7 @@ class Camera:
         batch['normal'][:, :, :3] = directions
         batch['from_camera'] = 1
         batch['triangle'] = -1
+        batch['material'] = 7
         return batch
 
     def to_struct(self):

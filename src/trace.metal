@@ -382,7 +382,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.l_importance = 1.0f / (2 * PI);
     }
     else {
-        new_ray.c_importance = ray.c_importance;
+        new_ray.c_importance = 1.0f;
     }
 
     for (int i = 0; i < 8; i++) {
@@ -613,6 +613,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
+                continue;
                 // light visibility to camera plane
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
@@ -715,9 +716,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     p_values[i + 1] = 0.0f;
                 }
             }
-
-            // no t == 0
-            p_values[s + t] = 0.0f;
 
             float sum = 0.0f;
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}

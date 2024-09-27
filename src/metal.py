@@ -134,8 +134,8 @@ def load_ply(ply_path, offset=None, material=None, scale=1.0):
 
 
 def get_materials():
-    materials = np.zeros(7, dtype=Material)
-    materials['color'] = np.zeros((7, 4), dtype=np.float32)
+    materials = np.zeros(8, dtype=Material)
+    materials['color'] = np.zeros((8, 4), dtype=np.float32)
     materials['color'][0][:3] = RED
     materials['color'][1][:3] = GREEN
     materials['color'][2][:3] = WHITE
@@ -143,7 +143,8 @@ def get_materials():
     materials['color'][4][:3] = WHITE
     materials['color'][5][:3] = BLUE
     materials['color'][6][:3] = WHITE
-    materials['emission'] = np.zeros((7, 4), dtype=np.float32)
+    materials['color'][7][:3] = WHITE
+    materials['emission'] = np.zeros((8, 4), dtype=np.float32)
     materials['emission'][6] = np.array([1, 1, 1, 1])
     materials['type'] = 0
 
@@ -152,6 +153,7 @@ def get_materials():
 
     materials[0]['type'] = 1
     materials[5]['type'] = 1
+    materials[7]['type'] = 1
     return materials
 
 
@@ -473,7 +475,7 @@ if __name__ == '__main__':
             cv2.imshow('image', to_display)
             print(f"Post processing time: {time.time() - post_start_time}")
             cv2.waitKey(1)
-    except KeyboardInterrupt:
+    except Exception:
         if args.save_on_quit:
             pass
         else:
