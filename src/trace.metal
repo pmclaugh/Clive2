@@ -372,7 +372,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float2 random_roll = random_buffer[id * 16 + 15];
         ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
         ray.inv_direction = 1.0f / ray.direction;
-        ray.color *= dot(ray.direction, ray.normal) / PI;
+        //ray.color *= dot(ray.direction, ray.normal) / PI;
         new_ray.l_importance = 1.0f / (2 * PI);
     }
     else {
@@ -758,7 +758,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 float3 light_color = float3(1.0f);
                 if (s == 1) {
-                    light_color = materials[light_ray.material].emission * abs(dot(light_ray.normal, dir_l_to_c));
+                    light_color = materials[light_ray.material].emission;
                 }
                 else {
                     float3 prior_light_color = light_path.rays[s - 2].color;
