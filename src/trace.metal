@@ -286,10 +286,10 @@ float reflect_jacobian(const thread float3 &m, const thread float3 &o) {
 }
 
 float transmit_jacobian(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float ni, const thread float no) {
-    float cosTheta_i = abs(dot(i, m));
-    float cosTheta_o = abs(dot(o, m));
-    float numerator = no * no * cosTheta_o;
-    float denominator = (ni * cosTheta_i - no * cosTheta_o) * (ni * cosTheta_i - no * cosTheta_o);
+    float cosTheta_i = dot(i, m);
+    float cosTheta_o = dot(o, m);
+    float numerator = no * no * abs(cosTheta_o);
+    float denominator = (ni * cosTheta_i + no * cosTheta_o) * (ni * cosTheta_i + no * cosTheta_o);
     return numerator / denominator;
 }
 
