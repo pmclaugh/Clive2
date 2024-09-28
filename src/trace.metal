@@ -372,7 +372,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float2 random_roll = random_buffer[id * 16 + 15];
         ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
         ray.inv_direction = 1.0f / ray.direction;
-        //ray.color *= dot(ray.direction, ray.normal) / PI;
         new_ray.l_importance = 1.0f / (2 * PI);
     }
     else {
@@ -465,9 +464,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
 
             if (dot(wo, n) > 0.0f) {
-                float po = pf * pm * reflect_jacobian(m, wo);
-                c_p = po;
-                l_p = po;
+                c_p = pf * pm * reflect_jacobian(m, wo);
+                l_p = pf * pm * reflect_jacobian(m, wi);
             } else {
                 if (path.from_camera) {
                     c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
@@ -642,10 +640,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 // skip specular joins
                 if (materials[light_ray.material].type == 1) {continue;}
                 if (materials[camera_ray.material].type == 1) {continue;}
-                if (s > 1) {
-                    Ray prior_light_ray = light_path.rays[s - 2];
-                    if (materials[prior_light_ray.material].type == 1) {continue;}
-                }
 
                 float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
                 float dist_l_to_c = length(dir_l_to_c);
@@ -668,8 +662,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (i == 0) {
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i + 1);
-                    if (s == 0) {num = 1.0f;}
-                    else {num = a.l_importance;}
+                    num = a.l_importance;
                     denom = a.c_importance * geometry_term(a, b);
                 }
                 else if (i == s + t - 1) {
