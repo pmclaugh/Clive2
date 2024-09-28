@@ -216,9 +216,9 @@ float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float
 }
 
 float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand, const thread float alpha) {
-    float phi = 2 * PI * rand.x;
-    float theta = atan(alpha * sqrt(rand.y) / sqrt(1.0f - rand.y));
-    return normalize(cos(phi) * sin(theta) * x_axis + sin(phi) * sin(theta) * y_axis + cos(theta) * z_axis);
+    float theta = 2 * PI * rand.x;
+    float phi = atan(alpha * sqrt(rand.y) / sqrt(1.0f - rand.y));
+    return normalize(sin(phi) * cos(theta) * x_axis + sin(phi) * sin(theta) * y_axis + cos(phi) * z_axis);
 }
 
 float3 specular_reflection(const thread float3 &i, const thread float3 &m) {
@@ -740,7 +740,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else if (t == 0) {color = light_path.rays[s - 2].color;}
             else if (t == 1) {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
-                if (s == 1) {color = light_ray.color * abs(dot(light_ray.normal, dir_l_to_c));}
+                if (s == 1) {color = light_ray.color;}
                 else {
                     float3 prior_light_color = light_path.rays[s - 2].color;
                     float3 prior_light_direction = light_path.rays[s - 2].direction;
