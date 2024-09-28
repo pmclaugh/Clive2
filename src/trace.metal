@@ -716,7 +716,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            // these is because t=0 is disabled. but I'm not sure it's quite right
+            // this is because t=0 is disabled. but I'm not sure it's quite right
             p_values[s + t] = 0.0f;
 
             float sum = 0.0f;
