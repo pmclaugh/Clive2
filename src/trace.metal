@@ -565,7 +565,7 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     hit_ray.origin = test_ray.origin + test_ray.direction * best_t;
     hit_ray.color = float3(1.0f);
     hit_ray.direction = -dir;
-    hit_ray.normal = -dir;
+    hit_ray.normal = camera.direction;
     hit_ray.material = triangles[best_i].material;
     hit_ray.triangle = best_i;
     hit_ray.hit_camera = best_i;
@@ -750,8 +750,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     float3 light_geom_normal = triangles[light_ray.triangle].normal;
                     float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                     color = prior_light_color * new_light_f * light_material.color;
-                    g = geometry_term(camera_ray, light_ray);
                }
+               g = geometry_term(camera_ray, light_ray);
             }
             else {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
