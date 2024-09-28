@@ -153,7 +153,6 @@ def get_materials():
 
     materials[0]['type'] = 1
     materials[5]['type'] = 1
-    materials[7]['type'] = 1
     return materials
 
 
