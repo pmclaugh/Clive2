@@ -338,14 +338,14 @@ if __name__ == '__main__':
     tris = []
     if args.scene == "teapots":
         # load the teapots
-        tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=0)
+        tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=5)
         tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
         cam_center = np.array([4, 1.5, 5])
         cam_dir = unit(np.array([-1, 0, -1]))
     elif args.scene == "dragon":
         # load the dragon
         load_time = time.time()
-        tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
+        tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
         print(f"done loading dragon in {time.time() - load_time}")
         cam_center = np.array([0, 1.5, 6])
         cam_dir = unit(np.array([0, 0, -1]))

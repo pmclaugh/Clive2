@@ -298,14 +298,14 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    float im = abs(dot(i, m));
-    float om = abs(dot(o, m));
-    float in = abs(dot(i, n));
-    float on = abs(dot(o, n));
+    float im = dot(i, m);
+    float om = dot(o, m);
+    float in = dot(i, n);
+    float on = dot(o, n);
 
-    float coeff = (im * om) / (in * on);
+    float coeff = abs((im * om) / (in * on));
     float num = no * no * D * G * (1 - F);
-    float denom = (ni * im - no * om) * (ni * im - no * om);
+    float denom = (ni * im + no * om) * (ni * im + no * om);
 
     return coeff * num / denom;
 }
@@ -459,15 +459,23 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 pf = 1.0f - fresnel;
                 //if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
             }
+
             float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
-            float po;
+
             if (dot(wo, n) > 0.0f) {
-                po = pf * pm * reflect_jacobian(m, wo);
+                float po = pf * pm * reflect_jacobian(m, wo);
+                c_p = po;
+                l_p = po;
             } else {
-                po = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+                if (path.from_camera) {
+                    c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+                    l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
+                }
+                else{
+                    c_p = pf * pm * transmit_jacobian(wo, wi, -m, ni, no);
+                    l_p = pf * pm * transmit_jacobian(wi, wo, m, no, ni);
+                }
             }
-            c_p = po;
-            l_p = po;
         }
 
         new_ray.color = f * ray.color * material.color;
