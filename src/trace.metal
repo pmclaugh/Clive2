@@ -265,12 +265,14 @@ float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 
 }
 
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    float alpha2 = alpha * alpha;
     float cosTheta = dot(m, n);
     float cosTheta2 = cosTheta * cosTheta;
-    float alpha2 = alpha * alpha;
-    float denom =  1 + cosTheta2 * (alpha2 - 1);
+    float tan2 = (1 - cosTheta2) / cosTheta2;
 
-    return alpha2 / (PI * denom * denom);
+    float denom =  alpha2 + tan2;
+
+    return alpha2 / (cosTheta2 * cosTheta2 * PI * denom * denom);
 }
 
 float reflect_jacobian(const thread float3 &m, const thread float3 &o) {
