@@ -14,7 +14,6 @@ import argparse
 import os
 from plyfile import PlyData
 from functools import cached_property
-from scipy.stats.qmc import Sobol
 
 
 class Triangle:
