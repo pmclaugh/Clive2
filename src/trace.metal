@@ -594,7 +594,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
         for (int s = 0; s < light_path.length + 1; s++){
 
             if (s + t < 2) {continue;}
-            if (s + t > 8) {continue;}
 
             Ray light_ray;
             light_ray.triangle = -1;
@@ -663,8 +662,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (i == 0) {
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i + 1);
-                    // todo this is wrong for s==0, but has low impact.
-                    num = a.l_importance;
+                    if (s == 0) {num = 1.0f;}
+                    else {num = a.l_importance;}
                     denom = a.c_importance * geometry_term(a, b);
                 }
                 else if (i == s + t - 1) {
