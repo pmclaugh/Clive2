@@ -459,7 +459,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 wo = GGX_transmit(wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = 1.0f - fresnel;
-                //if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
+                if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
             }
 
             float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
@@ -615,7 +615,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
-                continue;
                 // light visibility to camera plane
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
@@ -664,6 +663,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (i == 0) {
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i + 1);
+                    // todo this is wrong for s==0, but has low impact.
                     num = a.l_importance;
                     denom = a.c_importance * geometry_term(a, b);
                 }
