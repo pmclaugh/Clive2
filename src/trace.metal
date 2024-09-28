@@ -222,12 +222,10 @@ float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, cons
 }
 
 float3 specular_reflection(const thread float3 &i, const thread float3 &m) {
-    // in this function, i is incident
-    return normalize(i - 2 * dot(i, m) * m);
+    return normalize(2 * dot(i, m) * m - i);
 }
 
 float3 specular_reflect_half_direction(const thread float3 &i, const thread float3 &o) {
-    // in this function, i is wi
     return normalize(i + o);
 }
 
@@ -457,7 +455,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             float pf = 1.0f;
 
             if (random_roll_b.x <= fresnel) {
-                wo = specular_reflection(-wi, m);
+                wo = specular_reflection(wi, m);
                 f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = fresnel;
                 if (dot(wo, n) <= 0.0f || dot(wo, signed_normal) <= 0.0f) {break;}
