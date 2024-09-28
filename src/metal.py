@@ -141,7 +141,7 @@ def get_materials():
     materials['color'][2][:3] = WHITE
     materials['color'][3][:3] = CYAN
     materials['color'][4][:3] = WHITE
-    materials['color'][5][:3] = WHITE
+    materials['color'][5][:3] = BLUE
     materials['color'][6][:3] = WHITE
     materials['color'][7][:3] = WHITE
     materials['emission'] = np.zeros((8, 4), dtype=np.float32)
@@ -338,7 +338,7 @@ if __name__ == '__main__':
     if args.scene == "teapots":
         # load the teapots
         tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=5)
-        tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=5)
+        tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=0)
         cam_center = np.array([4, 1.5, 5])
         cam_dir = unit(np.array([-1, 0, -1]))
     elif args.scene == "dragon":

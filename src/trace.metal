@@ -480,7 +480,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             }
         }
 
-        new_ray.color = f * ray.color * material.color;
+        if (dot(wi, triangle.normal) > 0.0f) {
+            new_ray.color = f * ray.color * material.color;
+        }
+        else {
+            new_ray.color = f * ray.color;
+        }
 
         if (f == 0.0f) {break;}
 
