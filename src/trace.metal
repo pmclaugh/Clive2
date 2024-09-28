@@ -610,14 +610,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             if (t == 0){
                 continue;
-                // light ray hits the camera plane
+                // light ray hits the camera plane. disabled due to pinhole camera model
                 light_ray = light_path.rays[s - 1];
                 if (light_ray.hit_camera < 0) {continue;}
                 sample_index = get_sample_index(light_ray.origin, c);
                 if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
-                //continue;
                 // light visibility to camera plane
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
@@ -717,8 +716,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
+            // these is because t=0 is disabled. but I'm not sure it's quite right
             p_values[s + t] = 0.0f;
-            p_values[s + t - 1] = 0.0f;
 
             float sum = 0.0f;
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}
