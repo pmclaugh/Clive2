@@ -230,7 +230,6 @@ float3 specular_reflect_half_direction(const thread float3 &i, const thread floa
 }
 
 float3 GGX_transmit(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float no) {
-    // in this function, i is incident
     float cosTheta_i = dot(i, m);
     float eta = ni / no;
     float cosTheta_t = sqrt(1 + eta * eta * (cosTheta_i * cosTheta_i - 1));
@@ -238,12 +237,10 @@ float3 GGX_transmit(const thread float3 &i, const thread float3 &m, const thread
 }
 
 float3 specular_transmit_half_direction(const thread float3 &i, const thread float3 &o, const thread float ni, const thread float no) {
-    // in this function, i is incident
     return normalize(-(no * o + ni * i));
 }
 
 float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
-    // this function is agnostic about i being incident or wi
     float cosTheta_i = abs(dot(i, m));
     float eta = ni / nt;
     float sinTheta_t2 = eta * eta * (1.0f - cosTheta_i * cosTheta_i);
@@ -257,7 +254,6 @@ float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thre
 }
 
 float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    // this function is agnostic about i being incident or wi
     float mv = dot(m, v);
     float sin2 = 1.0f - mv * mv;
     float tan2 = sin2 / (mv * mv);
@@ -265,12 +261,10 @@ float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3
 }
 
 float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    // this function is agnostic about i being incident or wi
     return GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
 }
 
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    // this function is agnostic about i being incident or wi
     float cosTheta = dot(m, n);
     float cosTheta2 = cosTheta * cosTheta;
     float alpha2 = alpha * alpha;
