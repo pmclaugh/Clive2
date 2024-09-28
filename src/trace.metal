@@ -454,10 +454,10 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 pf = fresnel;
                 if (dot(wo, n) <= 0.0f || dot(wo, signed_normal) <= 0.0f) {break;}
             } else {
-                wo = GGX_transmit(-wi, m, ni, no);
+                wo = GGX_transmit(wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = 1.0f - fresnel;
-                if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
+                //if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
             }
             float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
             float po;
