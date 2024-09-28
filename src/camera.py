@@ -1,7 +1,5 @@
 import numpy as np
-import numba
 from constants import *
-import cv2
 from struct_types import Ray
 from struct_types import Camera as camera_struct
 
@@ -18,13 +16,13 @@ class Camera:
         self.pixel_width = pixel_width
         self.pixel_height = pixel_height
 
-        if abs(self.direction[0]) < FLOAT_TOLERANCE:
+        if abs(self.direction[0]) < 0.0001:
             self.dx = UNIT_X if direction[2] > 0 else UNIT_X * -1
         else:
             dx = np.cross(direction * (UNIT_X + UNIT_Z), UNIT_Y * -1)
             self.dx = dx / np.linalg.norm(dx)
 
-        if abs(self.direction[1]) < FLOAT_TOLERANCE:
+        if abs(self.direction[1]) < 0.0001:
             self.dy = UNIT_Y
         else:
             dy = np.cross(direction, self.dx)
@@ -78,20 +76,8 @@ class Camera:
         return c
 
 
-def composite_image(camera):
-    total_image = camera.image * 0
-    for s, row in enumerate(camera.images):
-        for t, sub_image in enumerate(row):
-            sample_counts = np.sum(camera.sample_counts)
-            if sample_counts > 0:
-                weighted_sub_image = np.nan_to_num(sub_image) * camera.sample_counts[s][t] / sample_counts
-                total_image += weighted_sub_image
-                cv2.imwrite('../renders/components/%ds_%dt.jpg' % (s, t), tone_map(weighted_sub_image))
-    return tone_map(total_image)
-
-
 def tone_map(image):
-    tone_vector = point(0.0722, 0.7152, 0.2126)
+    tone_vector = np.array([0.0722, 0.7152, 0.2126])
     # tone_vector = ONES
     tone_sums = np.sum(image * tone_vector, axis=2)
     log_tone_sums = np.log(0.1 + tone_sums)
@@ -100,6 +86,3 @@ def tone_map(image):
     result = image * 2. / Lw
     return (255 * result / (result + 1)).astype(np.uint8)
 
-
-if __name__ == '__main__':
-    c = Camera()
