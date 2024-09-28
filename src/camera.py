@@ -4,6 +4,7 @@ from constants import *
 from primitives import unit, point, vec
 import cv2
 from struct_types import Ray
+from struct_types import Camera as camera_struct
 
 
 
@@ -35,6 +36,8 @@ class Camera:
         self.dx_dp = self.dx * self.phys_width / self.pixel_width
         self.dy_dp = self.dy * self.phys_height / self.pixel_height
 
+        self.pixel_phys_size = np.linalg.norm(self.dx_dp) * np.linalg.norm(self.dy_dp)
+
         self.origin = center - self.dx * phys_width / 2 - self.dy * phys_height / 2
 
         self.image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float64)
@@ -62,23 +65,33 @@ class Camera:
     def ray_batch_numpy(self):
         batch = np.zeros((self.pixel_height, self.pixel_width), dtype=Ray)
         origins, directions = self.ray_batch()
-        batch['origin'] = 0
-        batch['origin'][:, :, :3] = origins
-        batch['direction'] = 0
+        batch['origin'][:, :, :3] = origins + 0.0001 * directions
         batch['direction'][:, :, :3] = directions
-        batch['inv_direction'] = 0
         batch['inv_direction'][:, :, :3] = 1.0 / directions
         batch['color'] = np.ones(4)
         batch['c_importance'] = 1.0 / (self.phys_width * self.phys_height)
-        batch['l_importance'] = 1.0
+        batch['l_importance'] = 1.0  # set in kernel
         batch['tot_importance'] = 1.0 / (self.phys_width * self.phys_height)
         batch['hit_light'] = -1
-        batch['material'] = -1
-        batch['normal'] = 0
+        batch['hit_camera'] = -1
         batch['normal'][:, :, :3] = directions
         batch['from_camera'] = 1
         batch['triangle'] = -1
+        batch['material'] = 7
         return batch
+
+    def to_struct(self):
+        c = np.zeros(1, dtype=camera_struct)
+        c[0]['origin'][:3] = self.origin
+        c[0]['focal_point'][:3] = self.focal_point
+        c[0]['direction'][:3] = self.direction
+        c[0]['dx'][:3] = self.dx
+        c[0]['dy'][:3] = self.dy
+        c[0]['pixel_width'] = self.pixel_width
+        c[0]['pixel_height'] = self.pixel_height
+        c[0]['phys_width'] = self.phys_width
+        c[0]['phys_height'] = self.phys_height
+        return c
 
 
 def composite_image(camera):

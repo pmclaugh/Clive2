@@ -14,7 +14,7 @@ Ray = np.dtype([
     ('tot_importance', np.float32),
     ('hit_light', np.int32),
     ('from_camera', np.int32),
-    ('pad', np.int32, 1),
+    ('hit_camera', np.int32),
 ])
 
 Path = np.dtype([
@@ -42,7 +42,8 @@ Triangle = np.dtype([
     ('normal', np.float32, 4),
     ('material', np.int32),
     ('is_light', np.int32),
-    ('pad', np.int32, 2),
+    ('is_camera', np.int32),
+    ('pad', np.int32),
 ])
 
 Material = np.dtype([
@@ -52,4 +53,16 @@ Material = np.dtype([
     ('alpha', np.float32),
     ('ior', np.float32),
     ('pad', np.int32),
+])
+
+Camera = np.dtype([
+    ('origin', np.float32, 4),
+    ('focal_point', np.float32, 4),
+    ('direction', np.float32, 4),
+    ('dx', np.float32, 4),
+    ('dy', np.float32, 4),
+    ('pixel_width', np.int32),
+    ('pixel_height', np.int32),
+    ('phys_width', np.float32),
+    ('phys_height', np.float32),
 ])
