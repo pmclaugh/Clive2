@@ -6,7 +6,9 @@ Performance is... fine? Other than a simple BVH implementation, optimization has
 Working:
 - Bidirectional Path Tracing in Metal
 - Importance sampling, balance heuristic
-- Loading OBJ files
+- Loading OBJ + PLY files
 - BVH acceleration structure
 - Diffuse and specular materials, including transmission
 - GGX BRDF
+
+![2024-09-28_09-37-36](https://github.com/user-attachments/assets/b3a1b770-27ec-4a46-a173-de14612720cd)
