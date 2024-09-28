@@ -1,3 +1,4 @@
+import metalcompute
 import numpy as np
 from camera import Camera
 import objloader
@@ -485,7 +486,7 @@ if __name__ == '__main__':
             cv2.imshow('image', to_display)
             print(f"Post processing time: {time.time() - post_start_time}")
             cv2.waitKey(1)
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, metalcompute.error):
         if args.save_on_quit:
             pass
         else:

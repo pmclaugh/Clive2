@@ -331,14 +331,14 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             float3 m = specular_reflect_half_direction(i, o);
             if (dot(m, n) <= 0.0f || dot(m, geom_n) <= 0.0f) {return 0.0f;}
             if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
-            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha);
+            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha) * abs(dot(o, m));
         }
         else if (dot(i, geom_n) * dot(o, geom_n) < 0 && dot(i, n) * dot(o, n) < 0) {
             float3 m = specular_transmit_half_direction(i, o, ni, no);
             if (dot(-i, o) <= 0.0f) {return 0.0f;}
             if (dot(m, n) <= 0.0f || dot(m, geom_n) <= 0.0f) {return 0.0f;}
             if (dot(i, m) <= 0.0f || dot(o, m) >= 0.0f) {return 0.0f;}
-            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha);
+            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha) * abs(dot(o, m));
         }
         else {
             return 0.0f;
@@ -451,12 +451,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
             if (random_roll_b.x <= fresnel) {
                 wo = specular_reflection(wi, m);
-                f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
+                f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
                 pf = fresnel;
                 if (dot(wo, n) <= 0.0f || dot(wo, signed_normal) <= 0.0f) {break;}
             } else {
                 wo = GGX_transmit(wi, m, ni, no);
-                f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
+                f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
                 pf = 1.0f - fresnel;
                 if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
             }
@@ -570,7 +570,7 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     hit_ray.hit_camera = best_i;
     hit_ray.hit_light = -1;
     hit_ray.c_importance = 1.0f;
-    hit_ray.l_importance = 1.0f / (2.0f * PI);
+    hit_ray.l_importance = 1.0f;
     hit_ray.tot_importance = 1.0f;
 
     return 1;
@@ -617,7 +617,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
-                continue;
+                //continue;
                 // light visibility to camera plane
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
@@ -716,6 +716,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     p_values[i + 1] = 0.0f;
                 }
             }
+
             p_values[s + t] = 0.0f;
             p_values[s + t - 1] = 0.0f;
 
