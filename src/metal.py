@@ -23,6 +23,7 @@ if __name__ == '__main__':
     parser.add_argument('--movie-name', type=str, default='default')
     parser.add_argument('--save-on-quit', action='store_true')
     parser.add_argument("--scene", type=str, default="teapots")
+    parser.add_argument("--unidirectional", action="store_true")
     args = parser.parse_args()
 
     os.makedirs(f'../output/{args.movie_name}', exist_ok=True)
@@ -45,10 +46,24 @@ if __name__ == '__main__':
         cam_center = np.array([4, 1.5, 5])
         cam_dir = unit(np.array([-1, 0, -1]))
     elif args.scene == "dragon":
-        # load the dragon
+        # load a reasonable dragon
         load_time = time.time()
         tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
         print(f"done loading dragon in {time.time() - load_time}")
+        cam_center = np.array([0, 1.5, 6])
+        cam_dir = unit(np.array([0, 0, -1]))
+    elif args.scene == "big-dragon":
+        # load the big dragon
+        load_time = time.time()
+        tris += load_ply('../resources/dragon_vrip.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
+        print(f"done loading dragon in {time.time() - load_time}")
+        cam_center = np.array([0, 1.5, 6])
+        cam_dir = unit(np.array([0, 0, -1]))
+    elif args.scene == "bunny":
+        # load the bunny
+        load_time = time.time()
+        tris += load_obj('../resources/stanford-bunny.obj', offset=np.array([0, -4, 0]), material=5, scale=50)
+        print(f"done loading bunny in {time.time() - load_time}")
         cam_center = np.array([0, 1.5, 6])
         cam_dir = unit(np.array([0, 0, -1]))
     elif args.scene == "double-dragon":
@@ -138,37 +153,40 @@ if __name__ == '__main__':
             camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
             retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
-            # make light rays and rands
-            light_ray_start_time = time.time()
-            light_rays = fast_generate_light_rays(triangles, camera_rays.size)
-            print(f"Create light rays in {time.time() - light_ray_start_time}")
+            image = unidirectional_image
 
-            rand_start_time = time.time()
-            rands = np.random.rand(light_rays.size * 32).astype(np.float32)
-            print(f"Create light rands in {time.time() - rand_start_time}")
+            if not args.unidirectional:
+                # make light rays and rands
+                light_ray_start_time = time.time()
+                light_rays = fast_generate_light_rays(triangles, camera_rays.size)
+                print(f"Create light rays in {time.time() - light_ray_start_time}")
 
-            # trace light paths
-            start_time = time.time()
-            trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug_image)
-            print(f"Sample {i} light trace time: {time.time() - start_time}")
+                rand_start_time = time.time()
+                rands = np.random.rand(light_rays.size * 32).astype(np.float32)
+                print(f"Create light rands in {time.time() - rand_start_time}")
 
-            # retrieve light trace outputs
-            light_paths = np.frombuffer(out_light_paths, dtype=Path)
-            retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                # trace light paths
+                start_time = time.time()
+                trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug_image)
+                print(f"Sample {i} light trace time: {time.time() - start_time}")
 
-            # join paths
-            start_time = time.time()
-            join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples)
-            print(f"Sample {i} join time: {time.time() - start_time}")
+                # retrieve light trace outputs
+                light_paths = np.frombuffer(out_light_paths, dtype=Path)
+                retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
-            post_start_time = time.time()
+                # join paths
+                start_time = time.time()
+                join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples)
+                print(f"Sample {i} join time: {time.time() - start_time}")
 
-            # retrieve joined path outputs
-            bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                post_start_time = time.time()
+
+                # retrieve joined path outputs
+                bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+
+                image = bidirectional_image
 
             # post processing. tone map, sum, division
-            image = bidirectional_image
-
             print(np.sum(np.isnan(image)), "nans in image")
             print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
             print(np.sum(np.isinf(image)), "infs in image")

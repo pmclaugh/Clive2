@@ -54,15 +54,15 @@ class Triangle:
         return np.linalg.norm(np.cross(e1, e2)) / 2
 
 
-def load_obj(obj_path, offset=None, material=None):
+def load_obj(obj_path, offset=None, material=None, scale=1.0):
     if offset is None:
         offset = np.zeros(3)
     obj = objloader.Obj.open(obj_path)
     triangles = []
     for i, ((v0, n0, t0), (v1, n1, t1), (v2, n2, t2)) in enumerate(zip(*[iter(obj.face)] * 3)):
-        triangle = Triangle(np.array(obj.vert[v0 - 1]) + offset,
-                            np.array(obj.vert[v1 - 1]) + offset,
-                            np.array(obj.vert[v2 - 1]) + offset)
+        triangle = Triangle(np.array(obj.vert[v0 - 1]) * scale + offset,
+                            np.array(obj.vert[v1 - 1]) * scale + offset,
+                            np.array(obj.vert[v2 - 1]) * scale + offset)
 
         # normals
         triangle.n0 = np.array(obj.norm[n0 - 1]) if n0 is not None else INVALID
