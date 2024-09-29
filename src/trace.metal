@@ -329,15 +329,10 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
         }
         if (dot(i, geom_n) * dot(o, geom_n) > 0 && dot(i, n) * dot(o, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o);
-            if (dot(m, n) <= 0.0f || dot(m, geom_n) <= 0.0f) {return 0.0f;}
-            if (dot(i, m) * dot(o, m) <= 0.0f) {return 0.0f;}
             return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha) * abs(dot(o, m));
         }
         else if (dot(i, geom_n) * dot(o, geom_n) < 0 && dot(i, n) * dot(o, n) < 0) {
             float3 m = specular_transmit_half_direction(i, o, ni, no);
-            if (dot(-i, o) <= 0.0f) {return 0.0f;}
-            if (dot(m, n) <= 0.0f || dot(m, geom_n) <= 0.0f) {return 0.0f;}
-            if (dot(i, m) <= 0.0f || dot(o, m) >= 0.0f) {return 0.0f;}
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha) * abs(dot(o, m));
         }
         else {
@@ -642,9 +637,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (materials[light_ray.material].type == 1) {continue;}
                 if (materials[camera_ray.material].type == 1) {continue;}
 
-                float3 dir_l_to_c = camera_ray.origin - light_ray.origin;
-                float dist_l_to_c = length(dir_l_to_c);
-                dir_l_to_c = dir_l_to_c / dist_l_to_c;
+                float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
 
                 // backface culling for joins
                 if (dot(light_ray.normal, dir_l_to_c) < DELTA) {continue;}
