@@ -56,7 +56,7 @@ class Camera:
         batch['tot_importance'] = 1.0 / (self.phys_width * self.phys_height)
         batch['hit_light'] = -1
         batch['hit_camera'] = -1
-        batch['normal'][:, :, :3] = directions
+        batch['normal'][:, :, :3] = self.direction
         batch['from_camera'] = 1
         batch['triangle'] = -1
         batch['material'] = 7

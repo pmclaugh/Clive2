@@ -425,22 +425,18 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (material.type == 0) {
             if (path.from_camera) {
                 wo = random_hemisphere_cosine(x, y, n, random_roll_a);
-                if (dot(n, wo) <= 0.0f || dot(n, wi) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
                 f = dot(n, wo) / PI;
                 c_p = dot(n, wo) / PI;
                 l_p = 1.0f / (2 * PI);
             }
             else {
                 wo = random_hemisphere_uniform(x, y, n, random_roll_a);
-                if (dot(n, wo) <= 0.0f || dot(n, wi) <= 0.0f || dot(signed_normal, wo) <= 0.0f) {break;}
                 f = dot(n, wo) / PI;
                 c_p = dot(n, wi) / PI;
                 l_p = 1.0f / (2 * PI);
             }
         } else {
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
-            if (dot(m, n) <= 0.0f || dot(m, signed_normal) <= 0.0f) {break;}
-
             float fresnel = degreve_fresnel(wi, m, ni, no);
             float pf = 1.0f;
 
@@ -448,12 +444,10 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 wo = specular_reflection(wi, m);
                 f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
                 pf = fresnel;
-                if (dot(wo, n) <= 0.0f || dot(wo, signed_normal) <= 0.0f) {break;}
             } else {
                 wo = GGX_transmit(wi, m, ni, no);
                 f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
                 pf = 1.0f - fresnel;
-                if (dot(wo, n) >= 0.0f || dot(wo, signed_normal) >= 0.0f) {break;}
             }
 
             float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
@@ -498,6 +492,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         path.rays[i] = ray;
         path.length = i + 1;
+
+        if (ray.hit_light >= 0) {
+            break;
+        }
+
         ray = new_ray;
         new_ray = next_ray;
     }
@@ -734,7 +733,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else if (t == 0) {color = light_path.rays[s - 2].color;}
             else if (t == 1) {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
-                if (s == 1) {color = light_ray.color;}
+                if (s == 1) {color = materials[light_ray.material].emission;}
                 else {
                     float3 prior_light_color = light_path.rays[s - 2].color;
                     float3 prior_light_direction = light_path.rays[s - 2].direction;
