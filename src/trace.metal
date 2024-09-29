@@ -232,7 +232,7 @@ float3 specular_reflect_half_direction(const thread float3 &i, const thread floa
 float3 GGX_transmit(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float no) {
     float cosTheta_i = dot(i, m);
     float eta = ni / no;
-    float cosTheta_t = sqrt(1 + eta * eta * (cosTheta_i * cosTheta_i - 1));
+    float cosTheta_t = sqrt(1 + eta * (cosTheta_i * cosTheta_i - 1));
     return normalize((eta * cosTheta_i - cosTheta_t) * m - eta * i);
 }
 
@@ -442,27 +442,27 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
             if (random_roll_b.x <= fresnel) {
                 wo = specular_reflection(wi, m);
-                f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
+                f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = fresnel;
             } else {
                 wo = GGX_transmit(wi, m, ni, no);
-                f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
+                f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = 1.0f - fresnel;
             }
 
             float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
 
             if (dot(wo, n) > 0.0f) {
-                c_p = pf * pm * reflect_jacobian(m, wo);
-                l_p = pf * pm * reflect_jacobian(m, wi);
+                c_p = pf * pm * reflect_jacobian(m, wo) / abs(dot(wo, m));
+                l_p = pf * pm * reflect_jacobian(m, wi) / abs(dot(wi, m));
             } else {
                 if (path.from_camera) {
-                    c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
-                    l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
+                    c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no) / abs(dot(wo, m));
+                    l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni) / abs(dot(wi, m));
                 }
                 else{
-                    c_p = pf * pm * transmit_jacobian(wo, wi, -m, ni, no);
-                    l_p = pf * pm * transmit_jacobian(wi, wo, m, no, ni);
+                    c_p = pf * pm * transmit_jacobian(wo, wi, -m, ni, no) / abs(dot(wi, m));
+                    l_p = pf * pm * transmit_jacobian(wi, wo, m, no, ni) / abs(dot(wo, m));
                 }
             }
         }
@@ -546,6 +546,7 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     test_ray.direction = dir;
     test_ray.inv_direction = normalize(1.0f / dir);
     test_ray.triangle = source.triangle;
+    test_ray.normal = source.normal;
 
     int best_i = -1;
     float best_t = INFINITY;
@@ -562,7 +563,7 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     hit_ray.normal = camera.direction;
     hit_ray.material = triangles[best_i].material;
     hit_ray.triangle = best_i;
-    hit_ray.hit_camera = best_i;
+    hit_ray.hit_camera = 1;
     hit_ray.hit_light = -1;
     hit_ray.c_importance = 1.0f;
     hit_ray.l_importance = 1.0f;
@@ -612,7 +613,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
-                continue;
                 // light visibility to camera plane
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
@@ -623,11 +623,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
+                continue;
                 // camera ray hits a light source
                 camera_ray = camera_path.rays[t - 1];
                 if (camera_ray.hit_light < 0) {continue;}
             }
             else {
+                continue;
                 // regular join
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
@@ -717,7 +719,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             // this is because t=0 and t=1 are disabled. but I'm not sure it's quite right
             p_values[s + t] = 0.0f;
-            p_values[s + t - 1] = 0.0f;
+            // p_values[s + t - 1] = 0.0f;
 
             float sum = 0.0f;
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}
