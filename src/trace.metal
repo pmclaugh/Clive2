@@ -613,6 +613,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
+                continue;
                 // light visibility to camera plane
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
@@ -620,16 +621,20 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (hit == -1) {continue;}
                 sample_index = get_sample_index(camera_ray.origin, c);
                 if (sample_index == -1) {continue;}
+
+                out[sample_index] = 1.0f;
+                continue;
+
                 camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
-                continue;
+                //continue;
                 // camera ray hits a light source
                 camera_ray = camera_path.rays[t - 1];
                 if (camera_ray.hit_light < 0) {continue;}
             }
             else {
-                continue;
+                //continue;
                 // regular join
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
@@ -719,7 +724,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             // this is because t=0 and t=1 are disabled. but I'm not sure it's quite right
             p_values[s + t] = 0.0f;
-            // p_values[s + t - 1] = 0.0f;
+            p_values[s + t - 1] = 0.0f;
 
             float sum = 0.0f;
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}

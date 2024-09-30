@@ -43,7 +43,7 @@ if __name__ == '__main__':
         # load the teapots
         tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=5)
         tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=0)
-        cam_center = np.array([4, 1.5, 5])
+        cam_center = np.array([7, 1.5, 8])
         cam_dir = unit(np.array([-1, 0, -1]))
     elif args.scene == "dragon":
         # load a reasonable dragon

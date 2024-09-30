@@ -11,6 +11,9 @@ class Camera:
         self.direction = direction
         self.phys_width = phys_width
         self.phys_height = phys_height
+        self.aspect_ratio = phys_width / phys_height
+        self.h_fov = H_FOV
+        self.v_fov = 2.0 * np.arctan(np.tan(H_FOV / 2.0) / self.aspect_ratio);
         self.focal_dist = (phys_width / 2.) / np.tan(H_FOV / 2.0)
         self.focal_point = self.center + self.focal_dist * direction
         self.pixel_width = pixel_width
@@ -44,9 +47,36 @@ class Camera:
         directions = directions / np.linalg.norm(directions, axis=2)[:, :, np.newaxis]
         return origins, directions
 
+    def new_ray_batch(self):
+        # Aspect ratio and FOV scaling
+        aspect_ratio = self.pixel_width / self.pixel_height
+        h_fov = np.pi / 2  # 90 degrees in radians
+        v_fov = 2.0 * np.arctan(np.tan(h_fov / 2.0) / aspect_ratio)  # vertical FOV
+
+        # Normalized pixel coordinates with random offsets
+        pixels = np.meshgrid(np.arange(self.pixel_width), np.arange(self.pixel_height))
+        offsets = np.random.rand(2, self.pixel_height, self.pixel_width)
+
+        # Normalize to [-1, 1] range
+        x_normalized = (pixels[0] + offsets[0] - 0.5 * self.pixel_width) / self.pixel_width
+        y_normalized = (pixels[1] + offsets[1] - 0.5 * self.pixel_height) / self.pixel_height
+
+        # Scale by FOV
+        x_vectors = x_normalized[:, :, np.newaxis] * np.tan(h_fov / 2.0) * self.dx
+        y_vectors = y_normalized[:, :, np.newaxis] * np.tan(v_fov / 2.0) * self.dy
+
+        # Compute the final ray origins and directions
+        origins = self.center + x_vectors + y_vectors
+        directions = self.focal_point - origins
+
+        # Normalize the directions
+        directions = directions / np.linalg.norm(directions, axis=2)[:, :, np.newaxis]
+
+        return origins, directions
+
     def ray_batch_numpy(self):
         batch = np.zeros((self.pixel_height, self.pixel_width), dtype=Ray)
-        origins, directions = self.ray_batch()
+        origins, directions = self.new_ray_batch()
         batch['origin'][:, :, :3] = origins + 0.0001 * directions
         batch['direction'][:, :, :3] = directions
         batch['inv_direction'][:, :, :3] = 1.0 / directions

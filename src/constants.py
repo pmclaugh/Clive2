@@ -1,7 +1,7 @@
 import numpy as np
 
 # camera constants
-H_FOV = 90
+H_FOV = np.pi / 2
 
 # directions
 UNIT_X = np.array([1, 0, 0], dtype=np.float64)
