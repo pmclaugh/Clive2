@@ -600,6 +600,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Box *boxes [[ buffer(4) ]],
                           const device Camera *camera [[ buffer(5) ]],
                           device float4 *out [[ buffer(6) ]],
+                          device float4 *light_image [[ buffer(7) ]],
                           uint id [[ thread_position_in_grid ]]) {
 
     Path camera_path = camera_paths[id];
@@ -797,7 +798,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
-            out[sample_index] += float4((w * g * color) / p_s, 1.0f);
+            if (sample_index == id) {
+                out[sample_index] += float4((w * g * color) / p_s, 1.0f);
+            }
+            else {
+                light_image[sample_index] += float4((w * g * color) / p_s, 1.0f);
+            }
         }
     }
 }

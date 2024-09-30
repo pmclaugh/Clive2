@@ -115,7 +115,9 @@ if __name__ == '__main__':
 
     # make a bunch of buffers
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
+    summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
+    light_image = np.zeros(summed_image.shape, dtype=np.float32)
     batch_size = c.pixel_width * c.pixel_height
 
     out_camera_image = dev.buffer(batch_size * 16)
@@ -127,6 +129,7 @@ if __name__ == '__main__':
     out_light_debug_image = dev.buffer(batch_size * 16)
 
     final_out_samples = dev.buffer(batch_size * 16)
+    final_out_light_image = dev.buffer(batch_size * 16)
 
     try:
         # render loop
@@ -176,13 +179,12 @@ if __name__ == '__main__':
 
                 # join paths
                 start_time = time.time()
-                join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples)
+                join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples, final_out_light_image)
                 print(f"Sample {i} join time: {time.time() - start_time}")
-
-                post_start_time = time.time()
 
                 # retrieve joined path outputs
                 bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
                 image = bidirectional_image
 
@@ -191,17 +193,17 @@ if __name__ == '__main__':
             print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
             print(np.sum(np.isinf(image)), "infs in image")
             summed_image += np.nan_to_num(image, posinf=0, neginf=0)
+            summed_light_image += np.nan_to_num(light_image, posinf=0, neginf=0)
             if np.any(np.isnan(summed_image)):
                 print("NaNs in summed image!!!")
                 break
-            to_display = tone_map(summed_image / (i + 1))
+            to_display = tone_map((summed_image + summed_light_image) / (i + 1))
             if np.any(np.isnan(to_display)):
                 print("NaNs in to_display!!!")
                 break
 
             # display the image
             cv2.imshow('image', to_display)
-            print(f"Post processing time: {time.time() - post_start_time}")
             cv2.waitKey(1)
     except (KeyboardInterrupt, metalcompute.error):
         if args.save_on_quit:
