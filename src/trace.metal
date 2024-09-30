@@ -581,14 +581,14 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     hit_ray.origin = test_ray.origin + test_ray.direction * best_t;
     hit_ray.color = float3(1.0f);
     hit_ray.direction = -dir;
-    hit_ray.normal = camera.direction;
+    hit_ray.normal = -dir;
     hit_ray.material = triangles[best_i].material;
     hit_ray.triangle = best_i;
     hit_ray.hit_camera = 1;
     hit_ray.hit_light = -1;
-    hit_ray.c_importance = 1.0f;
-    hit_ray.l_importance = 1.0f;
-    hit_ray.tot_importance = 1.0f;
+    hit_ray.c_importance = 1.0f / (camera.phys_width * camera.phys_height);
+    hit_ray.l_importance = 1.0f / (2.0f * PI);
+    hit_ray.tot_importance = hit_ray.c_importance;
 
     return 1;
 }
@@ -645,13 +645,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
-                continue;
+                //continue;
                 // camera ray hits a light source
                 camera_ray = camera_path.rays[t - 1];
                 if (camera_ray.hit_light < 0) {continue;}
             }
             else {
-                continue;
+                //continue;
                 // regular join
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
@@ -764,8 +764,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                     Material light_material = materials[light_ray.material];
                     float3 light_geom_normal = triangles[light_ray.triangle].normal;
-                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
-                    color = prior_light_color * new_light_f * light_material.color;
+                    float new_light_f = BRDF(dir_l_to_c, -prior_light_direction, light_ray.normal, light_geom_normal, light_material);
+                    color = prior_light_color * light_material.color * new_light_f;
                }
                g = geometry_term(camera_ray, light_ray);
             }

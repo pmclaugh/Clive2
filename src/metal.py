@@ -50,7 +50,7 @@ if __name__ == '__main__':
         load_time = time.time()
         tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
         print(f"done loading dragon in {time.time() - load_time}")
-        cam_center = np.array([0, 1.5, 6])
+        cam_center = np.array([0, 1.5, 9.5])
         cam_dir = unit(np.array([0, 0, -1]))
     elif args.scene == "big-dragon":
         # load the big dragon
