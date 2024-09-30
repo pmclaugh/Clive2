@@ -48,11 +48,6 @@ class Camera:
         return origins, directions
 
     def new_ray_batch(self):
-        # Aspect ratio and FOV scaling
-        aspect_ratio = self.pixel_width / self.pixel_height
-        h_fov = np.pi / 2  # 90 degrees in radians
-        v_fov = 2.0 * np.arctan(np.tan(h_fov / 2.0) / aspect_ratio)  # vertical FOV
-
         # Normalized pixel coordinates with random offsets
         pixels = np.meshgrid(np.arange(self.pixel_width), np.arange(self.pixel_height))
         offsets = np.random.rand(2, self.pixel_height, self.pixel_width)
@@ -62,8 +57,8 @@ class Camera:
         y_normalized = (pixels[1] + offsets[1] - 0.5 * self.pixel_height) / self.pixel_height
 
         # Scale by FOV
-        x_vectors = x_normalized[:, :, np.newaxis] * np.tan(h_fov / 2.0) * self.dx
-        y_vectors = y_normalized[:, :, np.newaxis] * np.tan(v_fov / 2.0) * self.dy
+        x_vectors = x_normalized[:, :, np.newaxis] * np.tan(self.h_fov / 2.0) * self.dx
+        y_vectors = y_normalized[:, :, np.newaxis] * np.tan(self.v_fov / 2.0) * self.dy
 
         # Compute the final ray origins and directions
         origins = self.center + x_vectors + y_vectors

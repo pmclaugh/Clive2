@@ -621,10 +621,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (hit == -1) {continue;}
                 sample_index = get_sample_index(camera_ray.origin, c);
                 if (sample_index == -1) {continue;}
-
-                out[sample_index] = 1.0f;
-                continue;
-
                 camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
