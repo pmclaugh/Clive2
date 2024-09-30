@@ -544,12 +544,12 @@ int get_sample_index(const thread float3 &point, const thread Camera &camera) {
     float aspect_ratio = float(camera.pixel_width) / float(camera.pixel_height);
 
     // Calculate the normalized pixel coordinates with FOV and aspect ratio
-    float normalizedX = (x / (camera.phys_width * tan(camera.h_fov / 2.0))) * aspect_ratio;
-    float normalizedY = y / (camera.phys_height * tan(camera.v_fov / 2.0));
+    float normalizedX = x / (tan(camera.h_fov / 2.0));
+    float normalizedY = y / (tan(camera.v_fov / 2.0));
 
     // Map normalized coordinates to pixel indices
-    int x_index = int((normalizedX + 1.0) * 0.5 * camera.pixel_width);
-    int y_index = int((normalizedY + 1.0) * 0.5 * camera.pixel_height);
+    int x_index = int((normalizedX + 0.5) * camera.pixel_width);
+    int y_index = int((normalizedY + 0.5) * camera.pixel_height);
 
     // Clamp the indices to the texture dimensions
     if (x_index < 0 || x_index >= camera.pixel_width || y_index < 0 || y_index >= camera.pixel_height) {
