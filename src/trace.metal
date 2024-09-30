@@ -62,7 +62,7 @@ struct Material {
 
 
 struct Camera {
-    float3 origin;
+    float3 center;
     float3 focal_point;
     float3 direction;
     float3 dx;
@@ -71,6 +71,9 @@ struct Camera {
     int32_t pixel_height;
     float phys_width;
     float phys_height;
+    float h_fov;
+    float v_fov;
+    int32_t pad[2];
 };
 
 
@@ -529,13 +532,31 @@ Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const
     else {return camera_path.rays[t + s - i - 1];}
 }
 
-int get_sample_index(const thread float3 &point, const thread Camera &camera){
-    float3 dir = point - camera.origin;
-    float x = dot(dir, camera.dx) / camera.phys_width;
-    float y = dot(dir, camera.dy) / camera.phys_height;
-    int x_index = int(x * camera.pixel_width);
-    int y_index = int(y * camera.pixel_height);
-    if (x_index < 0 || x_index >= camera.pixel_width || y_index < 0 || y_index >= camera.pixel_height) {return -1;}
+int get_sample_index(const thread float3 &point, const thread Camera &camera) {
+    // Compute the direction from the camera's origin to the point
+    float3 dir = point - camera.center;
+
+    // Project the direction onto the camera's basis vectors
+    float x = dot(dir, camera.dx);
+    float y = dot(dir, camera.dy);
+
+    // Calculate the aspect ratio
+    float aspect_ratio = float(camera.pixel_width) / float(camera.pixel_height);
+
+    // Calculate the normalized pixel coordinates with FOV and aspect ratio
+    float normalizedX = (x / (camera.phys_width * tan(camera.h_fov / 2.0))) * aspect_ratio;
+    float normalizedY = y / (camera.phys_height * tan(camera.v_fov / 2.0));
+
+    // Map normalized coordinates to pixel indices
+    int x_index = int((normalizedX + 1.0) * 0.5 * camera.pixel_width);
+    int y_index = int((normalizedY + 1.0) * 0.5 * camera.pixel_height);
+
+    // Clamp the indices to the texture dimensions
+    if (x_index < 0 || x_index >= camera.pixel_width || y_index < 0 || y_index >= camera.pixel_height) {
+        return -1; // Return -1 for out-of-bounds
+    }
+
+    // Return the linear index in the texture
     return y_index * camera.pixel_width + x_index;
 }
 
@@ -613,7 +634,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
-                continue;
+                //continue;
                 // light visibility to camera plane
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
@@ -624,13 +645,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
-                //continue;
+                continue;
                 // camera ray hits a light source
                 camera_ray = camera_path.rays[t - 1];
                 if (camera_ray.hit_light < 0) {continue;}
             }
             else {
-                //continue;
+                continue;
                 // regular join
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
@@ -720,7 +741,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             // this is because t=0 and t=1 are disabled. but I'm not sure it's quite right
             p_values[s + t] = 0.0f;
-            p_values[s + t - 1] = 0.0f;
+            //p_values[s + t - 1] = 0.0f;
 
             float sum = 0.0f;
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}

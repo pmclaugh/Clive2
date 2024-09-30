@@ -89,7 +89,7 @@ class Camera:
 
     def to_struct(self):
         c = np.zeros(1, dtype=camera_struct)
-        c[0]['origin'][:3] = self.origin
+        c[0]['center'][:3] = self.center
         c[0]['focal_point'][:3] = self.focal_point
         c[0]['direction'][:3] = self.direction
         c[0]['dx'][:3] = self.dx
@@ -98,6 +98,8 @@ class Camera:
         c[0]['pixel_height'] = self.pixel_height
         c[0]['phys_width'] = self.phys_width
         c[0]['phys_height'] = self.phys_height
+        c[0]['h_fov'] = self.h_fov
+        c[0]['v_fov'] = self.v_fov
         return c
 
 
