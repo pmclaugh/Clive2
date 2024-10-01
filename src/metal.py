@@ -205,7 +205,7 @@ if __name__ == '__main__':
                 print("NaNs in summed image!!!")
                 break
             # to_display = double_image_tone_map(summed_image / (i + 1), summed_light_image / (i + 1))
-            to_display = tone_map(summed_image / (i + 1) + summed_light_image / np.maximum(1, total_light_image_samples))
+            to_display = tone_map(summed_image / (i + 1) + summed_light_image)
             if np.any(np.isnan(to_display)):
                 print("NaNs in to_display!!!")
                 break

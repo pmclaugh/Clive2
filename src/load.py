@@ -141,7 +141,7 @@ def get_materials():
     materials['color'][6][:3] = WHITE
     materials['color'][7][:3] = WHITE
     materials['emission'] = np.zeros((8, 4), dtype=np.float32)
-    materials['emission'][6] = np.array([5, 5, 5, 5])
+    materials['emission'][6] = np.array([1, 1, 1, 1])
     materials['type'] = 0
 
     materials['ior'] = 1.5
@@ -164,7 +164,7 @@ def triangles_for_box(box_min, box_max):
     right_bottom_front = box_max - span * UNIT_Y
     right_top_back = box_max - span * UNIT_Z
 
-    shrink = np.array([.1, .95, .1], dtype=np.float32)
+    shrink = np.array([.25, .95, .25], dtype=np.float32)
     tris = [
         # back wall
         Triangle(left_bottom_back, right_bottom_back, right_top_back, material=4),
