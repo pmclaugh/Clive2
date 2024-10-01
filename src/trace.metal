@@ -601,7 +601,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Camera *camera [[ buffer(5) ]],
                           device float4 *out [[ buffer(6) ]],
                           device float4 *light_image [[ buffer(7) ]],
-                          device int *light_image_sample_count [[ buffer(8) ]],
                           uint id [[ thread_position_in_grid ]]) {
 
     Path camera_path = camera_paths[id];
@@ -609,8 +608,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
     int sample_index = id;
     out[id] = float4(0.0f);
-    light_image_sample_count[id] = 0;
     light_image[id] = float4(0.0f);
+    int sample_count = 0;
+    int light_sample_count = 0;
 
     Camera c = camera[0];
 
@@ -683,18 +683,15 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (i == 0) {
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i + 1);
-                    if (s == 0) {
-                        num = 1.0f;
-                    }
-                    else {
-                        num = a.l_importance;
-                    }
+                    // todo correct behavior for s==0
+                    num = a.l_importance;
                     denom = a.c_importance * geometry_term(a, b);
                 }
                 else if (i == s + t - 1) {
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i - 1);
                     num = a.l_importance * geometry_term(a, b);
+                    // todo correct behavior for t==0
                     denom = a.c_importance;
                 }
                 else {
@@ -744,7 +741,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
 
             // this is because t=0 is disabled. but I'm not sure it's quite right
-            p_values[s + t] = 0.0f;
+            // p_values[s + t] = 0.0f;
 
             float sum = 0.0f;
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}
@@ -767,7 +764,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                     Material light_material = materials[light_ray.material];
                     float3 light_geom_normal = triangles[light_ray.triangle].normal;
-                    float new_light_f = BRDF(dir_l_to_c, -prior_light_direction, light_ray.normal, light_geom_normal, light_material);
+                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
                     color = prior_light_color * light_material.color * new_light_f;
                }
                g = geometry_term(camera_ray, light_ray);
@@ -802,10 +799,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
             if (sample_index == id) {
                 out[sample_index] += float4((w * g * color) / p_s, 1.0f);
+                sample_count += 1;
             }
             else {
                 light_image[sample_index] += float4((w * g * color) / p_s, 1.0f);
-                light_image_sample_count[sample_index] += 1;
+                light_sample_count += 1;
             }
         }
     }

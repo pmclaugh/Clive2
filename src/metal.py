@@ -133,7 +133,6 @@ if __name__ == '__main__':
 
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_light_image = dev.buffer(batch_size * 16)
-    final_out_light_image_samples = dev.buffer(batch_size * 4)
 
     try:
         # render loop
@@ -184,13 +183,12 @@ if __name__ == '__main__':
                 # join paths
                 start_time = time.time()
                 join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0],
-                        final_out_samples, final_out_light_image, final_out_light_image_samples)
+                        final_out_samples, final_out_light_image)
                 print(f"Sample {i} join time: {time.time() - start_time}")
 
                 # retrieve joined path outputs
                 bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                 light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-                light_image_counts = np.frombuffer(final_out_light_image_samples, dtype=np.int32).reshape(c.pixel_height, c.pixel_width, 1)
 
                 image = bidirectional_image
 
@@ -200,7 +198,6 @@ if __name__ == '__main__':
             print(np.sum(np.isinf(image)), "infs in image")
             summed_image += np.nan_to_num(image, posinf=0, neginf=0)
             summed_light_image += np.nan_to_num(light_image, posinf=0, neginf=0)
-            total_light_image_samples += light_image_counts
             if np.any(np.isnan(summed_image)):
                 print("NaNs in summed image!!!")
                 break
