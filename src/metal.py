@@ -1,6 +1,6 @@
 import metalcompute
 import numpy as np
-from camera import Camera, tone_map, bipartite_tone_map
+from camera import Camera, tone_map, double_image_tone_map
 from bvh import construct_BVH, np_flatten_bvh
 import cv2
 import metalcompute as mc
@@ -204,7 +204,8 @@ if __name__ == '__main__':
             if np.any(np.isnan(summed_image)):
                 print("NaNs in summed image!!!")
                 break
-            to_display = bipartite_tone_map(summed_image, summed_light_image / (i + 1))
+            # to_display = double_image_tone_map(summed_image / (i + 1), summed_light_image / (i + 1))
+            to_display = tone_map(summed_image / (i + 1) + summed_light_image / np.maximum(1, total_light_image_samples))
             if np.any(np.isnan(to_display)):
                 print("NaNs in to_display!!!")
                 break
