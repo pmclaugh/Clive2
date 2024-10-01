@@ -104,6 +104,7 @@ class Camera:
 
 
 def tone_map(image):
+    print(f"IN min: {np.min(image)}, max: {np.max(image)}")
     tone_vector = np.array([0.0722, 0.7152, 0.2126])
     # tone_vector = ONES
     tone_sums = np.sum(image * tone_vector, axis=2)
@@ -111,7 +112,12 @@ def tone_map(image):
     per_pixel_lts = np.sum(log_tone_sums) / np.prod(image.shape[:2])
     Lw = np.exp(per_pixel_lts)
     result = image * 2. / Lw
+    print(f"OUT min: {np.min(result)}, max: {np.max(result)}")
     return (255 * result / (result + 1)).astype(np.uint8)
+
+
+def basic_tone_map(image):
+    return (255 * np.sqrt(image) / image).astype(np.uint8)
 
 
 def double_image_tone_map(image, light_image):
