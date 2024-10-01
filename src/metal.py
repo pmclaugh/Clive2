@@ -57,7 +57,7 @@ if __name__ == '__main__':
         load_time = time.time()
         tris += load_ply('../resources/dragon_vrip.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
         print(f"done loading dragon in {time.time() - load_time}")
-        cam_center = np.array([0, 1.5, 6])
+        cam_center = np.array([0, 1.5, 9.5])
         cam_dir = unit(np.array([0, 0, -1]))
     elif args.scene == "bunny":
         # load the bunny
@@ -116,6 +116,9 @@ if __name__ == '__main__':
     # make a bunch of buffers
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
     summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
+    total_light_image_samples = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.int32)
+    light_image_counts = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.int32)
+
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
     light_image = np.zeros(summed_image.shape, dtype=np.float32)
     batch_size = c.pixel_width * c.pixel_height
@@ -130,6 +133,7 @@ if __name__ == '__main__':
 
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_light_image = dev.buffer(batch_size * 16)
+    final_out_light_image_samples = dev.buffer(batch_size * 4)
 
     try:
         # render loop
@@ -179,12 +183,14 @@ if __name__ == '__main__':
 
                 # join paths
                 start_time = time.time()
-                join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0], final_out_samples, final_out_light_image)
+                join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0],
+                        final_out_samples, final_out_light_image, final_out_light_image_samples)
                 print(f"Sample {i} join time: {time.time() - start_time}")
 
                 # retrieve joined path outputs
                 bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                 light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                light_image_counts = np.frombuffer(final_out_light_image_samples, dtype=np.int32).reshape(c.pixel_height, c.pixel_width, 1)
 
                 image = bidirectional_image
 
@@ -194,10 +200,11 @@ if __name__ == '__main__':
             print(np.sum(np.isinf(image)), "infs in image")
             summed_image += np.nan_to_num(image, posinf=0, neginf=0)
             summed_light_image += np.nan_to_num(light_image, posinf=0, neginf=0)
+            total_light_image_samples += light_image_counts
             if np.any(np.isnan(summed_image)):
                 print("NaNs in summed image!!!")
                 break
-            to_display = tone_map((summed_light_image) / (i + 1))
+            to_display = tone_map(summed_light_image / np.maximum(1, total_light_image_samples))
             if np.any(np.isnan(to_display)):
                 print("NaNs in to_display!!!")
                 break

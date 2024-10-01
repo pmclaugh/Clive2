@@ -601,6 +601,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Camera *camera [[ buffer(5) ]],
                           device float4 *out [[ buffer(6) ]],
                           device float4 *light_image [[ buffer(7) ]],
+                          device int *light_image_sample_count [[ buffer(8) ]],
                           uint id [[ thread_position_in_grid ]]) {
 
     Path camera_path = camera_paths[id];
@@ -608,6 +609,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
     int sample_index = id;
     out[id] = float4(0.0f);
+    light_image_sample_count[id] = 0;
 
     Camera c = camera[0];
 
@@ -802,6 +804,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
             else {
                 light_image[sample_index] += float4((w * g * color) / p_s, 1.0f);
+                light_image_sample_count[sample_index] += 1;
             }
         }
     }
