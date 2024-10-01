@@ -114,7 +114,7 @@ def tone_map(image):
     return (255 * result / (result + 1)).astype(np.uint8)
 
 
-def bipartite_tone_map(image, light_image):
+def double_image_tone_map(image, light_image):
     tone_vector = np.array([0.0722, 0.7152, 0.2126])
     tone_sums = np.sum(image * tone_vector, axis=2) + np.sum(light_image * tone_vector, axis=2)
     log_tone_sums = np.log(0.1 + tone_sums)
