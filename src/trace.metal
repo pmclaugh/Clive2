@@ -715,23 +715,21 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float p_s = prior_camera_importance * prior_light_importance;
 
-            float p_i = p_s;
+            float p_i = 1.0f;
 
             for (int i = s; i < s + t; i++) {
-                p_ratios[i] = p_ratios[i] * p_i;
-                p_values[i + 1] = p_ratios[i];
-                p_i = p_ratios[i];
+                p_values[i + 1] = p_ratios[i] * p_i;
+                p_i = p_values[i + 1];
             }
 
-            p_i = p_s;
+            p_i = 1.0f;
 
             for (int i = s - 1; i >= 0; i--) {
-                p_ratios[i] = p_i / p_ratios[i];
-                p_values[i] = p_ratios[i];
-                p_i = p_ratios[i];
+                p_values[i] = p_i / p_ratios[i];
+                p_i = p_values[i];
             }
 
-            p_values[s] = p_s;
+            p_values[s] = 1.0f;
 
             for (int i = 0; i < s + t + 1; i++) {
                 if (materials[get_ray(camera_path, light_path, t, s, i).material].type == 1) {
@@ -747,7 +745,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}
 
             float w;
-            if (sum > 0.0f && p_values[s] > 0.0f) {w = p_values[s] / sum;}
+            if (sum > 0.0f && p_values[s] > 0.0f) {w = 1.0f / sum;}
             else {continue;}
 
             float3 color = float3(1.0f);
