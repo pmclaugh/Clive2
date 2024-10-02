@@ -638,7 +638,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
-                continue;
+                //continue;
                 // light visibility to camera plane. WIP.
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
@@ -649,7 +649,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
-                //continue;
+                continue;
                 // camera ray hits a light source
                 camera_ray = camera_path.rays[t - 1];
                 if (camera_ray.hit_light < 0) {continue;}
@@ -691,8 +691,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i - 1);
                     num = a.l_importance * geometry_term(a, b);
-                    // todo correct behavior for t==0
-                    denom = a.c_importance;
+                    if (t == 0) {denom = camera_path.rays[0].c_importance;}
+                    else {denom = a.c_importance;}
                 }
                 else {
                     Ray a, b, c;
