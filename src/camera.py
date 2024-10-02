@@ -13,29 +13,39 @@ class Camera:
         self.phys_height = phys_height
         self.aspect_ratio = phys_width / phys_height
         self.h_fov = H_FOV
-        self.v_fov = 2.0 * np.arctan(np.tan(H_FOV / 2.0) / self.aspect_ratio);
-        self.focal_dist = (phys_width / 2.) / np.tan(H_FOV / 2.0)
-        self.focal_point = self.center + self.focal_dist * direction
+        self.v_fov = 2.0 * np.arctan(np.tan(H_FOV / 2.0) / self.aspect_ratio)
         self.pixel_width = pixel_width
         self.pixel_height = pixel_height
-
-        if abs(self.direction[0]) < 0.0001:
-            self.dx = UNIT_X if direction[2] > 0 else UNIT_X * -1
-        else:
-            dx = np.cross(direction * (UNIT_X + UNIT_Z), UNIT_Y * -1)
-            self.dx = dx / np.linalg.norm(dx)
-
-        if abs(self.direction[1]) < 0.0001:
-            self.dy = UNIT_Y
-        else:
-            dy = np.cross(direction, self.dx)
-            self.dy = dy / np.linalg.norm(dy)
 
         self.dx_dp = self.dx * self.phys_width / self.pixel_width
         self.dy_dp = self.dy * self.phys_height / self.pixel_height
         self.pixel_phys_size = np.linalg.norm(self.dx_dp) * np.linalg.norm(self.dy_dp)
 
         self.origin = center - self.dx * phys_width / 2 - self.dy * phys_height / 2
+
+    @property
+    def focal_dist(self):
+        return self.phys_width / (2 * np.tan(self.h_fov / 2))
+
+    @property
+    def focal_point(self):
+        return self.center + self.focal_dist * self.direction
+
+    @property
+    def dx(self):
+        if abs(self.direction[0]) < 0.0001:
+            return UNIT_X if self.direction[2] > 0 else UNIT_X * -1
+        else:
+            dx = np.cross(self.direction * (UNIT_X + UNIT_Z), UNIT_Y * -1)
+            return dx / np.linalg.norm(dx)
+
+    @property
+    def dy(self):
+        if abs(self.direction[1]) < 0.0001:
+            return UNIT_Y
+        else:
+            dy = np.cross(self.direction, self.dx)
+            return dy / np.linalg.norm(dy)
 
     def ray_batch(self):
         pixels = np.meshgrid(np.arange(self.pixel_width), np.arange(self.pixel_height))
