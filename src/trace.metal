@@ -907,13 +907,13 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     ray.hit_light = -1;
     ray.hit_camera = -1;
 
-    int light_count = counts[0];
-    int light_index = id % light_count;
-    Triangle light_triangle = light_triangles[light_index];
-    float surface_area = surface_areas[light_index];
-
     unsigned int seed0 = random_buffer[2 * id];
     unsigned int seed1 = random_buffer[2 * id + 1];
+
+    int light_count = counts[0];
+    int light_index = (int)(xorshift_random(seed1) * light_count);
+    Triangle light_triangle = light_triangles[light_index];
+    float surface_area = surface_areas[light_index];
 
     float u = xorshift_random(seed0);
     float v = xorshift_random(seed0);
@@ -923,8 +923,8 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     }
     float w = 1.0f - u - v;
 
-    ray.origin = light_triangle.v0 * u + light_triangle.v1 * v + light_triangle.v2 * w;
     ray.normal = light_triangle.normal;
+    ray.origin = light_triangle.v0 * u + light_triangle.v1 * v + light_triangle.v2 * w + DELTA * ray.normal;
     float3 x, y;
     orthonormal(ray.normal, x, y);
 
