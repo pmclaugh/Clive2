@@ -69,8 +69,8 @@ if __name__ == '__main__':
     elif args.scene == "double-dragon":
         # load the dragon
         load_time = time.time()
-        tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([-2, -4, 0]), material=5, scale=50)
-        tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([2, -4, -2]), material=0, scale=50)
+        tris += load_ply('../resources/dragon_vrip.ply', offset=np.array([-3, -4, 0]), material=5, scale=40)
+        tris += load_ply('../resources/dragon_vrip.ply', offset=np.array([3, -4, -2]), material=0, scale=40)
         print(f"done loading dragon in {time.time() - load_time}")
         cam_center = np.array([0, 2.5, 6])
         cam_dir = unit(np.array([0, 0, -1]))
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     camera_arr = c.to_struct()
     camera_tris = camera_geometry(c)
     dummy_smooth_normals(camera_tris)
-    tris += camera_tris
+    # tris += camera_tris
 
     # build and marshall BVH
     start_time = time.time()
@@ -107,17 +107,16 @@ if __name__ == '__main__':
     boxes, triangles = np_flatten_bvh(bvh)
     print("done flattening bvh")
 
-    box_buffer = dev.buffer(boxes.size * boxes.itemsize)
-    tri_buffer = dev.buffer(triangles.size * triangles.itemsize)
-
     # load materials (very basic for now)
     mats = get_materials()
 
     # make a bunch of buffers
+    box_buffer = dev.buffer(boxes)
+    tri_buffer = dev.buffer(triangles)
+    mat_buffer = dev.buffer(mats)
+
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
     summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-    total_light_image_samples = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.int32)
-    light_image_counts = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.int32)
 
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
     light_image = np.zeros(summed_image.shape, dtype=np.float32)
@@ -134,90 +133,131 @@ if __name__ == '__main__':
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_light_image = dev.buffer(batch_size * 16)
 
-    try:
-        # render loop
-        for i in range(args.samples):
-            trace_fn = dev.kernel(kernel).function("generate_paths")
-            join_fn = dev.kernel(kernel).function("connect_paths")
+    rand_buffer = dev.buffer(np.random.rand(batch_size * 32).astype(np.float32))
+    camera_ray_buffer = dev.buffer(c.ray_batch_numpy().flatten())
+    light_ray_buffer = dev.buffer(fast_generate_light_rays(triangles, batch_size))
 
-            # make camera rays and rands
-            camera_ray_start_time = time.time()
-            camera_rays = c.ray_batch_numpy().flatten()
-            print(f"Create camera rays in {time.time() - camera_ray_start_time}")
+    f = 4
+    while f < args.total_frames:
 
-            rand_start_time = time.time()
-            rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
-            print(f"Create camera rands in {time.time() - rand_start_time}")
+        # temporary to make a movie
+        time_parameter = f / args.total_frames
+        x = np.cos(time_parameter * 2 * np.pi) * 9
+        z = np.sin(time_parameter * 2 * np.pi) * 9
+        c.center = np.array([x, 1.5, z])
+        c.direction = unit(np.array([-x, 0, -z]))
 
-            # trace camera paths
-            start_time = time.time()
-            trace_fn(batch_size, camera_rays, boxes, triangles, mats, rands, out_camera_image, out_camera_paths, out_camera_debug_image)
-            print(f"Sample {i} camera trace time: {time.time() - start_time}")
+        camera_arr = c.to_struct()
 
-            # retrieve camera trace outputs
-            unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-            camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
-            retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+        # zero buffers
+        summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
+        summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
 
-            image = unidirectional_image
+        try:
+            # render loop
+            for i in range(args.samples):
+                start_sample_time = time.time()
 
-            if not args.unidirectional:
-                # make light rays and rands
-                light_ray_start_time = time.time()
-                light_rays = fast_generate_light_rays(triangles, camera_rays.size)
-                print(f"Create light rays in {time.time() - light_ray_start_time}")
+                trace_fn = dev.kernel(kernel).function("generate_paths")
+                join_fn = dev.kernel(kernel).function("connect_paths")
+
+                # make camera rays and rands
+                camera_ray_start_time = time.time()
+                camera_rays = c.ray_batch_numpy().flatten()
+                camera_ray_buffer = dev.buffer(camera_rays)
+                print(f"Create camera rays in {time.time() - camera_ray_start_time}")
 
                 rand_start_time = time.time()
-                rands = np.random.rand(light_rays.size * 32).astype(np.float32)
-                print(f"Create light rands in {time.time() - rand_start_time}")
+                rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
+                rand_buffer = dev.buffer(rands)
+                print(f"Create camera rands in {time.time() - rand_start_time}")
 
-                # trace light paths
+                # trace camera paths
                 start_time = time.time()
-                trace_fn(batch_size, light_rays, boxes, triangles, mats, rands, out_light_image, out_light_paths, out_light_debug_image)
-                print(f"Sample {i} light trace time: {time.time() - start_time}")
+                trace_fn(batch_size, camera_ray_buffer, box_buffer, tri_buffer, mat_buffer, rand_buffer, out_camera_image, out_camera_paths, out_camera_debug_image)
+                print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
-                # retrieve light trace outputs
-                light_paths = np.frombuffer(out_light_paths, dtype=Path)
-                retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                # retrieve camera trace outputs
+                unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
+                retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                image = unidirectional_image
 
-                # join paths
-                start_time = time.time()
-                join_fn(batch_size, out_camera_paths, out_light_paths, triangles, mats, boxes, camera_arr[0],
-                        final_out_samples, final_out_light_image)
-                print(f"Sample {i} join time: {time.time() - start_time}")
+                mc.release(rand_buffer)
+                del rand_buffer
+                mc.release(camera_ray_buffer)
+                del camera_ray_buffer
 
-                # retrieve joined path outputs
-                bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-                light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                if not args.unidirectional:
+                    # make light rays and rands
+                    light_ray_start_time = time.time()
+                    light_rays = fast_generate_light_rays(triangles, camera_rays.size)
+                    light_ray_buffer = dev.buffer(light_rays)
+                    print(f"Create light rays in {time.time() - light_ray_start_time}")
 
-                image = bidirectional_image
+                    rand_start_time = time.time()
 
-            # post processing. tone map, sum, division
-            print(np.sum(np.isnan(image)), "nans in image")
-            print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
-            print(np.sum(np.isinf(image)), "infs in image")
-            summed_image += np.nan_to_num(image, posinf=0, neginf=0)
-            summed_light_image += np.nan_to_num(light_image, posinf=0, neginf=0)
-            if np.any(np.isnan(summed_image)):
-                print("NaNs in summed image!!!")
-                break
+                    rands = np.random.rand(light_rays.size * 32).astype(np.float32)
+                    rand_buffer = dev.buffer(rands)
+                    print(f"Create light rands in {time.time() - rand_start_time}")
 
-            to_display = tone_map((summed_image + summed_light_image))
-            # to_display = tone_map(summed_image / (i + 1))
-            if np.any(np.isnan(to_display)):
-                print("NaNs in to_display!!!")
-                break
+                    # trace light paths
+                    start_time = time.time()
+                    trace_fn(batch_size, light_ray_buffer, box_buffer, tri_buffer, mat_buffer, rand_buffer, out_light_image, out_light_paths, out_light_debug_image)
+                    print(f"Sample {i} light trace time: {time.time() - start_time}")
 
-            # display the image
-            cv2.imshow('image', to_display)
-            cv2.waitKey(1)
-    except (KeyboardInterrupt, metalcompute.error):
-        if args.save_on_quit:
-            pass
+                    # retrieve light trace outputs
+                    light_paths = np.frombuffer(out_light_paths, dtype=Path)
+                    retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+
+                    # join paths
+                    start_time = time.time()
+                    join_fn(batch_size, out_camera_paths, out_light_paths, tri_buffer, mat_buffer, box_buffer, camera_arr[0],
+                            final_out_samples, final_out_light_image)
+                    print(f"Sample {i} join time: {time.time() - start_time}")
+
+                    # retrieve joined path outputs
+                    bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                    light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+
+                    image = bidirectional_image
+
+                    mc.release(rand_buffer)
+                    del rand_buffer
+                    mc.release(light_ray_buffer)
+                    del light_ray_buffer
+
+                # post processing. tone map, sum, division
+                print(np.sum(np.isnan(image)), "nans in image")
+                print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
+                print(np.sum(np.isinf(image)), "infs in image")
+                summed_image += np.nan_to_num(image, posinf=0, neginf=0)
+                summed_light_image += np.nan_to_num(light_image, posinf=0, neginf=0)
+                if np.any(np.isnan(summed_image)):
+                    print("NaNs in summed image!!!")
+                    break
+
+                to_display = tone_map((summed_image + summed_light_image) / (i + 1))
+                # to_display = tone_map(summed_image / (i + 1))
+                if np.any(np.isnan(to_display)):
+                    print("NaNs in to_display!!!")
+                    break
+
+                # display the image
+                cv2.imshow('image', to_display)
+                cv2.waitKey(1)
+
+                print(f"Whole sample {i} time: {time.time() - start_sample_time}")
+
+        except (KeyboardInterrupt, metalcompute.error):
+            if args.save_on_quit:
+                pass
+            else:
+                raise
+        # save the image
+        if args.total_frames == 1:
+            cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)
         else:
-            raise
-    # save the image
-    if args.total_frames == 1:
-        cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)
-    else:
-        cv2.imwrite(f'../output/{args.movie_name}/frame_{args.frame_number:04d}.png', to_display)
+            cv2.imwrite(f'../output/{args.movie_name}/frame_{f:04d}.png', to_display)
+
+        f += 1
