@@ -413,7 +413,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.normal = sampled_normal;
         new_ray.material = triangle.material;
         new_ray.triangle = best_i;
-        if (triangle.is_light) {new_ray.hit_light = best_i;}
+        if (triangle.is_light && dot(ray.direction, triangle.normal) < 0.0f) {new_ray.hit_light = best_i;}
         else {new_ray.hit_light = -1;}
         if (triangle.is_camera) {new_ray.hit_camera = best_i;}
         else {new_ray.hit_camera = -1;}
@@ -639,7 +639,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
             else if (t == 1) {
                 continue;
-                // light visibility to camera plane. WIP.
+                // light visibility to camera plane. WIP. Disabled for now.
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
                 int hit = map_camera_pixel(light_ray, camera[0], triangles, boxes, camera_ray);
