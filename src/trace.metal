@@ -806,4 +806,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
         }
     }
+    if (sample_count > 0) {out[id] = out[id] / float(sample_count);}
+    if (light_sample_count > 0) {light_image[id] = light_image[id] / float(light_sample_count);}
 }
