@@ -453,11 +453,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         wi = -ray.direction;
 
         float rand_x_a = xorshift_random(seed0);
-        float rand_y_a = xorshift_random(seed0);
+        float rand_y_a = xorshift_random(seed1);
         float2 random_roll_a = float2(rand_x_a, rand_y_a);
 
         float rand_x_b = xorshift_random(seed0);
-        float rand_y_b = xorshift_random(seed0);
+        float rand_y_b = xorshift_random(seed1);
         float2 random_roll_b = float2(rand_x_b, rand_y_b);
 
         float f, c_p, l_p;
@@ -857,11 +857,8 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     uint rand1 = random_buffer[2 * id];
     uint rand2 = random_buffer[2 * id + 1];
 
-//    float x_offset = xorshift_random(rand1, rand2);
-//    float y_offset = xorshift_random(rand1, rand2);
-
-    float x_offset = 0.5f;
-    float y_offset = 0.5f;
+    float x_offset = xorshift_random(rand1);
+    float y_offset = xorshift_random(rand2);
 
     int pixel_x = id % c.pixel_width;
     int pixel_y = id / c.pixel_width;
@@ -916,7 +913,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     float surface_area = surface_areas[light_index];
 
     float u = xorshift_random(seed0);
-    float v = xorshift_random(seed0);
+    float v = xorshift_random(seed1);
     if (u + v > 1.0f) {
         u = 1.0f - u;
         v = 1.0f - v;
