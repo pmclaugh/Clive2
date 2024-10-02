@@ -144,23 +144,25 @@ if __name__ == '__main__':
     light_triangle_indices = np.array([i for i, t in enumerate(triangles) if t['is_light'] == 1])
 
     # populate initial rand buffer
-    rand_buffer = dev.buffer(np.random.randint(0, 2 ** 32, size=(batch_size, 2), dtype=np.uint32))
+    randoms = np.random.randint(0, 2 ** 32, size=(batch_size, 2), dtype=np.uint32)
+    randoms[1] |= 1
+    rand_buffer = dev.buffer(randoms)
 
     f = 0
     while f < args.total_frames:
 
-        # temporary to make a movie
-        time_parameter = f / args.total_frames
-        x = np.cos(time_parameter * 2 * np.pi) * 9
-        z = np.sin(time_parameter * 2 * np.pi) * 9
-        c.center = np.array([x, 1.5, z])
-        c.direction = unit(np.array([-x, 0, -z]))
-
-        # update camera buffer
-        camera_arr = c.to_struct()
-        mc.release(camera_buffer)
-        del camera_buffer
-        camera_buffer = dev.buffer(c.to_struct())
+        # # temporary to make a movie
+        # time_parameter = f / args.total_frames
+        # x = np.cos(time_parameter * 2 * np.pi) * 9
+        # z = np.sin(time_parameter * 2 * np.pi) * 9
+        # c.center = np.array([x, 1.5, z])
+        # c.direction = unit(np.array([-x, 0, -z]))
+        #
+        # # update camera buffer
+        # camera_arr = c.to_struct()
+        # mc.release(camera_buffer)
+        # del camera_buffer
+        # camera_buffer = dev.buffer(c.to_struct())
 
         # zero image buffers
         summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
