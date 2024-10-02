@@ -76,24 +76,15 @@ struct Camera {
     int32_t pad[2];
 };
 
+float pcg_random(thread unsigned int &state, thread unsigned int &inc) {
+    // PCG step (32-bit)
+    state = state * 747796405u + inc;
+    uint xorshifted = ((state >> 22u) ^ state) >> 11u; // Adjusted for 32-bit shift
+    uint rot = state >> 28u;                           // Use 32-bit appropriate shift
+    uint result = (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
 
-float get_random(thread unsigned int &seed0, thread unsigned int &seed1) {
-    // this is the random routine from CLIVE
-
-	/* hash the seeds using bitwise AND operations and bitshifts */
-	seed0 = 36969 * ((seed0) & 65535) + ((seed0) >> 16);
-	seed1 = 18000 * ((seed1) & 65535) + ((seed1) >> 16);
-
-	unsigned int ires = ((seed0) << 16) + (seed1);
-
-	/* use union struct to convert int to float */
-	union {
-		float f;
-		unsigned int ui;
-	} res;
-
-	res.ui = (ires & 0x007fffff) | 0x40000000;  /* bitwise AND, bitwise OR */
-	return (res.f - 2.0f) / 2.0f;
+    // Convert the random uint to a float in the range [0, 1)
+    return (float)(result) / (float)0xFFFFFFFF;
 }
 
 void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool &hit, thread float &t) {
@@ -435,12 +426,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 wi, wo;
         wi = -ray.direction;
 
-        float rand_x_a = get_random(seed0, seed1);
-        float rand_y_a = get_random(seed0, seed1);
+        float rand_x_a = pcg_random(seed0, seed1);
+        float rand_y_a = pcg_random(seed0, seed1);
         float2 random_roll_a = float2(rand_x_a, rand_y_a);
 
-        float rand_x_b = get_random(seed0, seed1);
-        float rand_y_b = get_random(seed0, seed1);
+        float rand_x_b = pcg_random(seed0, seed1);
+        float rand_y_b = pcg_random(seed0, seed1);
         float2 random_roll_b = float2(rand_x_b, rand_y_b);
 
         float f, c_p, l_p;
@@ -840,8 +831,8 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     uint rand1 = random_buffer[2 * id];
     uint rand2 = random_buffer[2 * id + 1];
 
-    float x_offset = get_random(rand1, rand2);
-    float y_offset = get_random(rand1, rand2);
+    float x_offset = pcg_random(rand1, rand2);
+    float y_offset = pcg_random(rand1, rand2);
 
     int pixel_x = id % c.pixel_width;
     int pixel_y = id / c.pixel_width;
@@ -895,8 +886,8 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     unsigned int seed0 = random_buffer[2 * id];
     unsigned int seed1 = random_buffer[2 * id + 1];
 
-    float u = get_random(seed0, seed1);
-    float v = get_random(seed0, seed1);
+    float u = pcg_random(seed0, seed1);
+    float v = pcg_random(seed0, seed1);
     if (u + v > 1.0f) {
         u = 1.0f - u;
         v = 1.0f - v;
@@ -908,8 +899,8 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     float3 x, y;
     orthonormal(ray.normal, x, y);
 
-    float rand_x = get_random(seed0, seed1);
-    float rand_y = get_random(seed0, seed1);
+    float rand_x = pcg_random(seed0, seed1);
+    float rand_y = pcg_random(seed0, seed1);
     float2 random_roll = float2(rand_x, rand_y);
     ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
     ray.inv_direction = 1.0f / ray.direction;

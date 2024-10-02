@@ -146,7 +146,7 @@ if __name__ == '__main__':
     # populate initial rand buffer
     rand_buffer = dev.buffer(np.random.randint(0, 2 ** 32, size=(batch_size, 2), dtype=np.uint32))
 
-    f = 4
+    f = 0
     while f < args.total_frames:
 
         # temporary to make a movie
