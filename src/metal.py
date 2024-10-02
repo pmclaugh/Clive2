@@ -6,6 +6,7 @@ import cv2
 import metalcompute as mc
 import time
 from struct_types import Path
+from struct_types import Camera as camera_struct
 from datetime import datetime
 import argparse
 import os
@@ -34,6 +35,7 @@ if __name__ == '__main__':
         kernel = f.read()
     trace_fn = dev.kernel(kernel).function("generate_paths")
     join_fn = dev.kernel(kernel).function("connect_paths")
+    camera_ray_fn = dev.kernel(kernel).function("generate_camera_rays")
 
     tris = []
     if args.scene == "empty":
@@ -107,13 +109,10 @@ if __name__ == '__main__':
     boxes, triangles = np_flatten_bvh(bvh)
     print("done flattening bvh")
 
-    # load materials (very basic for now)
-    mats = get_materials()
-
     # make a bunch of buffers
     box_buffer = dev.buffer(boxes)
     tri_buffer = dev.buffer(triangles)
-    mat_buffer = dev.buffer(mats)
+    mat_buffer = dev.buffer(get_materials())
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
     summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
@@ -133,11 +132,13 @@ if __name__ == '__main__':
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_light_image = dev.buffer(batch_size * 16)
 
-    rand_buffer = dev.buffer(np.random.rand(batch_size * 32).astype(np.float32))
-    camera_ray_buffer = dev.buffer(c.ray_batch_numpy().flatten())
-    light_ray_buffer = dev.buffer(fast_generate_light_rays(triangles, batch_size))
+    # two four-byte rand seeds per thread
+    rand_buffer = dev.buffer(8 * batch_size)
+    camera_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
+    light_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
+    camera_buffer = dev.buffer(c.to_struct())
 
-    f = 4
+    f = 0
     while f < args.total_frames:
 
         # temporary to make a movie
@@ -147,11 +148,18 @@ if __name__ == '__main__':
         c.center = np.array([x, 1.5, z])
         c.direction = unit(np.array([-x, 0, -z]))
 
+        # update camera buffer
         camera_arr = c.to_struct()
+        mc.release(camera_buffer)
+        del camera_buffer
+        camera_buffer = dev.buffer(c.to_struct())
 
-        # zero buffers
+        # zero image buffers
         summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
         summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
+
+        # populate initial rand buffer
+        rand_buffer = dev.buffer(np.random.randint(0, 2**32, size=(batch_size, 2), dtype=np.uint32))
 
         try:
             # render loop
@@ -163,14 +171,8 @@ if __name__ == '__main__':
 
                 # make camera rays and rands
                 camera_ray_start_time = time.time()
-                camera_rays = c.ray_batch_numpy().flatten()
-                camera_ray_buffer = dev.buffer(camera_rays)
+                camera_ray_fn(batch_size, camera_buffer, rand_buffer, camera_ray_buffer)
                 print(f"Create camera rays in {time.time() - camera_ray_start_time}")
-
-                rand_start_time = time.time()
-                rands = np.random.rand(camera_rays.size * 32).astype(np.float32)
-                rand_buffer = dev.buffer(rands)
-                print(f"Create camera rands in {time.time() - rand_start_time}")
 
                 # trace camera paths
                 start_time = time.time()
@@ -183,23 +185,12 @@ if __name__ == '__main__':
                 retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                 image = unidirectional_image
 
-                mc.release(rand_buffer)
-                del rand_buffer
-                mc.release(camera_ray_buffer)
-                del camera_ray_buffer
-
                 if not args.unidirectional:
                     # make light rays and rands
                     light_ray_start_time = time.time()
-                    light_rays = fast_generate_light_rays(triangles, camera_rays.size)
+                    light_rays = fast_generate_light_rays(triangles, batch_size)
                     light_ray_buffer = dev.buffer(light_rays)
                     print(f"Create light rays in {time.time() - light_ray_start_time}")
-
-                    rand_start_time = time.time()
-
-                    rands = np.random.rand(light_rays.size * 32).astype(np.float32)
-                    rand_buffer = dev.buffer(rands)
-                    print(f"Create light rands in {time.time() - rand_start_time}")
 
                     # trace light paths
                     start_time = time.time()
@@ -221,11 +212,6 @@ if __name__ == '__main__':
                     light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
                     image = bidirectional_image
-
-                    mc.release(rand_buffer)
-                    del rand_buffer
-                    mc.release(light_ray_buffer)
-                    del light_ray_buffer
 
                 # post processing. tone map, sum, division
                 print(np.sum(np.isnan(image)), "nans in image")

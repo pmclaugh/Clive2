@@ -77,6 +77,25 @@ struct Camera {
 };
 
 
+float get_random(thread unsigned int &seed0, thread unsigned int &seed1) {
+    // this is the random routine from CLIVE
+
+	/* hash the seeds using bitwise AND operations and bitshifts */
+	seed0 = 36969 * ((seed0) & 65535) + ((seed0) >> 16);
+	seed1 = 18000 * ((seed1) & 65535) + ((seed1) >> 16);
+
+	unsigned int ires = ((seed0) << 16) + (seed1);
+
+	/* use union struct to convert int to float */
+	union {
+		float f;
+		unsigned int ui;
+	} res;
+
+	res.ui = (ires & 0x007fffff) | 0x40000000;  /* bitwise AND, bitwise OR */
+	return (res.f - 2.0f) / 2.0f;
+}
+
 void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool &hit, thread float &t) {
     float3 t0s = (box.min - ray.origin) * ray.inv_direction;
     float3 t1s = (box.max - ray.origin) * ray.inv_direction;
@@ -352,7 +371,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    const device Box *boxes [[ buffer(1) ]],
                    const device Triangle *triangles [[ buffer(2) ]],
                    const device Material *materials [[ buffer(3) ]],
-                   const device float2 *random_buffer [[ buffer(4) ]],
+                   device unsigned int *random_buffer [[ buffer(4) ]],
                    device float4 *out [[ buffer(5) ]],
                    device Path *output_paths [[ buffer(6) ]],
                    device float4 *float_debug [[ buffer(7) ]],
@@ -364,10 +383,15 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     path.from_camera = ray.from_camera;
     out[id] = float4(0, 0, 0, 1);
 
+    unsigned int seed0 = random_buffer[2 * id];
+    unsigned int seed1 = random_buffer[2 * id + 1];
+
     if (path.from_camera == 0) {
         float3 x, y;
         orthonormal(ray.normal, x, y);
-        float2 random_roll = random_buffer[id * 16 + 15];
+        float rand_x = get_random(seed0, seed1);
+        float rand_y = get_random(seed0, seed1);
+        float2 random_roll = float2(rand_x, rand_y);
         ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
         ray.inv_direction = 1.0f / ray.direction;
         new_ray.l_importance = 1.0f / (2 * PI);
@@ -382,14 +406,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float u, v;
         traverse_bvh(ray, boxes, triangles, best_i, best_t, u, v);
 
-        if (best_i == -1) {
-            break;
-        }
-
         Triangle triangle = triangles[best_i];
         Material material = materials[triangle.material];
-        float2 random_roll_a = random_buffer[id * 16 + 2 * i];
-        float2 random_roll_b = random_buffer[id * 16 + 2 * i + 1];
 
         float3 n;
         float ni, no;
@@ -423,6 +441,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         float3 wi, wo;
         wi = -ray.direction;
+
+        float rand_x_a = get_random(seed0, seed1);
+        float rand_y_a = get_random(seed0, seed1);
+        float2 random_roll_a = float2(rand_x_a, rand_y_a);
+
+        float rand_x_b = get_random(seed0, seed1);
+        float rand_y_b = get_random(seed0, seed1);
+        float2 random_roll_b = float2(rand_x_b, rand_y_b);
 
         float f, c_p, l_p;
         if (material.type == 0) {
@@ -511,8 +537,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             break;
         }
     }
+    random_buffer[2 * id] = seed0;
+    random_buffer[2 * id + 1] = seed1;
 }
-
 
 float geometry_term(const thread Ray &a, const thread Ray &b){
     float3 delta = b.origin - a.origin;
@@ -525,7 +552,6 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
 
     return (camera_cos * light_cos) / (dist * dist);
 }
-
 
 Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const thread int t, const thread int s, const thread int i){
     if (i < s) {return light_path.rays[i];}
@@ -808,4 +834,49 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     }
     //if (sample_count > 0) {out[id] = out[id] / float(sample_count);}
     //if (light_sample_count > 0) {light_image[id] = light_image[id] / float(light_sample_count);}
+}
+
+
+kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
+                                 device unsigned int *random_buffer [[ buffer(1) ]],
+                                 device Ray *out [[ buffer(2) ]],
+                                 uint id [[ thread_position_in_grid ]]) {
+    Camera c = camera[0];
+    Ray ray;
+
+    uint rand1 = random_buffer[2 * id];
+    uint rand2 = random_buffer[2 * id + 1];
+
+    float x_offset = get_random(rand1, rand2);
+    float y_offset = get_random(rand1, rand2);
+
+    int pixel_x = id % c.pixel_width;
+    int pixel_y = id / c.pixel_width;
+
+    float x_normalized = (pixel_x + x_offset - 0.5 * c.pixel_width) / (float)c.pixel_width;
+    float y_normalized = (pixel_y + y_offset - 0.5 * c.pixel_height) / (float)c.pixel_height;
+
+    float3 x_vector = x_normalized * tan(c.h_fov / 2.0) * c.dx;
+    float3 y_vector = y_normalized * tan(c.v_fov / 2.0) * c.dy;
+
+    float3 origin = c.center + x_vector + y_vector;
+    float3 direction = normalize(c.focal_point - origin);
+    ray.origin = origin;
+    ray.direction = direction;
+    ray.normal = c.direction;
+    ray.inv_direction = 1.0f / direction;
+    ray.color = float3(1.0f);
+
+    ray.material = 7;
+    ray.triangle = -1;
+    ray.hit_light = -1;
+    ray.hit_camera = -1;
+    ray.from_camera = 1;
+    ray.c_importance = 1.0f / (c.phys_width * c.phys_height);
+    ray.l_importance = 1.0f / (2.0f * PI);
+    ray.tot_importance = ray.c_importance;
+
+    out[id] = ray;
+    random_buffer[2 * id] = rand1;
+    random_buffer[2 * id + 1] = rand2;
 }
