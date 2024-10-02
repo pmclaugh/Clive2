@@ -133,9 +133,6 @@ if __name__ == '__main__':
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_light_image = dev.buffer(batch_size * 16)
 
-    # two four-byte rand seeds per thread
-    rand_buffer = dev.buffer(8 * batch_size)
-
     camera_buffer = dev.buffer(c.to_struct())
     camera_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
 
@@ -146,7 +143,10 @@ if __name__ == '__main__':
     light_surface_areas = dev.buffer(np.array([surface_area(t) for t in light_triangles], dtype=np.float32))
     light_triangle_indices = np.array([i for i, t in enumerate(triangles) if t['is_light'] == 1])
 
-    f = 0
+    # populate initial rand buffer
+    rand_buffer = dev.buffer(np.random.randint(0, 2 ** 32, size=(batch_size, 2), dtype=np.uint32))
+
+    f = 4
     while f < args.total_frames:
 
         # temporary to make a movie
@@ -165,9 +165,6 @@ if __name__ == '__main__':
         # zero image buffers
         summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
         summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-
-        # populate initial rand buffer
-        rand_buffer = dev.buffer(np.random.randint(0, 2**32, size=(batch_size, 2), dtype=np.uint32))
 
         try:
             # render loop

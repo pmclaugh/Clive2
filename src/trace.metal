@@ -916,10 +916,16 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     ray.color = float3(1.0f);
 
     ray.material = light_triangle.material;
-    ray.triangle = light_triangle_indices[light_index];
+
+    // todo: for some reason this introduces some visual glitches. investigate eventually.
+    // ray.triangle = light_triangle_indices[light_index];
+    ray.triangle = -1;
+
     ray.c_importance = 1.0f;
     ray.l_importance = 1.0f / (light_count * surface_area);
     ray.tot_importance = ray.l_importance;
 
     out[id] = ray;
+    random_buffer[2 * id] = seed0;
+    random_buffer[2 * id + 1] = seed1;
 }
