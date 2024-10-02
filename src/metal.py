@@ -36,6 +36,7 @@ if __name__ == '__main__':
     trace_fn = dev.kernel(kernel).function("generate_paths")
     join_fn = dev.kernel(kernel).function("connect_paths")
     camera_ray_fn = dev.kernel(kernel).function("generate_camera_rays")
+    light_ray_fn = dev.kernel(kernel).function("generate_light_rays")
 
     tris = []
     if args.scene == "empty":
@@ -134,9 +135,16 @@ if __name__ == '__main__':
 
     # two four-byte rand seeds per thread
     rand_buffer = dev.buffer(8 * batch_size)
-    camera_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
-    light_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
+
     camera_buffer = dev.buffer(c.to_struct())
+    camera_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
+
+    light_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
+    light_triangles = np.array([t for t in triangles if t['is_light'] == 1])
+    light_triangle_buffer = dev.buffer(light_triangles)
+    light_counts = dev.buffer(np.array([len(light_triangles)], dtype=np.int32))
+    light_surface_areas = dev.buffer(np.array([surface_area(t) for t in light_triangles], dtype=np.float32))
+    light_triangle_indices = np.array([i for i, t in enumerate(triangles) if t['is_light'] == 1])
 
     f = 0
     while f < args.total_frames:
@@ -188,8 +196,7 @@ if __name__ == '__main__':
                 if not args.unidirectional:
                     # make light rays and rands
                     light_ray_start_time = time.time()
-                    light_rays = fast_generate_light_rays(triangles, batch_size)
-                    light_ray_buffer = dev.buffer(light_rays)
+                    light_ray_fn(batch_size, light_triangle_buffer, light_counts, light_surface_areas, light_triangle_indices, rand_buffer, light_ray_buffer)
                     print(f"Create light rays in {time.time() - light_ray_start_time}")
 
                     # trace light paths

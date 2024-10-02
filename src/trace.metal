@@ -387,13 +387,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     unsigned int seed1 = random_buffer[2 * id + 1];
 
     if (path.from_camera == 0) {
-        float3 x, y;
-        orthonormal(ray.normal, x, y);
-        float rand_x = get_random(seed0, seed1);
-        float rand_y = get_random(seed0, seed1);
-        float2 random_roll = float2(rand_x, rand_y);
-        ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
-        ray.inv_direction = 1.0f / ray.direction;
         new_ray.l_importance = 1.0f / (2 * PI);
     }
     else {
@@ -873,10 +866,60 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     ray.hit_camera = -1;
     ray.from_camera = 1;
     ray.c_importance = 1.0f / (c.phys_width * c.phys_height);
-    ray.l_importance = 1.0f / (2.0f * PI);
+    ray.l_importance = 1.0f;
     ray.tot_importance = ray.c_importance;
 
     out[id] = ray;
     random_buffer[2 * id] = rand1;
     random_buffer[2 * id + 1] = rand2;
+}
+
+
+kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(0) ]],
+                                const device int *counts [[buffer(1) ]],
+                                const device float *surface_areas [[buffer(2) ]],
+                                const device int *light_triangle_indices [[buffer(3) ]],
+                                device unsigned int *random_buffer [[buffer(4) ]],
+                                device Ray *out [[buffer(5) ]],
+                                uint id [[thread_position_in_grid]]) {
+    Ray ray;
+    ray.from_camera = 0;
+    ray.hit_light = -1;
+    ray.hit_camera = -1;
+
+    int light_count = counts[0];
+    int light_index = id % light_count;
+    Triangle light_triangle = light_triangles[light_index];
+    float surface_area = surface_areas[light_index];
+
+    unsigned int seed0 = random_buffer[2 * id];
+    unsigned int seed1 = random_buffer[2 * id + 1];
+
+    float u = get_random(seed0, seed1);
+    float v = get_random(seed0, seed1);
+    if (u + v > 1.0f) {
+        u = 1.0f - u;
+        v = 1.0f - v;
+    }
+    float w = 1.0f - u - v;
+
+    ray.origin = light_triangle.v0 * u + light_triangle.v1 * v + light_triangle.v2 * w;
+    ray.normal = light_triangle.normal;
+    float3 x, y;
+    orthonormal(ray.normal, x, y);
+
+    float rand_x = get_random(seed0, seed1);
+    float rand_y = get_random(seed0, seed1);
+    float2 random_roll = float2(rand_x, rand_y);
+    ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
+    ray.inv_direction = 1.0f / ray.direction;
+    ray.color = float3(1.0f);
+
+    ray.material = light_triangle.material;
+    ray.triangle = light_triangle_indices[light_index];
+    ray.c_importance = 1.0f;
+    ray.l_importance = 1.0f / (light_count * surface_area);
+    ray.tot_importance = ray.l_importance;
+
+    out[id] = ray;
 }
