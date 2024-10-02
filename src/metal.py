@@ -203,6 +203,7 @@ if __name__ == '__main__':
                 break
 
             to_display = tone_map(summed_image / (i + 1) + summed_light_image / (i + 1))
+            # to_display = tone_map(summed_image / (i + 1))
             if np.any(np.isnan(to_display)):
                 print("NaNs in to_display!!!")
                 break

@@ -581,7 +581,7 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     hit_ray.origin = test_ray.origin + test_ray.direction * best_t;
     hit_ray.color = float3(1.0f);
     hit_ray.direction = -dir;
-    hit_ray.normal = -dir;
+    hit_ray.normal = camera.direction;
     hit_ray.material = triangles[best_i].material;
     hit_ray.triangle = best_i;
     hit_ray.hit_camera = 1;
@@ -639,7 +639,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
             else if (t == 1) {
                 continue;
-                // light visibility to camera plane
+                // light visibility to camera plane. WIP.
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
                 int hit = map_camera_pixel(light_ray, camera[0], triangles, boxes, camera_ray);
@@ -738,8 +738,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            // this is because t=0 is disabled. but I'm not sure it's quite right
-            // p_values[s + t] = 0.0f;
+            // this is because t=0 and t=1 are disabled
+            p_values[s + t] = 0.0f;
+            //p_values[s + t - 1] = 0.0f;
 
             float sum = 0.0f;
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}
