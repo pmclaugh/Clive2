@@ -76,24 +76,6 @@ struct Camera {
     int32_t pad[2];
 };
 
-
-float get_random(thread unsigned int &seed0, thread unsigned int &seed1) {
-	/* hash the seeds using bitwise AND operations and bitshifts */
-	seed0 = 36969 * ((seed0) & 65535) + ((seed0) >> 16);
-	seed1 = 18000 * ((seed1) & 65535) + ((seed1) >> 16);
-
-	unsigned int ires = ((seed0) << 16) + (seed1);
-
-	/* use union struct to convert int to float */
-	union {
-		float f;
-		unsigned int ui;
-	} res;
-
-	res.ui = (ires & 0x007fffff) | 0x40000000;  /* bitwise AND, bitwise OR */
-	return (res.f - 2.0f) / 2.0f;
-}
-
 float xorshift_random(thread unsigned int &seed) {
     seed ^= seed << 13;
     seed ^= seed >> 17;
@@ -629,6 +611,24 @@ int map_camera_pixel(const thread Ray &source, const device Camera &camera, cons
     return 1;
 }
 
+float3 pixel_center(const thread Camera &camera, const thread int x, const thread int y){
+
+    float x_normalized = (x - 0.5 * camera.pixel_width) / (float)camera.pixel_width;
+    float y_normalized = (y - 0.5 * camera.pixel_height) / (float)camera.pixel_height;
+
+    float3 x_vector = x_normalized * tan(camera.h_fov / 2.0) * camera.dx;
+    float3 y_vector = y_normalized * tan(camera.v_fov / 2.0) * camera.dy;
+
+    float3 origin = camera.center + x_vector + y_vector;
+
+    return origin;
+}
+
+float gaussian_weight(const thread float3 &p, const thread float3 &q, const thread float sigma){
+    float dist = length(p - q);
+    return exp(-dist * dist / (2.0f * sigma * sigma));
+}
+
 kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Path *light_paths [[ buffer(1) ]],
                           const device Triangle *triangles [[ buffer(2) ]],
@@ -833,7 +833,46 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 g = geometry_term(camera_ray, light_ray);
             }
             if (sample_index == id) {
-                out[sample_index] += float4((w * g * color) / p_s, 1.0f);
+                float weight_sum = 0.0f;
+                float weights[3][3] = {{0.0f}};
+                float pixel_phys_width = c.phys_width / c.pixel_width;
+                float pixel_phys_height = c.phys_height / c.pixel_height;
+                float sigma = 0.5f * sqrt(pixel_phys_width * pixel_phys_width + pixel_phys_height * pixel_phys_height);
+                for (int i = -1; i < 2; i++) {
+                    for (int j = -1; j < 2; j++) {
+                        int new_sample_x = (sample_index % c.pixel_width) + i;
+                        int new_sample_y = (sample_index / c.pixel_width) + j;
+
+                        // Ensure the new pixel index is within bounds
+                        if (new_sample_x < 0 || new_sample_x >= c.pixel_width ||
+                            new_sample_y < 0 || new_sample_y >= c.pixel_height) {
+                            weights[i + 1][j + 1] = 0.0f;
+                            continue; // Skip if out of bounds
+                        }
+
+                        int new_sample_index = new_sample_y * c.pixel_width + new_sample_x;
+                        if (new_sample_index < 0 || new_sample_index >= c.pixel_width * c.pixel_height) {continue;}
+                        float weight = gaussian_weight(pixel_center(c, new_sample_x, new_sample_y), camera_path.rays[0].origin, sigma);
+                        weights[i + 1][j + 1] = weight;
+                        weight_sum += weight;
+                    }
+                }
+                for (int i = -1; i < 2; i++) {
+                    for (int j = -1; j < 2; j++) {
+                        int new_sample_x = (sample_index % c.pixel_width) + i;
+                        int new_sample_y = (sample_index / c.pixel_width) + j;
+
+                        // Ensure the new pixel index is within bounds
+                        if (new_sample_x < 0 || new_sample_x >= c.pixel_width ||
+                            new_sample_y < 0 || new_sample_y >= c.pixel_height) {
+                            continue; // Skip if out of bounds
+                        }
+
+                        int new_sample_index = new_sample_y * c.pixel_width + new_sample_x;
+                        if (new_sample_index < 0 || new_sample_index >= c.pixel_width * c.pixel_height) {continue;}
+                        out[new_sample_index] += float4((w * g * color) / p_s * weights[i + 1][j + 1] / weight_sum, 1.0f);
+                    }
+                }
                 sample_count += 1;
             }
             else {

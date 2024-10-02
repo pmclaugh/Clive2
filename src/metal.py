@@ -25,6 +25,7 @@ if __name__ == '__main__':
     parser.add_argument('--save-on-quit', action='store_true')
     parser.add_argument("--scene", type=str, default="teapots")
     parser.add_argument("--unidirectional", action="store_true")
+    parser.add_argument("--filter", action="store_true")
     args = parser.parse_args()
 
     os.makedirs(f'../output/{args.movie_name}', exist_ok=True)
@@ -219,14 +220,6 @@ if __name__ == '__main__':
 
                     image = bidirectional_image
 
-                # todo: neither of these very simple approaches to "the image function" work very well.
-                # simple blur
-                # image_function = np.ones((3, 3), np.float32) / 9
-                # image = cv2.filter2D(image, -1, image_function)
-
-                # gaussian blur
-                # image = cv2.GaussianBlur(image, (3, 3), 0)
-
                 # post processing. tone map, sum, division
                 print(np.sum(np.isnan(image)), "nans in image")
                 print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
@@ -238,7 +231,10 @@ if __name__ == '__main__':
                     break
 
                 to_display = tone_map(summed_image / (i + 1))
-                # to_display = tone_map(summed_image / (i + 1))
+
+                if args.filter:
+                    # todo: this is a decent improvement and denoises a fair bit
+                    to_display = cv2.bilateralFilter(to_display, 5, 50, 50)
                 if np.any(np.isnan(to_display)):
                     print("NaNs in to_display!!!")
                     break
