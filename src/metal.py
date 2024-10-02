@@ -72,8 +72,8 @@ if __name__ == '__main__':
     elif args.scene == "double-dragon":
         # load the dragon
         load_time = time.time()
-        tris += load_ply('../resources/dragon_vrip.ply', offset=np.array([-3, -4, 0]), material=5, scale=40)
-        tris += load_ply('../resources/dragon_vrip.ply', offset=np.array([3, -4, -2]), material=0, scale=40)
+        tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([-3, -4, 0]), material=5, scale=40)
+        tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([3, -4, -2]), material=0, scale=40)
         print(f"done loading dragon in {time.time() - load_time}")
         cam_center = np.array([0, 2.5, 6])
         cam_dir = unit(np.array([0, 0, -1]))
@@ -150,22 +150,23 @@ if __name__ == '__main__':
     f = 0
     while f < args.total_frames:
 
-        # temporary to make a movie
-        time_parameter = f / args.total_frames
-        x = np.cos(time_parameter * 2 * np.pi) * 9
-        z = np.sin(time_parameter * 2 * np.pi) * 9
-        c.center = np.array([x, 1.5, z])
-        c.direction = unit(np.array([-x, 0, -z]))
+        if args.total_frames > 1:
+            # temporary to make a movie
+            time_parameter = f / args.total_frames
+            x = np.cos(time_parameter * 2 * np.pi) * 9
+            z = np.sin(time_parameter * 2 * np.pi) * 9
+            c.center = np.array([x, 1.5, z])
+            c.direction = unit(np.array([-x, 0, -z]))
 
-        # update camera buffer
-        camera_arr = c.to_struct()
-        mc.release(camera_buffer)
-        del camera_buffer
-        camera_buffer = dev.buffer(c.to_struct())
+            # update camera buffer
+            camera_arr = c.to_struct()
+            mc.release(camera_buffer)
+            del camera_buffer
+            camera_buffer = dev.buffer(c.to_struct())
 
-        # zero image buffers
-        summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
-        summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
+            # zero image buffers
+            summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
+            summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
 
         try:
             # render loop
@@ -218,6 +219,14 @@ if __name__ == '__main__':
 
                     image = bidirectional_image
 
+                # todo: neither of these very simple approaches to "the image function" work very well.
+                # simple blur
+                # image_function = np.ones((3, 3), np.float32) / 9
+                # image = cv2.filter2D(image, -1, image_function)
+
+                # gaussian blur
+                # image = cv2.GaussianBlur(image, (3, 3), 0)
+
                 # post processing. tone map, sum, division
                 print(np.sum(np.isnan(image)), "nans in image")
                 print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
@@ -228,7 +237,7 @@ if __name__ == '__main__':
                     print("NaNs in summed image!!!")
                     break
 
-                to_display = tone_map((summed_image + summed_light_image) / (i + 1))
+                to_display = tone_map(summed_image / (i + 1))
                 # to_display = tone_map(summed_image / (i + 1))
                 if np.any(np.isnan(to_display)):
                     print("NaNs in to_display!!!")
