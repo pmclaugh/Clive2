@@ -789,7 +789,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}
 
             float w;
-            if (sum > 0.0f && p_values[s] > 0.0f) {w = 1.0f / sum;}
+            if (sum > 0.0f && p_values[s] > 0.0f) {w = p_values[s] / sum;}
             else {continue;}
 
             float3 color = float3(1.0f);
@@ -839,8 +839,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
-            weight_aggregator[id].total_contribution += w * g * color / p_s;
-            sample_count += 1;
+            float3 sample = w * g * color / p_s;
+            if (sample[0] == sample[0] && sample[1] == sample[1] && sample[2] == sample[2]) {
+                weight_aggregator[id].total_contribution += sample;
+                sample_count += 1;
+            }
         }
     }
 
@@ -874,9 +877,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             weight_sum += weight;
         }
     }
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
-            weight_aggregator[id].weights[i][j] = weight_aggregator[id].weights[i][j] / weight_sum;
+    if (weight_sum != 0.0f) {
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                weight_aggregator[id].weights[i][j] = weight_aggregator[id].weights[i][j] / weight_sum;
+            }
         }
     }
     out[id] = float4(weight_aggregator[id].total_contribution, 1.0f);
