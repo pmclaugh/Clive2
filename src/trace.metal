@@ -318,10 +318,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    float denom = 4 * abs(dot(i, n)) * abs(dot(o, n));
-    denom = max(denom, 0.1f);
-
-    return (D * G * F) / denom;
+    return (D * G * F) / (4 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -488,8 +485,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 if (path.from_camera) {
                     c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no) / abs(dot(wo, m));
                     l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni) / abs(dot(wi, m));
-                }
-                else{
+                } else{
                     c_p = pf * pm * transmit_jacobian(wo, wi, -m, ni, no) / abs(dot(wi, m));
                     l_p = pf * pm * transmit_jacobian(wi, wo, m, no, ni) / abs(dot(wo, m));
                 }
@@ -498,8 +494,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         if (dot(wi, triangle.normal) > 0.0f) {
             new_ray.color = f * ray.color * material.color;
-        }
-        else {
+        } else {
             new_ray.color = f * ray.color;
         }
 
@@ -512,8 +507,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             next_ray.c_importance = c_p;
             ray.l_importance = l_p;
             new_ray.tot_importance = ray.tot_importance * new_ray.c_importance;
-        }
-        else {
+        } else {
             next_ray.l_importance = l_p;
             ray.c_importance = c_p;
             new_ray.tot_importance = ray.tot_importance * new_ray.l_importance;
@@ -521,10 +515,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         path.rays[i] = ray;
         path.length = i + 1;
-
-        if (ray.hit_light >= 0) {
-            break;
-        }
 
         ray = new_ray;
         new_ray = next_ray;
@@ -911,13 +901,11 @@ kernel void finalize_samples(const device WeightAggregator *weight_aggregators [
             int new_sample_index = new_sample_y * c.pixel_width + new_sample_x;
             if (new_sample_index < 0 || new_sample_index >= c.pixel_width * c.pixel_height) {continue;}
 
-            int x_idx;
-            int y_idx;
-
+            // flip indices around center
+            int x_idx, y_idx;
             if (i < 0) {x_idx = 2;}
             else if (i == 0) {x_idx = 1;}
             else {x_idx = 0;}
-
             if (j < 0) {y_idx = 2;}
             else if (j == 0) {y_idx = 1;}
             else {y_idx = 0;}
