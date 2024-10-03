@@ -333,7 +333,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = no * no * D * G * (1 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
-    return coeff * num / denom;
+    return num / denom;
 }
 
 float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread Material material) {
@@ -463,15 +463,19 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             }
         } else {
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
+            if (dot(i, m) < 0.0f) {break;}
+            if (dot(m, n) < 0.0f) {break;}
             float fresnel = degreve_fresnel(wi, m, ni, no);
             float pf = 1.0f;
 
             if (random_roll_b.x <= fresnel) {
                 wo = specular_reflection(wi, m);
+                if (dot(wo, n) < 0.0f) {break;}
                 f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = fresnel;
             } else {
                 wo = GGX_transmit(wi, m, ni, no);
+                if (dot(wo, n) > 0.0f) {break;}
                 f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = 1.0f - fresnel;
             }
