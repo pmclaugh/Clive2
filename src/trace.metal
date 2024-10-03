@@ -156,7 +156,6 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
                 stack[stack_ptr++] = box.left + 1;
             } else {
                 for (int i = box.left; i < box.right; i++) {
-                    if (i == ray.triangle) {continue;}
                     Triangle triangle = triangles[i];
                     bool hit = false;
                     t = INFINITY;
