@@ -20,6 +20,11 @@ struct Ray {
     int32_t hit_camera;
 };
 
+struct WeightAggregator {
+    float3 weights[3];
+    float3 total_contribution;
+};
+
 struct Path {
     Ray rays[8];
     int32_t length;
@@ -635,8 +640,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Material *materials [[ buffer(3) ]],
                           const device Box *boxes [[ buffer(4) ]],
                           const device Camera *camera [[ buffer(5) ]],
-                          device float4 *out [[ buffer(6) ]],
-                          device float4 *light_image [[ buffer(7) ]],
+                          device WeightAggregator *weight_aggregator [[ buffer(6) ]],
+                          device float4 *out [[ buffer(7) ]],
+                          device float4 *light_image [[ buffer(8) ]],
                           uint id [[ thread_position_in_grid ]]) {
 
     Path camera_path = camera_paths[id];
@@ -832,57 +838,77 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
-            if (sample_index == id) {
-                float weight_sum = 0.0f;
-                float weights[3][3] = {{0.0f}};
-                float pixel_phys_width = c.phys_width / c.pixel_width;
-                float pixel_phys_height = c.phys_height / c.pixel_height;
-                float sigma = 0.5f * sqrt(pixel_phys_width * pixel_phys_width + pixel_phys_height * pixel_phys_height);
-                for (int i = -1; i < 2; i++) {
-                    for (int j = -1; j < 2; j++) {
-                        int new_sample_x = (sample_index % c.pixel_width) + i;
-                        int new_sample_y = (sample_index / c.pixel_width) + j;
-
-                        // Ensure the new pixel index is within bounds
-                        if (new_sample_x < 0 || new_sample_x >= c.pixel_width ||
-                            new_sample_y < 0 || new_sample_y >= c.pixel_height) {
-                            weights[i + 1][j + 1] = 0.0f;
-                            continue; // Skip if out of bounds
-                        }
-
-                        int new_sample_index = new_sample_y * c.pixel_width + new_sample_x;
-                        if (new_sample_index < 0 || new_sample_index >= c.pixel_width * c.pixel_height) {continue;}
-                        float weight = gaussian_weight(pixel_center(c, new_sample_x, new_sample_y), camera_path.rays[0].origin, sigma);
-                        weights[i + 1][j + 1] = weight;
-                        weight_sum += weight;
-                    }
-                }
-                for (int i = -1; i < 2; i++) {
-                    for (int j = -1; j < 2; j++) {
-                        int new_sample_x = (sample_index % c.pixel_width) + i;
-                        int new_sample_y = (sample_index / c.pixel_width) + j;
-
-                        // Ensure the new pixel index is within bounds
-                        if (new_sample_x < 0 || new_sample_x >= c.pixel_width ||
-                            new_sample_y < 0 || new_sample_y >= c.pixel_height) {
-                            continue; // Skip if out of bounds
-                        }
-
-                        int new_sample_index = new_sample_y * c.pixel_width + new_sample_x;
-                        if (new_sample_index < 0 || new_sample_index >= c.pixel_width * c.pixel_height) {continue;}
-                        out[new_sample_index] += float4((w * g * color) / p_s * weights[i + 1][j + 1] / weight_sum, 1.0f);
-                    }
-                }
-                sample_count += 1;
-            }
-            else {
-                light_image[sample_index] += float4((w * g * color) / p_s, 1.0f);
-                light_sample_count += 1;
-            }
+            weight_aggregator[id].total_contribution += w * g * color / p_s;
+            sample_count += 1;
         }
     }
-    //if (sample_count > 0) {out[id] = out[id] / float(sample_count);}
-    //if (light_sample_count > 0) {light_image[id] = light_image[id] / float(light_sample_count);}
+
+    float weight_sum = 0.0f;
+
+    float pixel_phys_width = c.phys_width / c.pixel_width;
+    float pixel_phys_height = c.phys_height / c.pixel_height;
+    float sigma = 0.5f * sqrt(pixel_phys_width * pixel_phys_width + pixel_phys_height * pixel_phys_height);
+
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            weight_aggregator[id].weights[i][j] = 1.0f;
+        }
+    }
+    for (int i = -1; i < 2; i++) {
+        for (int j = -1; j < 2; j++) {
+            int new_sample_x = (sample_index % c.pixel_width) + i;
+            int new_sample_y = (sample_index / c.pixel_width) + j;
+
+            if (new_sample_x < 0 || new_sample_x >= c.pixel_width ||
+                new_sample_y < 0 || new_sample_y >= c.pixel_height) {
+                continue;
+            }
+
+            int new_sample_index = new_sample_y * c.pixel_width + new_sample_x;
+            if (new_sample_index < 0 || new_sample_index >= c.pixel_width * c.pixel_height) {continue;}
+
+            float weight = gaussian_weight(pixel_center(c, new_sample_x, new_sample_y), camera_path.rays[0].origin, sigma);
+            weight_aggregator[id].weights[i + 1][j + 1] = weight;
+            weight_sum += weight;
+        }
+    }
+    for (int i = 0; i < 3; i++) {
+        for (int j = 0; j < 3; j++) {
+            weight_aggregator[id].weights[i][j] = weight_aggregator[id].weights[i][j] / weight_sum;
+        }
+    }
+
+    threadgroup_barrier(mem_flags::mem_device);
+
+    for (int i = -1; i < 2; i++) {
+        for (int j = -1; j < 2; j++) {
+            int new_sample_x = (sample_index % c.pixel_width) + i;
+            int new_sample_y = (sample_index / c.pixel_width) + j;
+
+            if (new_sample_x < 0 || new_sample_x >= c.pixel_width ||
+                new_sample_y < 0 || new_sample_y >= c.pixel_height) {
+                continue;
+            }
+
+            int new_sample_index = new_sample_y * c.pixel_width + new_sample_x;
+            if (new_sample_index < 0 || new_sample_index >= c.pixel_width * c.pixel_height) {continue;}
+
+            int x_idx;
+            int y_idx;
+
+            if (i < 0) {x_idx = 2;}
+            else if (i == 0) {x_idx = 1;}
+            else {x_idx = 0;}
+
+            if (j < 0) {y_idx = 2;}
+            else if (j == 0) {y_idx = 1;}
+            else {y_idx = 0;}
+
+            float weight = weight_aggregator[new_sample_index].weights[x_idx][y_idx];
+            float3 sample = weight_aggregator[new_sample_index].total_contribution * weight;
+            out[id] += float4(sample, 1.0f);
+        }
+    }
 }
 
 

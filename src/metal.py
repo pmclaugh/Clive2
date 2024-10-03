@@ -133,6 +133,7 @@ if __name__ == '__main__':
 
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_light_image = dev.buffer(batch_size * 16)
+    weight_aggregators = dev.buffer(batch_size * 64)
 
     camera_buffer = dev.buffer(c.to_struct())
     camera_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
@@ -211,7 +212,7 @@ if __name__ == '__main__':
                     # join paths
                     start_time = time.time()
                     join_fn(batch_size, out_camera_paths, out_light_paths, tri_buffer, mat_buffer, box_buffer, camera_arr[0],
-                            final_out_samples, final_out_light_image)
+                            weight_aggregators, final_out_samples, final_out_light_image)
                     print(f"Sample {i} join time: {time.time() - start_time}")
 
                     # retrieve joined path outputs
