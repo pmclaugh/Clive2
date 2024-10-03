@@ -77,10 +77,11 @@ def object_split(box: TreeBox):
 
 def construct_BVH(triangles):
     start_box = TreeBox(triangles)
-
+    max_depth = 0
     stack = [start_box]
     while stack:
         box = stack.pop()
+        max_depth = max(max_depth, len(stack))
         if (len(box.triangles) <= MAX_MEMBERS) or len(stack) > MAX_DEPTH:
             continue
 
@@ -105,6 +106,7 @@ def construct_BVH(triangles):
             l.parent = box
             stack.append(l)
 
+    print(f"max BVH depth: {max_depth}")
     return start_box
 
 
