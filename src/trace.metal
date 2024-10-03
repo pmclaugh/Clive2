@@ -117,7 +117,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
     float a = dot(edge1, h);
-    if (abs(a) < 0.000001f) {
+    if (abs(a) < 0.0001f) {
         hit = false;
         return;
     }

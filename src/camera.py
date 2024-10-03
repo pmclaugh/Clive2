@@ -119,7 +119,7 @@ def tone_map(image):
     # tone_vector = ONES
     tone_sums = np.sum(image * tone_vector, axis=2)
     log_tone_sums = np.log(0.1 + tone_sums)
-    per_pixel_lts = np.sum(log_tone_sums) / np.prod(image.shape[:2])
+    per_pixel_lts = np.sum(log_tone_sums) / np.prod(image.shape)
     Lw = np.exp(per_pixel_lts)
     result = image * 2. / Lw
     print(f"OUT min: {np.min(result)}, mean: {np.mean(result)}, max: {np.max(result)}")
