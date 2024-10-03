@@ -440,12 +440,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 wi, wo;
         wi = -ray.direction;
 
-        float rand_x_a = pcg_random(seed0, seed1);
-        float rand_y_a = pcg_random(seed0, seed1);
+        float rand_x_a = xorshift_random(seed0);
+        float rand_y_a = xorshift_random(seed1);
         float2 random_roll_a = float2(rand_x_a, rand_y_a);
 
-        float rand_x_b = pcg_random(seed0, seed1);
-        float rand_y_b = pcg_random(seed0, seed1);
+        float rand_x_b = xorshift_random(seed0);
+        float rand_y_b = xorshift_random(seed1);
         float2 random_roll_b = float2(rand_x_b, rand_y_b);
 
         float f, c_p, l_p;
@@ -923,8 +923,8 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     uint seed0 = random_buffer[2 * id];
     uint seed1 = random_buffer[2 * id + 1];
 
-    float x_offset = pcg_random(seed0, seed1);
-    float y_offset = pcg_random(seed0, seed1);
+    float x_offset = xorshift_random(seed0);
+    float y_offset = xorshift_random(seed1);
 
     int pixel_x = id % c.pixel_width;
     int pixel_y = id / c.pixel_width;
@@ -974,12 +974,12 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     unsigned int seed1 = random_buffer[2 * id + 1];
 
     int light_count = counts[0];
-    int light_index = (int)(pcg_random(seed0, seed1) * light_count);
+    int light_index = (int)(xorshift_random(seed0) * light_count);
     Triangle light_triangle = light_triangles[light_index];
     float surface_area = surface_areas[light_index];
 
-    float u = pcg_random(seed0, seed1);
-    float v = pcg_random(seed0, seed1);
+    float u = xorshift_random(seed0);
+    float v = xorshift_random(seed1);
     if (u + v > 1.0f) {
         u = 1.0f - u;
         v = 1.0f - v;
@@ -991,8 +991,8 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     float3 x, y;
     orthonormal(ray.normal, x, y);
 
-    float rand_x = pcg_random(seed0, seed1);
-    float rand_y = pcg_random(seed0, seed1);
+    float rand_x = xorshift_random(seed0);
+    float rand_y = xorshift_random(seed1);
     float2 random_roll = float2(rand_x, rand_y);
     ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
     ray.inv_direction = 1.0f / ray.direction;
