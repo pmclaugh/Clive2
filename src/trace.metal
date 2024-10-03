@@ -287,7 +287,7 @@ float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 
 }
 
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    if (alpha == 0) {return 1.0f;}
+    if (alpha == 0.0f) {return 1.0f;}
 
     float alpha2 = alpha * alpha;
     float cosTheta = dot(m, n);
@@ -316,7 +316,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    return (D * G * F) / (4 * abs(dot(i, n)));
+    return (D * G * F) / (4.0f * abs(dot(i, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -343,7 +343,7 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
     else {
         float ni, no, alpha;
         alpha = material.alpha;
-        if (dot(i, geom_n) > 0) {
+        if (dot(i, geom_n) > 0.0f) {
             ni = 1.0f;
             no = material.ior;
         }
