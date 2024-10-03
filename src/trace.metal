@@ -638,9 +638,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     light_image[id] = float4(0.0f);
     WeightAggregator aggregator = weight_aggregators[id];
     aggregator.total_contribution = float3(0.0f);
-    int sample_count = 0;
-    int light_sample_count = 0;
-
     Camera c = camera[0];
 
     for (int t = 0; t < camera_path.length + 1; t++){
@@ -827,10 +824,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 g = geometry_term(camera_ray, light_ray);
             }
             float3 sample = w * g * color / p_s;
-            if (sample[0] == sample[0] && sample[1] == sample[1] && sample[2] == sample[2]) {
-                aggregator.total_contribution += sample;
-                sample_count += 1;
-            }
+            aggregator.total_contribution += sample;
         }
     }
 
@@ -950,7 +944,7 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     ray.hit_camera = -1;
     ray.from_camera = 1;
     ray.c_importance = 1.0f / (c.phys_width * c.phys_height);
-    ray.l_importance = 1.0f;
+    ray.l_importance = 1.0f; // filled in later
     ray.tot_importance = ray.c_importance;
 
     out[id] = ray;
@@ -1005,7 +999,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     // ray.triangle = light_triangle_indices[light_index];
     ray.triangle = -1;
 
-    ray.c_importance = 1.0f;
+    ray.c_importance = 1.0f; // filled in later
     ray.l_importance = 1.0f / (light_count * surface_area);
     ray.tot_importance = ray.l_importance;
 
