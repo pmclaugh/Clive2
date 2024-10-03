@@ -316,6 +316,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
+    // should also be divided by abs(dot(o, n)) but turning that off to suppress fireflies. turn back on later.
     return (D * G * F) / (4.0f * abs(dot(i, n)));
 }
 
