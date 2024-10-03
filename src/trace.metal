@@ -651,6 +651,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     int sample_index = id;
     out[id] = float4(0.0f);
     light_image[id] = float4(0.0f);
+    weight_aggregator[id].total_contribution = float3(0.0f);
     int sample_count = 0;
     int light_sample_count = 0;
 
@@ -843,8 +844,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
         }
     }
 
-    float weight_sum = 0.0f;
+    // prep weights for final gather
 
+    float weight_sum = 0.0f;
     float pixel_phys_width = c.phys_width / c.pixel_width;
     float pixel_phys_height = c.phys_height / c.pixel_height;
     float sigma = 0.5f * sqrt(pixel_phys_width * pixel_phys_width + pixel_phys_height * pixel_phys_height);
@@ -885,6 +887,7 @@ kernel void finalize_samples(const device WeightAggregator *weight_aggregators [
                              const device Camera *camera [[ buffer(1) ]],
                              device float4 *out [[ buffer(2) ]],
                              uint id [[ thread_position_in_grid ]]) {
+    // final gather. in separate kernel to globally sync
     float3 total_sample = float3(0.0f);
     Camera c = camera[0];
     for (int i = -1; i < 2; i++) {
