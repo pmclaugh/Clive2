@@ -685,13 +685,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 camera_path.rays[0] = camera_ray;
             }
             else if (s == 0) {
-                //continue;
                 // camera ray hits a light source
                 camera_ray = camera_path.rays[t - 1];
                 if (camera_ray.hit_light < 0) {continue;}
             }
             else {
-                //continue;
                 // regular join
                 light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
@@ -702,7 +700,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
 
-                // backface culling for joins
+                // backface culling for joins. given that we skip all specular joins, this works.
                 if (dot(light_ray.normal, dir_l_to_c) < DELTA) {continue;}
                 if (dot(camera_ray.normal, -dir_l_to_c) < DELTA) {continue;}
 
