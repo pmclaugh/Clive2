@@ -463,7 +463,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             }
         } else {
             float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
-            if (dot(i, m) < 0.0f) {break;}
+            if (dot(wi, m) < 0.0f) {break;}
             if (dot(m, n) < 0.0f) {break;}
             float fresnel = degreve_fresnel(wi, m, ni, no);
             float pf = 1.0f;
