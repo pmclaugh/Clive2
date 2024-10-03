@@ -117,7 +117,6 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
     float3 edge2 = triangle.v2 - triangle.v0;
     float3 h = cross(ray.direction, edge2);
     float a = dot(edge1, h);
-
     float f = 1.0 / a;
     float3 s = ray.origin - triangle.v0;
     u = f * dot(s, h);
