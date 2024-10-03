@@ -468,8 +468,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
             if (random_roll_b.x <= fresnel) {
                 wo = specular_reflection(wi, m);
-                if (fresnel == 1.0f) {f = 1.0f;}
-                else {f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);}
+                f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
                 pf = fresnel;
             } else {
                 wo = GGX_transmit(wi, m, ni, no);
