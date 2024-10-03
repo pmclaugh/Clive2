@@ -156,7 +156,7 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
                 stack[stack_ptr++] = box.left + 1;
             } else {
                 for (int i = box.left; i < box.right; i++) {
-                    if (i == ray.triangle) {continue;}
+                    if (ray.triangle == i) {continue;}
                     Triangle triangle = triangles[i];
                     bool hit = false;
                     t = INFINITY;
@@ -176,8 +176,8 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
 
 bool visibility_test(const thread Ray a, const thread Ray b, const device Box *boxes, const device Triangle *triangles) {
     Ray test_ray;
-    test_ray.origin = a.origin + a.normal * 0.0001f;
-    float3 direction = (b.origin + b.normal * 0.0001f) - (a.origin + a.normal * 0.0001f);
+    test_ray.origin = a.origin;
+    float3 direction = b.origin - a.origin;
     float t_max = length(direction);
     direction = direction / t_max;
     test_ray.direction = direction;
@@ -216,10 +216,10 @@ float2 sample_disk_concentric(const thread float2 &rand) {
     float theta, r;
     if (abs(offset.x) > abs(offset.y)) {
         r = offset.x;
-        theta = PI / 4 * (offset.y / offset.x);
+        theta = PI / 4.0 * (offset.y / offset.x);
     } else {
         r = offset.y;
-        theta = PI / 2 - PI / 4 * (offset.x / offset.y);
+        theta = PI / 2.0 - PI / 4.0 * (offset.x / offset.y);
     }
     return r * float2(cos(theta), sin(theta));
 }
