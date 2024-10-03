@@ -398,6 +398,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     }
 
     for (int i = 0; i < 8; i++) {
+
         int best_i = -1;
         float best_t = INFINITY;
         float u, v;
@@ -416,8 +417,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             n = sampled_normal;
             ni = 1.0f;
             no = material.ior;
-        }
-        else {
+        } else {
             signed_normal = -triangle.normal;
             n = -sampled_normal;
             ni = material.ior;
@@ -439,12 +439,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 wi, wo;
         wi = -ray.direction;
 
-        float rand_x_a = xorshift_random(seed0);
-        float rand_y_a = xorshift_random(seed1);
+        float rand_x_a = pcg_random(seed0, seed1);
+        float rand_y_a = pcg_random(seed0, seed1);
         float2 random_roll_a = float2(rand_x_a, rand_y_a);
 
-        float rand_x_b = xorshift_random(seed0);
-        float rand_y_b = xorshift_random(seed1);
+        float rand_x_b = pcg_random(seed0, seed1);
+        float rand_y_b = pcg_random(seed0, seed1);
         float2 random_roll_b = float2(rand_x_b, rand_y_b);
 
         float f, c_p, l_p;
@@ -454,8 +454,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 f = dot(n, wo) / PI;
                 c_p = dot(n, wo) / PI;
                 l_p = 1.0f / (2 * PI);
-            }
-            else {
+            } else {
                 wo = random_hemisphere_uniform(x, y, n, random_roll_a);
                 f = dot(n, wo) / PI;
                 c_p = dot(n, wi) / PI;
@@ -485,7 +484,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 if (path.from_camera) {
                     c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no) / abs(dot(wo, m));
                     l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni) / abs(dot(wi, m));
-                } else{
+                } else {
                     c_p = pf * pm * transmit_jacobian(wo, wi, -m, ni, no) / abs(dot(wi, m));
                     l_p = pf * pm * transmit_jacobian(wi, wo, m, no, ni) / abs(dot(wo, m));
                 }
@@ -555,9 +554,6 @@ int get_sample_index(const thread float3 &point, const thread Camera &camera) {
     // Project the direction onto the camera's basis vectors
     float x = dot(dir, camera.dx);
     float y = dot(dir, camera.dy);
-
-    // Calculate the aspect ratio
-    float aspect_ratio = float(camera.pixel_width) / float(camera.pixel_height);
 
     // Calculate the normalized pixel coordinates with FOV and aspect ratio
     float normalizedX = x / (tan(camera.h_fov / 2.0));
@@ -633,7 +629,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Material *materials [[ buffer(3) ]],
                           const device Box *boxes [[ buffer(4) ]],
                           const device Camera *camera [[ buffer(5) ]],
-                          device WeightAggregator *weight_aggregator [[ buffer(6) ]],
+                          device WeightAggregator *weight_aggregators [[ buffer(6) ]],
                           device float4 *out [[ buffer(7) ]],
                           device float4 *light_image [[ buffer(8) ]],
                           uint id [[ thread_position_in_grid ]]) {
@@ -644,7 +640,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     int sample_index = id;
     out[id] = float4(0.0f);
     light_image[id] = float4(0.0f);
-    weight_aggregator[id].total_contribution = float3(0.0f);
+    WeightAggregator aggregator = weight_aggregators[id];
+    aggregator.total_contribution = float3(0.0f);
     int sample_count = 0;
     int light_sample_count = 0;
 
@@ -661,8 +658,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             camera_ray.triangle = -1;
             sample_index = id;
 
-            camera_path = camera_paths[id];
-            light_path = light_paths[id];
+            // these need to be on if t==1 is on, but otherwise they're just wasted bandwidth. nearly doubles join time.
+            //camera_path = camera_paths[id];
+            //light_path = light_paths[id];
 
 
             if (t == 0){
@@ -774,7 +772,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            // this is because t=0 and t=1 are disabled
+            // this is because t=0 and t=1 are disabled. greatly enhances caustics by giving s==0 much more weight.
             p_values[s + t] = 0.0f;
             p_values[s + t - 1] = 0.0f;
 
@@ -834,7 +832,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
             float3 sample = w * g * color / p_s;
             if (sample[0] == sample[0] && sample[1] == sample[1] && sample[2] == sample[2]) {
-                weight_aggregator[id].total_contribution += sample;
+                aggregator.total_contribution += sample;
                 sample_count += 1;
             }
         }
@@ -849,7 +847,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
-            weight_aggregator[id].weights[i][j] = 0.0f;
+            aggregator.weights[i][j] = 0.0f;
         }
     }
     for (int i = -1; i < 2; i++) {
@@ -866,18 +864,19 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             if (new_sample_index < 0 || new_sample_index >= c.pixel_width * c.pixel_height) {continue;}
 
             float weight = gaussian_weight(pixel_center(c, new_sample_x, new_sample_y), camera_path.rays[0].origin, sigma);
-            weight_aggregator[id].weights[i + 1][j + 1] = weight;
+            aggregator.weights[i + 1][j + 1] = weight;
             weight_sum += weight;
         }
     }
     if (weight_sum != 0.0f) {
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
-                weight_aggregator[id].weights[i][j] = weight_aggregator[id].weights[i][j] / weight_sum;
+                aggregator.weights[i][j] = aggregator.weights[i][j] / weight_sum;
             }
         }
     }
-    out[id] = float4(weight_aggregator[id].total_contribution, 1.0f);
+    out[id] = float4(aggregator.total_contribution, 1.0f);
+    weight_aggregators[id] = aggregator;
 }
 
 
@@ -926,11 +925,11 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     Camera c = camera[0];
     Ray ray;
 
-    uint rand1 = random_buffer[2 * id];
-    uint rand2 = random_buffer[2 * id + 1];
+    uint seed0 = random_buffer[2 * id];
+    uint seed1 = random_buffer[2 * id + 1];
 
-    float x_offset = xorshift_random(rand1);
-    float y_offset = xorshift_random(rand2);
+    float x_offset = pcg_random(seed0, seed1);
+    float y_offset = pcg_random(seed0, seed1);
 
     int pixel_x = id % c.pixel_width;
     int pixel_y = id / c.pixel_width;
@@ -959,8 +958,8 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     ray.tot_importance = ray.c_importance;
 
     out[id] = ray;
-    random_buffer[2 * id] = rand1;
-    random_buffer[2 * id + 1] = rand2;
+    random_buffer[2 * id] = seed0;
+    random_buffer[2 * id + 1] = seed1;
 }
 
 
@@ -980,12 +979,12 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     unsigned int seed1 = random_buffer[2 * id + 1];
 
     int light_count = counts[0];
-    int light_index = (int)(xorshift_random(seed1) * light_count);
+    int light_index = (int)(pcg_random(seed0, seed1) * light_count);
     Triangle light_triangle = light_triangles[light_index];
     float surface_area = surface_areas[light_index];
 
-    float u = xorshift_random(seed0);
-    float v = xorshift_random(seed1);
+    float u = pcg_random(seed0, seed1);
+    float v = pcg_random(seed0, seed1);
     if (u + v > 1.0f) {
         u = 1.0f - u;
         v = 1.0f - v;
@@ -997,8 +996,8 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     float3 x, y;
     orthonormal(ray.normal, x, y);
 
-    float rand_x = xorshift_random(seed0);
-    float rand_y = xorshift_random(seed0);
+    float rand_x = pcg_random(seed0, seed1);
+    float rand_y = pcg_random(seed0, seed1);
     float2 random_roll = float2(rand_x, rand_y);
     ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
     ray.inv_direction = 1.0f / ray.direction;

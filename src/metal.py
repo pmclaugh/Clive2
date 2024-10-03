@@ -228,7 +228,9 @@ if __name__ == '__main__':
                     bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                     light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
+                    start_time = time.time()
                     finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples)
+                    print(f"Sample {i} finalize time: {time.time() - start_time}")
                     finalized_image = np.frombuffer(finalized_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
                     image = finalized_image
