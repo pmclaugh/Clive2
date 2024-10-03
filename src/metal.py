@@ -38,6 +38,7 @@ if __name__ == '__main__':
     join_fn = dev.kernel(kernel).function("connect_paths")
     camera_ray_fn = dev.kernel(kernel).function("generate_camera_rays")
     light_ray_fn = dev.kernel(kernel).function("generate_light_rays")
+    finalize_fn = dev.kernel(kernel).function("finalize_samples")
 
     tris = []
     if args.scene == "empty":
@@ -54,14 +55,21 @@ if __name__ == '__main__':
         load_time = time.time()
         tris += load_ply('../resources/dragon_vrip_res3.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
         print(f"done loading dragon in {time.time() - load_time}")
-        cam_center = np.array([0, 1.5, 9.5])
+        cam_center = np.array([0, 1.5, 7.5])
+        cam_dir = unit(np.array([0, 0, -1]))
+    elif args.scene == "medium-dragon":
+        # load a reasonable dragon
+        load_time = time.time()
+        tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
+        print(f"done loading dragon in {time.time() - load_time}")
+        cam_center = np.array([0, 1.5, 7.5])
         cam_dir = unit(np.array([0, 0, -1]))
     elif args.scene == "big-dragon":
         # load the big dragon
         load_time = time.time()
         tris += load_ply('../resources/dragon_vrip.ply', offset=np.array([0, -4, 0]), material=5, scale=50)
         print(f"done loading dragon in {time.time() - load_time}")
-        cam_center = np.array([0, 1.5, 9.5])
+        cam_center = np.array([0, 1.5, 7.5])
         cam_dir = unit(np.array([0, 0, -1]))
     elif args.scene == "bunny":
         # load the bunny
@@ -134,6 +142,7 @@ if __name__ == '__main__':
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_light_image = dev.buffer(batch_size * 16)
     weight_aggregators = dev.buffer(batch_size * 64)
+    finalized_samples = dev.buffer(batch_size * 16)
 
     camera_buffer = dev.buffer(c.to_struct())
     camera_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
@@ -219,7 +228,10 @@ if __name__ == '__main__':
                     bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                     light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
-                    image = bidirectional_image
+                    finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples)
+                    finalized_image = np.frombuffer(finalized_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+
+                    image = finalized_image
 
                 # post processing. tone map, sum, division
                 print(np.sum(np.isnan(image)), "nans in image")

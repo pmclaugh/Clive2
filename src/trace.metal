@@ -877,13 +877,20 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             weight_aggregator[id].weights[i][j] = weight_aggregator[id].weights[i][j] / weight_sum;
         }
     }
+    out[id] = float4(weight_aggregator[id].total_contribution, 1.0f);
+}
 
-    threadgroup_barrier(mem_flags::mem_device);
 
+kernel void finalize_samples(const device WeightAggregator *weight_aggregators [[ buffer(0) ]],
+                             const device Camera *camera [[ buffer(1) ]],
+                             device float4 *out [[ buffer(2) ]],
+                             uint id [[ thread_position_in_grid ]]) {
+    float3 total_sample = float3(0.0f);
+    Camera c = camera[0];
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
-            int new_sample_x = (sample_index % c.pixel_width) + i;
-            int new_sample_y = (sample_index / c.pixel_width) + j;
+            int new_sample_x = (id % c.pixel_width) + i;
+            int new_sample_y = (id / c.pixel_width) + j;
 
             if (new_sample_x < 0 || new_sample_x >= c.pixel_width ||
                 new_sample_y < 0 || new_sample_y >= c.pixel_height) {
@@ -904,11 +911,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else if (j == 0) {y_idx = 1;}
             else {y_idx = 0;}
 
-            float weight = weight_aggregator[new_sample_index].weights[x_idx][y_idx];
-            float3 sample = weight_aggregator[new_sample_index].total_contribution * weight;
-            out[id] += float4(sample, 1.0f);
+            float weight = weight_aggregators[new_sample_index].weights[x_idx][y_idx];
+            float3 sample = weight_aggregators[new_sample_index].total_contribution * weight;
+            total_sample += sample;
         }
     }
+    out[id] = float4(total_sample, 1.0f);
 }
 
 
