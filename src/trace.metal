@@ -789,9 +789,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             if (s == 0) {color = camera_path.rays[t - 2].color;}
             else if (t == 0) {color = light_path.rays[s - 2].color;}
             else if (t == 1) {
-                float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 if (s == 1) {color = materials[light_ray.material].emission;}
                 else {
+                    float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                     float3 prior_light_color = light_path.rays[s - 2].color;
                     float3 prior_light_direction = light_path.rays[s - 2].direction;
 
