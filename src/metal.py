@@ -19,7 +19,7 @@ if __name__ == '__main__':
     parser.add_argument('--samples', type=int, default=15)
     parser.add_argument('--width', type=int, default=1280)
     parser.add_argument('--height', type=int, default=720)
-    parser.add_argument('--frame-number', type=int, default=0)
+    parser.add_argument('--start-frame', type=int, default=0)
     parser.add_argument('--total-frames', type=int, default=1)
     parser.add_argument('--movie-name', type=str, default='default')
     parser.add_argument('--save-on-quit', action='store_true')
@@ -158,7 +158,7 @@ if __name__ == '__main__':
     randoms = np.random.randint(0, 2 ** 32, size=(batch_size, 2), dtype=np.uint32)
     rand_buffer = dev.buffer(randoms)
 
-    f = 0
+    f = args.start_frame
     while f < args.total_frames:
 
         if args.total_frames > 1:
