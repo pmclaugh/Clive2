@@ -851,7 +851,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
-            weight_aggregator[id].weights[i][j] = 1.0f;
+            weight_aggregator[id].weights[i][j] = 0.0f;
         }
     }
     for (int i = -1; i < 2; i++) {
