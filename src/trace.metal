@@ -316,8 +316,8 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    // should also be divided by abs(dot(o, n)) but turning that off to suppress fireflies. turn back on later.
-    return (D * G * F) / (4.0f * abs(dot(i, n)));
+    // can remove abs(dot(o, n)) from the denominator to suppress fireflies but lose some brightness
+    return (D * G * F) / (4.0f * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -832,7 +832,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 g = geometry_term(camera_ray, light_ray);
             }
             float3 sample = w * g * color / p_s;
-            aggregator.total_contribution += sample;
+            if (sample_index == id) {
+                aggregator.total_contribution += sample;
+            } else {
+                light_image[sample_index] += float4(sample, 1.0f);
+            }
         }
     }
 
