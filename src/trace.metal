@@ -750,23 +750,55 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float p_values[32];
 
             // set up p_ratios like p1/p0, p2/p1, p3/p2, ... out to pk+1/pk, where k = s + t - 1
-            // todo this has become quite complex, can hopefully be simplified
 
-            if (s == 0){camera_path.rays[camera_path.length - 1].l_importance = light_path.rays[0].l_importance;}
-            if (t == 0){light_path.rays[light_path.length - 1].c_importance = camera_path.rays[0].c_importance;}
+            // populate missing values, these will be overwritten next loop so it's fine
+            // basically, camera_path.rays[t - 1] (the end of the camera path) needs its l_importance set,
+
+            if (s == 0){camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;}
+            else if (s == 1){camera_path.rays[t - 1].l_importance = 1.0f / (2.0f * PI);}
+            else {
+                Ray a, b, c;
+                a = get_ray(camera_path, light_path, t, s, s - 2);
+                b = get_ray(camera_path, light_path, t, s, s - 1);
+                c = get_ray(camera_path, light_path, t, s, s);
+
+                float3 b_to_a = normalize(a.origin - b.origin);
+                float3 b_to_c = normalize(c.origin - b.origin);
+
+                float pdf = PDF(b_to_a, b_to_c, b.normal, triangles[b.triangle].normal, materials[b.material]);
+
+                camera_path.rays[t - 1].l_importance = pdf;
+            }
+
+            // and light_path.rays[s - 1] (the end of the light path) needs its c_importance set.
+            if (t == 0){light_path.rays[s - 1].c_importance = camera_path.rays[0].c_importance;}
+            else if (t == 1){light_path.rays[s - 1].c_importance = 1.0f / (2.0f * PI);}
+            else {
+                Ray a, b, c;
+                a = get_ray(camera_path, light_path, t, s, t - 2);
+                b = get_ray(camera_path, light_path, t, s, t - 1);
+                c = get_ray(camera_path, light_path, t, s, t);
+
+                float3 b_to_a = normalize(a.origin - b.origin);
+                float3 b_to_c = normalize(c.origin - b.origin);
+
+                float pdf = PDF(b_to_a, b_to_c, b.normal, triangles[b.triangle].normal, materials[b.material]);
+
+                light_path.rays[s - 1].c_importance = pdf;
+            }
 
             for (int i = 0; i < s + t; i++) {
                 float num, denom;
                 if (i == 0) {
-                    Ray a = get_ray(camera_path, light_path, t, s, i);
-                    Ray b = get_ray(camera_path, light_path, t, s, i + 1);
+                    Ray a = get_ray(camera_path, light_path, t, s, 0);
+                    Ray b = get_ray(camera_path, light_path, t, s, 1);
 
                     num = a.l_importance;
                     denom = a.c_importance * geometry_term(a, b);
                 }
                 else if (i == s + t - 1) {
-                    Ray a = get_ray(camera_path, light_path, t, s, i);
-                    Ray b = get_ray(camera_path, light_path, t, s, i - 1);
+                    Ray a = get_ray(camera_path, light_path, t, s, s + t - 1);
+                    Ray b = get_ray(camera_path, light_path, t, s, s + t - 2);
 
                     num = a.l_importance * geometry_term(a, b);
                     denom = a.c_importance;
@@ -777,32 +809,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     b = get_ray(camera_path, light_path, t, s, i);
                     c = get_ray(camera_path, light_path, t, s, i + 1);
 
-                    if (i == s) {
-                        num = b.l_importance * geometry_term(a, b);
-
-                        float b_c_importance;
-                        if (t == 1) {
-                            b_c_importance = 1.0f;
-                        }
-                        else {
-                            Ray d = get_ray(camera_path, light_path, t, s, i + 2);
-                            float3 c_to_b = normalize(b.origin - c.origin);
-                            b_c_importance = PDF(-d.direction, c_to_b, c.normal, triangles[c.triangle].normal, materials[c.material]);
-                        }
-                        denom = b_c_importance * geometry_term(b, c);
-                    }
-                    else if (i == s + 1) {
-                        // we know i is at least 2, so we can safely do i - 2
-                        Ray z = get_ray(camera_path, light_path, t, s, i - 2);
-                        float3 a_to_b = normalize(b.origin - a.origin);
-                        float b_l_importance = PDF(-z.direction, a_to_b, a.normal, triangles[a.triangle].normal, materials[a.material]);
-
-                        num = b_l_importance * geometry_term(a, b);
-                        denom = b.c_importance * geometry_term(b, c);
-                    } else {
-                        num = b.l_importance * geometry_term(a, b);
-                        denom = b.c_importance * geometry_term(b, c);
-                    }
+                    num = b.l_importance * geometry_term(a, b);
+                    denom = b.c_importance * geometry_term(b, c);
                 }
                 p_ratios[i] = num / denom;
             }
