@@ -751,15 +751,17 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             // set up p_ratios like p1/p0, p2/p1, p3/p2, ... out to pk+1/pk, where k = s + t - 1
             // todo this has become quite complex, can hopefully be simplified
+
+            if (s == 0){camera_path.rays[camera_path.length - 1].l_importance = light_path.rays[0].l_importance;}
+            if (t == 0){light_path.rays[light_path.length - 1].c_importance = camera_path.rays[0].c_importance;}
+
             for (int i = 0; i < s + t; i++) {
                 float num, denom;
                 if (i == 0) {
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i + 1);
 
-                    if (s == 0) {num = light_path.rays[0].l_importance;}
-                    else {num = a.l_importance;}
-
+                    num = a.l_importance;
                     denom = a.c_importance * geometry_term(a, b);
                 }
                 else if (i == s + t - 1) {
@@ -767,9 +769,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     Ray b = get_ray(camera_path, light_path, t, s, i - 1);
 
                     num = a.l_importance * geometry_term(a, b);
-
-                    if (t == 0) {denom = camera_path.rays[0].c_importance;}
-                    else {denom = a.c_importance;}
+                    denom = a.c_importance;
                 }
                 else {
                     Ray a, b, c;
@@ -796,8 +796,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                         Ray z = get_ray(camera_path, light_path, t, s, i - 2);
                         float3 a_to_b = normalize(b.origin - a.origin);
                         float b_l_importance = PDF(-z.direction, a_to_b, a.normal, triangles[a.triangle].normal, materials[a.material]);
-                        num = b_l_importance * geometry_term(a, b);
 
+                        num = b_l_importance * geometry_term(a, b);
                         denom = b.c_importance * geometry_term(b, c);
                     } else {
                         num = b.l_importance * geometry_term(a, b);
