@@ -772,7 +772,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             // and light_path.rays[s - 1] (the end of the light path) needs its c_importance set.
             if (t == 0){light_path.rays[s - 1].c_importance = camera_path.rays[0].c_importance;}
-            else if (t == 1){light_path.rays[s - 1].c_importance = 1.0f / (2.0f * PI);}
+            else if (t == 1){light_path.rays[s - 1].c_importance = 1.0f;}
             else {
                 Ray a, b, c;
                 a = get_ray(camera_path, light_path, t, s, t - 2);
@@ -862,7 +862,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float3 color = float3(1.0f);
             float g = 1.0f;
 
-            if (s == 0) {color = camera_path.rays[t - 2].color;}
+            if (s == 0) {color = camera_path.rays[t - 2].color * materials[light_path.rays[0].material].emission;}
             else if (t == 0) {color = light_path.rays[s - 2].color;}
             else if (t == 1) {
                 if (s == 1) {color = materials[light_ray.material].emission;}
@@ -1045,8 +1045,9 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
                                 const device int *counts [[buffer(1) ]],
                                 const device float *surface_areas [[buffer(2) ]],
                                 const device int *light_triangle_indices [[buffer(3) ]],
-                                device unsigned int *random_buffer [[buffer(4) ]],
-                                device Ray *out [[buffer(5) ]],
+                                const device Material *materials[[buffer(4) ]],
+                                device unsigned int *random_buffer [[buffer(5) ]],
+                                device Ray *out [[buffer(6) ]],
                                 uint id [[thread_position_in_grid]]) {
     Ray ray;
     ray.from_camera = 0;
@@ -1079,9 +1080,10 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     float2 random_roll = float2(rand_x, rand_y);
     ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
     ray.inv_direction = 1.0f / ray.direction;
-    ray.color = float3(1.0f);
 
     ray.material = light_triangle.material;
+    Material material = materials[ray.material];
+    ray.color = material.emission;
 
     // todo: for some reason this introduces some visual glitches. investigate eventually.
     // ray.triangle = light_triangle_indices[light_index];

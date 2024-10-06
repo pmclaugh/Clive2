@@ -206,7 +206,7 @@ if __name__ == '__main__':
                 if not args.unidirectional:
                     # make light rays and rands
                     light_ray_start_time = time.time()
-                    light_ray_fn(batch_size, light_triangle_buffer, light_counts, light_surface_areas, light_triangle_indices, rand_buffer, light_ray_buffer)
+                    light_ray_fn(batch_size, light_triangle_buffer, light_counts, light_surface_areas, light_triangle_indices, mat_buffer, rand_buffer, light_ray_buffer)
                     print(f"Create light rays in {time.time() - light_ray_start_time}")
 
                     # trace light paths
@@ -245,7 +245,7 @@ if __name__ == '__main__':
                     print("NaNs in summed image!!!")
                     break
 
-                to_display = tone_map((summed_image + summed_light_image) / (i + 1))
+                to_display = tone_map((summed_image) / (i + 1) + summed_light_image)
 
                 if args.filter:
                     # todo: this is a decent improvement and denoises a fair bit
