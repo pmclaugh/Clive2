@@ -750,31 +750,26 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float p_values[32];
 
             // set up p_ratios like p1/p0, p2/p1, p3/p2, ... out to pk+1/pk, where k = s + t - 1
+            // todo this has become quite complex, can hopefully be simplified
             for (int i = 0; i < s + t; i++) {
                 float num, denom;
-                if (s == 0) {
+                if (i == 0) {
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i + 1);
-                    num = light_path.rays[0].l_importance;
+
+                    if (s == 0) {num = light_path.rays[0].l_importance;}
+                    else {num = a.l_importance;}
+
                     denom = a.c_importance * geometry_term(a, b);
-                }
-                else if (i == 0) {
-                    Ray a = get_ray(camera_path, light_path, t, s, i);
-                    Ray b = get_ray(camera_path, light_path, t, s, i + 1);
-                    num = a.l_importance;
-                    denom = a.c_importance * geometry_term(a, b);
-                }
-                else if (t == 0) {
-                    Ray a = get_ray(camera_path, light_path, t, s, i);
-                    Ray b = get_ray(camera_path, light_path, t, s, i - 1);
-                    num = a.l_importance * geometry_term(a, b);
-                    denom = camera_path.rays[0].c_importance;
                 }
                 else if (i == s + t - 1) {
                     Ray a = get_ray(camera_path, light_path, t, s, i);
                     Ray b = get_ray(camera_path, light_path, t, s, i - 1);
+
                     num = a.l_importance * geometry_term(a, b);
-                    denom = a.c_importance;
+
+                    if (t == 0) {denom = camera_path.rays[0].c_importance;}
+                    else {denom = a.c_importance;}
                 }
                 else {
                     Ray a, b, c;
