@@ -692,13 +692,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             if (s + t < 2) {continue;}
 
+            // reset
             Ray light_ray;
             light_ray.triangle = -1;
             Ray camera_ray;
             camera_ray.triangle = -1;
             sample_index = id;
-
-            // these need to be on if t==1 is on, but otherwise they're just wasted bandwidth. nearly doubles join time.
             camera_path = camera_paths[id];
             light_path = light_paths[id];
 
@@ -713,7 +712,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
             else if (t == 1) {
                 //continue;
-                // light visibility to camera plane. WIP. Disabled for now.
+                // light visibility to camera plane. WIP.
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
                 int hit = map_camera_pixel(light_ray, camera[0], triangles, boxes, camera_ray);

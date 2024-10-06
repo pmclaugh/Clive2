@@ -1,6 +1,6 @@
 import metalcompute
 import numpy as np
-from camera import Camera, tone_map, basic_tone_map
+from camera import Camera, tone_map, basic_tone_map, double_image_tone_map
 from bvh import construct_BVH, np_flatten_bvh
 import cv2
 import metalcompute as mc
@@ -239,8 +239,10 @@ if __name__ == '__main__':
                 print(np.sum(np.isnan(image)), "nans in image")
                 print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
                 print(np.sum(np.isinf(image)), "infs in image")
+
                 summed_image += np.nan_to_num(image, posinf=0, neginf=0)
                 summed_light_image += np.nan_to_num(light_image, posinf=0, neginf=0)
+
                 if np.any(np.isnan(summed_image)):
                     print("NaNs in summed image!!!")
                     break
