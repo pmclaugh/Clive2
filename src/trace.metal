@@ -366,9 +366,10 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
     }
 }
 
-float PDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const device float3 &geom_n, const Material material) {
+float PDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const device float3 &geom_n, const Material material, bool from_camera) {
     if (material.type == 0) {
-        return abs(dot(o, n)) / PI;
+        if (from_camera) {return abs(dot(o, n)) / PI;}
+        else {return 1.0f / (2.0f * PI);}
     }
     else {
         float ni, no, alpha;
@@ -764,26 +765,44 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float3 b_to_a = normalize(a.origin - b.origin);
                 float3 b_to_c = normalize(c.origin - b.origin);
 
-                float pdf = PDF(b_to_a, b_to_c, b.normal, triangles[b.triangle].normal, materials[b.material]);
+                // a -> b -> c is in a light-like direction
+                float pdf = PDF(b_to_a, b_to_c, b.normal, triangles[b.triangle].normal, materials[b.material], false);
 
+                // get_ray(camera_path, light_path, t, s, s) is camera_path.rays[t - 1]
                 camera_path.rays[t - 1].l_importance = pdf;
+
+                if (t > 1) {
+                    Ray d = get_ray(camera_path, light_path, t, s, s + 1);
+                    float3 c_to_d = normalize(d.origin - c.origin);
+                    pdf = PDF(-b_to_c, c_to_d, c.normal, triangles[c.triangle].normal, materials[c.material], false);
+                    camera_path.rays[t - 2].l_importance = pdf;
+                }
             }
 
             // and light_path.rays[s - 1] (the end of the light path) needs its c_importance set.
+            // s - 2 may also need to be set
             if (t == 0){light_path.rays[s - 1].c_importance = camera_path.rays[0].c_importance;}
             else if (t == 1){light_path.rays[s - 1].c_importance = 1.0f;}
             else {
                 Ray a, b, c;
-                a = get_ray(camera_path, light_path, t, s, t - 2);
-                b = get_ray(camera_path, light_path, t, s, t - 1);
-                c = get_ray(camera_path, light_path, t, s, t);
+                a = get_ray(camera_path, light_path, t, s, s + 1);
+                b = get_ray(camera_path, light_path, t, s, s);
+                c = get_ray(camera_path, light_path, t, s, s - 1);
 
                 float3 b_to_a = normalize(a.origin - b.origin);
                 float3 b_to_c = normalize(c.origin - b.origin);
 
-                float pdf = PDF(b_to_a, b_to_c, b.normal, triangles[b.triangle].normal, materials[b.material]);
+                // a -> b -> c is in a camera-like direction
+                float pdf = PDF(b_to_a, b_to_c, b.normal, triangles[b.triangle].normal, materials[b.material], true);
 
                 light_path.rays[s - 1].c_importance = pdf;
+
+                if (s > 1) {
+                    Ray d = get_ray(camera_path, light_path, t, s, s - 2);
+                    float3 c_to_d = normalize(d.origin - c.origin);
+                    pdf = PDF(-b_to_c, c_to_d, c.normal, triangles[c.triangle].normal, materials[c.material], true);
+                    light_path.rays[s - 2].c_importance = pdf;
+                }
             }
 
             for (int i = 0; i < s + t; i++) {
