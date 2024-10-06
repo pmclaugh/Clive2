@@ -245,7 +245,7 @@ if __name__ == '__main__':
                     print("NaNs in summed image!!!")
                     break
 
-                to_display = tone_map((summed_image) / (i + 1) + summed_light_image)
+                to_display = tone_map(summed_image / (i + 1) + summed_light_image)
 
                 if args.filter:
                     # todo: this is a decent improvement and denoises a fair bit
