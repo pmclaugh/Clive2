@@ -662,8 +662,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             sample_index = id;
 
             // these need to be on if t==1 is on, but otherwise they're just wasted bandwidth. nearly doubles join time.
-            //camera_path = camera_paths[id];
-            //light_path = light_paths[id];
+            camera_path = camera_paths[id];
+            light_path = light_paths[id];
 
 
             if (t == 0){
@@ -675,7 +675,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (sample_index == -1) {continue;}
             }
             else if (t == 1) {
-                continue;
+                //continue;
                 // light visibility to camera plane. WIP. Disabled for now.
                 light_ray = light_path.rays[s - 1];
                 if (materials[light_ray.material].type == 1) {continue;}
@@ -775,7 +775,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             // this is because t=0 and t=1 are disabled. greatly enhances caustics by giving s==0 much more weight.
             p_values[s + t] = 0.0f;
-            p_values[s + t - 1] = 0.0f;
+            //p_values[s + t - 1] = 0.0f;
 
             float sum = 0.0f;
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}
@@ -944,6 +944,7 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
 
     float3 origin = c.center + x_vector + y_vector;
     float3 direction = normalize(c.focal_point - origin);
+    origin = origin + direction * DELTA;
     ray.origin = origin;
     ray.direction = direction;
     ray.normal = c.direction;

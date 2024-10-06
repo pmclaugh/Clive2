@@ -110,7 +110,7 @@ if __name__ == '__main__':
     camera_arr = c.to_struct()
     camera_tris = camera_geometry(c)
     dummy_smooth_normals(camera_tris)
-    # tris += camera_tris
+    tris += camera_tris
 
     # build and marshall BVH
     start_time = time.time()
@@ -245,7 +245,7 @@ if __name__ == '__main__':
                     print("NaNs in summed image!!!")
                     break
 
-                to_display = tone_map(summed_image / (i + 1))
+                to_display = tone_map((summed_image + summed_light_image) / (i + 1))
 
                 if args.filter:
                     # todo: this is a decent improvement and denoises a fair bit
