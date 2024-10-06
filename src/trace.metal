@@ -366,6 +366,43 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
     }
 }
 
+float PDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const device float3 &geom_n, const Material material) {
+    if (material.type == 0) {
+        return abs(dot(o, n)) / PI;
+    }
+    else {
+        float ni, no, alpha;
+        alpha = material.alpha;
+        if (dot(i, geom_n) > 0.0f) {
+            ni = 1.0f;
+            no = material.ior;
+        }
+        else {
+            ni = material.ior;
+            no = 1.0f;
+        }
+
+        float3 m;
+        if (dot(i, geom_n) * dot(o, geom_n) > 0 && dot(i, n) * dot(o, n) > 0) {
+            m = specular_reflect_half_direction(i, o);
+        }
+        else if (dot(i, geom_n) * dot(o, geom_n) < 0 && dot(i, n) * dot(o, n) < 0) {
+            m = specular_transmit_half_direction(i, o, ni, no);
+        } else {
+            return 0.0f;
+        }
+
+        float pf = degreve_fresnel(i, n, ni, no);
+        float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+
+        if (dot(o, n) > 0.0f) {
+            return pf * pm * reflect_jacobian(m, o) / abs(dot(o, m));
+        } else {
+            return pf * pm * transmit_jacobian(i, o, m, ni, no) / abs(dot(o, m));
+        }
+    }
+}
+
 float3 sample_normal(const thread Triangle &triangle, const thread float u, const thread float v) {
     return normalize(triangle.n0 * (1 - u - v) + triangle.n1 * u + triangle.n2 * v);
 }
@@ -734,8 +771,26 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     a = get_ray(camera_path, light_path, t, s, i - 1);
                     b = get_ray(camera_path, light_path, t, s, i);
                     c = get_ray(camera_path, light_path, t, s, i + 1);
-                    num = b.l_importance * geometry_term(a, b);
-                    denom = b.c_importance * geometry_term(b, c);
+
+                    if (i == s) {
+                        num = b.l_importance * geometry_term(a, b);
+
+                        Ray d = get_ray(camera_path, light_path, t, s, i + 2);
+                        float3 c_to_b = normalize(b.origin - c.origin);
+                        float b_c_importance = PDF(-d.direction, c_to_b, c.normal, triangles[c.triangle].normal, materials[c.material]);
+                        denom = b_c_importance * geometry_term(b, c);
+                    }
+                    else if (i == s + 1) {
+                        Ray z = get_ray(camera_path, light_path, t, s, i - 2);
+                        float3 a_to_b = normalize(b.origin - a.origin);
+                        float b_l_importance = PDF(-z.direction, a_to_b, a.normal, triangles[a.triangle].normal, materials[a.material]);
+                        num = b_l_importance * geometry_term(a, b);
+
+                        denom = b.c_importance * geometry_term(b, c);
+                    } else {
+                        num = b.l_importance * geometry_term(a, b);
+                        denom = b.c_importance * geometry_term(b, c);
+                    }
                 }
                 p_ratios[i] = num / denom;
             }
