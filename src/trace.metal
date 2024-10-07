@@ -753,10 +753,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             // populate missing values, these will be overwritten next loop so it's fine
             // basically, camera_path.rays[t - 1] (the end of the camera path) needs its l_importance set,
-
+            // and camera_path.rays[t - 2] may also need to be set
             if (s == 0){camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;}
             else if (s == 1){camera_path.rays[t - 1].l_importance = 1.0f / (2.0f * PI);}
-            else {
+            else if (t != 0) {
                 Ray a, b, c;
                 a = get_ray(camera_path, light_path, t, s, s - 2);
                 b = get_ray(camera_path, light_path, t, s, s - 1);
@@ -779,11 +779,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            // and light_path.rays[s - 1] (the end of the light path) needs its c_importance set.
+            // light_path.rays[s - 1] (the end of the light path) needs its c_importance set.
             // s - 2 may also need to be set
             if (t == 0){light_path.rays[s - 1].c_importance = camera_path.rays[0].c_importance;}
             else if (t == 1){light_path.rays[s - 1].c_importance = 1.0f;}
-            else {
+            else if (s != 0) {
                 Ray a, b, c;
                 a = get_ray(camera_path, light_path, t, s, s + 1);
                 b = get_ray(camera_path, light_path, t, s, s);
