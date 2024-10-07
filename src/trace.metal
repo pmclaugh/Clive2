@@ -422,7 +422,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     Ray ray, new_ray, next_ray;
     ray = rays[id];
     path.from_camera = ray.from_camera;
-    out[id] = float4(0, 0, 0, 1);
+    out[id] = float4(0, 0, 0, 0);
 
     unsigned int seed0 = random_buffer[2 * id];
     unsigned int seed1 = random_buffer[2 * id + 1];
@@ -468,6 +468,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.normal = sampled_normal;
         new_ray.material = triangle.material;
         new_ray.triangle = best_i;
+
         if (triangle.is_light && dot(ray.direction, triangle.normal) < 0.0f) {new_ray.hit_light = best_i;}
         else {new_ray.hit_light = -1;}
         if (triangle.is_camera) {new_ray.hit_camera = best_i;}
@@ -754,8 +755,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             // populate missing values, these will be overwritten next loop so it's fine
             // basically, camera_path.rays[t - 1] (the end of the camera path) needs its l_importance set,
             // and camera_path.rays[t - 2] may also need to be set
-            if (s == 0){camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;}
-            else if (s == 1){camera_path.rays[t - 1].l_importance = 1.0f / (2.0f * PI);}
+            if (s == 0) {camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;}
+            else if (s == 1) {camera_path.rays[t - 1].l_importance = 1.0f / (2.0f * PI);}
             else if (t != 0) {
                 Ray a, b, c;
                 a = get_ray(camera_path, light_path, t, s, s - 2);

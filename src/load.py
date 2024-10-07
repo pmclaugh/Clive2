@@ -141,7 +141,7 @@ def get_materials():
     materials['color'][6][:3] = WHITE
     materials['color'][7][:3] = WHITE
     materials['emission'] = np.zeros((8, 4), dtype=np.float32)
-    materials['emission'][6] = np.array([1, 1, 1, 1])
+    materials['emission'][6] = np.ones(4, dtype=np.float32) * 100
     materials['type'] = 0
 
     materials['ior'] = 1.5
