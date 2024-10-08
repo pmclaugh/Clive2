@@ -511,27 +511,27 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             if (random_roll_b.x <= fresnel) {
                 wo = specular_reflection(wi, m);
                 if (dot(wo, n) < 0.0f) {break;}
-                f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha);
+                f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
                 pf = fresnel;
             } else {
                 wo = GGX_transmit(wi, m, ni, no);
                 if (dot(wo, n) > 0.0f) {break;}
-                f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha);
+                f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
                 pf = 1.0f - fresnel;
             }
 
             float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
 
             if (dot(wo, n) > 0.0f) {
-                c_p = pf * pm * reflect_jacobian(m, wo) / abs(dot(wo, m));
-                l_p = pf * pm * reflect_jacobian(m, wi) / abs(dot(wi, m));
+                c_p = pf * pm * reflect_jacobian(m, wo);
+                l_p = pf * pm * reflect_jacobian(m, wi);
             } else {
                 if (path.from_camera) {
-                    c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no) / abs(dot(wo, m));
-                    l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni) / abs(dot(wi, m));
+                    c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+                    l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
                 } else {
-                    c_p = pf * pm * transmit_jacobian(wo, wi, -m, ni, no) / abs(dot(wi, m));
-                    l_p = pf * pm * transmit_jacobian(wi, wo, m, no, ni) / abs(dot(wo, m));
+                    c_p = pf * pm * transmit_jacobian(wo, wi, -m, ni, no);
+                    l_p = pf * pm * transmit_jacobian(wi, wo, m, no, ni);
                 }
             }
         }
@@ -892,7 +892,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                     Material light_material = materials[light_ray.material];
                     float3 light_geom_normal = triangles[light_ray.triangle].normal;
-                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
+                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material) * abs(dot(dir_l_to_c, light_ray.normal));
                     color = prior_light_color * light_material.color * new_light_f;
                }
                g = geometry_term(camera_ray, light_ray);
@@ -906,7 +906,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 Material camera_material = materials[camera_ray.material];
                 float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
-                float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, camera_material);
+                float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, camera_material) * abs(dot(-dir_l_to_c, camera_ray.normal));
                 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
                 float3 light_color = float3(1.0f);
@@ -919,7 +919,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                     Material light_material = materials[light_ray.material];
                     float3 light_geom_normal = triangles[light_ray.triangle].normal;
-                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
+                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material)  * abs(dot(dir_l_to_c, light_ray.normal));
                     light_color = prior_light_color * new_light_f * light_material.color;
                 }
                 color = camera_color * light_color;
