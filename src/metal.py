@@ -269,7 +269,7 @@ if __name__ == '__main__':
                 raise
         # save the image
         if args.total_frames == 1:
-            cv2.imwrite(f'../output/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)
+            cv2.imwrite(f'../output/{args.movie_name}/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png', to_display)
         else:
             cv2.imwrite(f'../output/{args.movie_name}/frame_{f:04d}.png', to_display)
 
