@@ -56,7 +56,7 @@ Material = np.dtype([
 ])
 
 Camera = np.dtype([
-    ('origin', np.float32, 4),
+    ('center', np.float32, 4),
     ('focal_point', np.float32, 4),
     ('direction', np.float32, 4),
     ('dx', np.float32, 4),
@@ -65,4 +65,7 @@ Camera = np.dtype([
     ('pixel_height', np.int32),
     ('phys_width', np.float32),
     ('phys_height', np.float32),
+    ('h_fov', np.float32),
+    ('v_fov', np.float32),
+    ('pad', np.int32, 2),
 ])

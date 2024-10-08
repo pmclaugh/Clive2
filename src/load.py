@@ -54,15 +54,15 @@ class Triangle:
         return np.linalg.norm(np.cross(e1, e2)) / 2
 
 
-def load_obj(obj_path, offset=None, material=None):
+def load_obj(obj_path, offset=None, material=None, scale=1.0):
     if offset is None:
         offset = np.zeros(3)
     obj = objloader.Obj.open(obj_path)
     triangles = []
     for i, ((v0, n0, t0), (v1, n1, t1), (v2, n2, t2)) in enumerate(zip(*[iter(obj.face)] * 3)):
-        triangle = Triangle(np.array(obj.vert[v0 - 1]) + offset,
-                            np.array(obj.vert[v1 - 1]) + offset,
-                            np.array(obj.vert[v2 - 1]) + offset)
+        triangle = Triangle(np.array(obj.vert[v0 - 1]) * scale + offset,
+                            np.array(obj.vert[v1 - 1]) * scale + offset,
+                            np.array(obj.vert[v2 - 1]) * scale + offset)
 
         # normals
         triangle.n0 = np.array(obj.norm[n0 - 1]) if n0 is not None else INVALID
@@ -141,7 +141,7 @@ def get_materials():
     materials['color'][6][:3] = WHITE
     materials['color'][7][:3] = WHITE
     materials['emission'] = np.zeros((8, 4), dtype=np.float32)
-    materials['emission'][6] = np.array([1, 1, 1, 1])
+    materials['emission'][6] = np.ones(4, dtype=np.float32) * 100
     materials['type'] = 0
 
     materials['ior'] = 1.5
@@ -224,10 +224,7 @@ def fast_generate_light_rays(triangles, num_rays):
     choices = np.random.randint(0, len(emitters), num_rays)
     rand_us, rand_vs, rand_ws = random_uvs(num_rays)
     rays['direction'] = unit(np.array([0, -1, 0, 0]))
-    points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[
-                                                                                                           choices][:,
-                                                                                                       2] * rand_ws[:,
-                                                                                                            None]
+    points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:,2] * rand_ws[:,None]
     rays['origin'] = points + 0.0001 * rays['direction']
     rays['normal'] = rays['direction']
     rays['inv_direction'] = 1.0 / rays['direction']
