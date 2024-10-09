@@ -844,21 +844,21 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float p_s = prior_camera_importance * prior_light_importance;
 
-            float p_i = 1.0f;
+            float p_i = p_s;
 
             for (int i = s; i < s + t; i++) {
                 p_values[i + 1] = p_ratios[i] * p_i;
                 p_i = p_values[i + 1];
             }
 
-            p_i = 1.0f;
+            p_i = p_s;
 
             for (int i = s - 1; i >= 0; i--) {
                 p_values[i] = p_i / p_ratios[i];
                 p_i = p_values[i];
             }
 
-            p_values[s] = 1.0f;
+            p_values[s] = p_s;
 
             for (int i = 0; i < s + t + 1; i++) {
                 if (materials[get_ray(camera_path, light_path, t, s, i).material].type == 1) {
@@ -869,7 +869,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             // this is because t=0 and t=1 are disabled. greatly enhances caustics by giving s==0 much more weight.
             p_values[s + t] = 0.0f;
-            //p_values[s + t - 1] = 0.0f;
+            p_values[s + t - 1] = 0.0f;
 
             float sum = 0.0f;
             for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}
@@ -881,7 +881,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float3 color = float3(1.0f);
             float g = 1.0f;
 
-            if (s == 0) {color = camera_path.rays[t - 2].color * materials[light_path.rays[0].material].emission;}
+            if (s == 0) {
+                color = camera_path.rays[t - 2].color * materials[light_path.rays[0].material].emission;
+                float3 dir_c_to_c = normalize(camera_path.rays[t - 1].origin - camera_path.rays[t - 2].origin);
+                color *= abs(dot(camera_path.rays[t - 1].normal, dir_c_to_c));
+            }
             else if (t == 0) {color = light_path.rays[s - 2].color;}
             else if (t == 1) {
                 if (s == 1) {color = materials[light_ray.material].emission;}
@@ -911,7 +915,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 float3 light_color = float3(1.0f);
                 if (s == 1) {
-                    light_color = materials[light_ray.material].emission;
+                    light_color = materials[light_ray.material].emission * abs(dot(camera_ray.normal, dir_l_to_c));
                 }
                 else {
                     float3 prior_light_color = light_path.rays[s - 2].color;
@@ -925,7 +929,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
+
             float3 sample = w * g * color / p_s;
+
             if (sample_index == id) {
                 aggregator.total_contribution += sample;
             } else {
@@ -980,9 +986,11 @@ kernel void finalize_samples(const device WeightAggregator *weight_aggregators [
                              const device Camera *camera [[ buffer(1) ]],
                              device float4 *out [[ buffer(2) ]],
                              uint id [[ thread_position_in_grid ]]) {
+
     // final gather. in separate kernel to globally sync
     float3 total_sample = float3(0.0f);
     Camera c = camera[0];
+
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
             int new_sample_x = (id % c.pixel_width) + i;
@@ -998,9 +1006,11 @@ kernel void finalize_samples(const device WeightAggregator *weight_aggregators [
 
             // flip indices around center
             int x_idx, y_idx;
+
             if (i < 0) {x_idx = 2;}
             else if (i == 0) {x_idx = 1;}
             else {x_idx = 0;}
+
             if (j < 0) {y_idx = 2;}
             else if (j == 0) {y_idx = 1;}
             else {y_idx = 0;}
@@ -1102,7 +1112,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
 
     ray.material = light_triangle.material;
     Material material = materials[ray.material];
-    ray.color = material.emission;
+    ray.color = material.emission * abs(dot(ray.normal, ray.direction));
 
     ray.triangle = light_triangle_indices[light_index];
 
