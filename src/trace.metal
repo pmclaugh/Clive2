@@ -443,8 +443,10 @@ void reflect_bounce(const thread float3 &wi, const thread float3 &n, const threa
 void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
     wo = GGX_transmit(wi, m, ni, no);
     f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, m));
+
     float pf = 1.0f - degreve_fresnel(wi, m, ni, no);
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+
     c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
     l_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
 }
@@ -531,6 +533,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 m = GGX_sample(n, random_roll_a, alpha);
         if (dot(wi, m) < 0.0f) {break;}
         if (dot(m, n) < 0.0f) {break;}
+        new_ray.normal = m;
         float fresnel = degreve_fresnel(wi, m, ni, no);
 
         if (material.type == 0) {
@@ -844,22 +847,25 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
+            // p_i == p_s means this could be just g * color / sum, but I think this is clearer
             aggregator.total_contribution += w * g * color / p_s;
         }
     }
 
-    // prep weights for final gather
+    // prep weights for final gather based on exact ray position relative to nearby pixels
 
     float weight_sum = 0.0f;
     float pixel_phys_width = c.phys_width / c.pixel_width;
     float pixel_phys_height = c.phys_height / c.pixel_height;
     float sigma = 0.5f * sqrt(pixel_phys_width * pixel_phys_width + pixel_phys_height * pixel_phys_height);
 
+    // zero weights
     for (int i = 0; i < 3; i++) {
         for (int j = 0; j < 3; j++) {
             aggregator.weights[i][j] = 0.0f;
         }
     }
+    // calculate weights
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
             int new_sample_x = (id % c.pixel_width) + i;
@@ -878,6 +884,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             weight_sum += weight;
         }
     }
+    // sum weights
     if (weight_sum != 0.0f) {
         for (int i = 0; i < 3; i++) {
             for (int j = 0; j < 3; j++) {
@@ -885,6 +892,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
         }
     }
+
+    // write outputs
     out[id] = float4(aggregator.total_contribution, 1.0f);
     weight_aggregators[id] = aggregator;
 }
