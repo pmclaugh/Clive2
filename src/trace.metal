@@ -508,7 +508,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         }
 
         new_ray.origin = ray.origin + ray.direction * best_t;
-        new_ray.normal = sampled_normal;
         new_ray.material = triangle.material;
         new_ray.triangle = best_i;
 
@@ -550,8 +549,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             } else {
                 diffuse_bounce(wi, m, path.from_camera, random_roll_b, wo, f, c_p, l_p);
             }
-        } else {
-            break;
+        } else if (material.type == 3) {
+            reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
         }
 
         if (dot(wi, triangle.normal) > 0.0f) {
@@ -804,6 +803,16 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
+            // experimental: disable techniques that are impossible due to our path length limit
+            for (int i = 0; i < s + t + 1; i++) {
+                if (i > 8){
+                    p_values[i] = 0.0f;
+                }
+                if (i < s + t - 7){
+                    p_values[i] = 0.0f;
+                }
+            }
+
             // this is because t=0 and t=1 are disabled. greatly enhances caustics by giving s==0 much more weight.
             p_values[s + t] = 0.0f;
             p_values[s + t - 1] = 0.0f;
@@ -853,7 +862,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     }
 
     // prep weights for final gather based on exact ray position relative to nearby pixels
-
     float weight_sum = 0.0f;
     float pixel_phys_width = c.phys_width / c.pixel_width;
     float pixel_phys_height = c.phys_height / c.pixel_height;
