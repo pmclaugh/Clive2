@@ -533,7 +533,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float fresnel = degreve_fresnel(wi, m, ni, no);
 
         if (material.type == 0) {
-            diffuse_bounce(x, y, n, wi, path.from_camera, random_roll_b, wo, f, c_p, l_p);
+            diffuse_bounce(x, y, m, wi, path.from_camera, random_roll_b, wo, f, c_p, l_p);
         } else if (material.type == 1) {
             if (random_roll_b.x <= fresnel) {
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
@@ -544,7 +544,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             if (random_roll_b.x <= fresnel) {
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
             } else {
-                diffuse_bounce(x, y, n, wi, path.from_camera, random_roll_b, wo, f, c_p, l_p);
+                diffuse_bounce(x, y, m, wi, path.from_camera, random_roll_b, wo, f, c_p, l_p);
             }
         } else {
             break;
@@ -668,12 +668,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 camera_ray = camera_path.rays[t - 1];
 
                 // skip specular joins
-                if (materials[light_ray.material].type == 1) {continue;}
-                if (materials[camera_ray.material].type == 1) {continue;}
+                if (materials[light_ray.material].type > 0) {continue;}
+                if (materials[camera_ray.material].type > 0) {continue;}
 
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
 
-                // backface culling for joins. given that we skip all specular joins, this works.
+                // backface culling
                 if (dot(light_ray.normal, dir_l_to_c) < DELTA) {continue;}
                 if (dot(camera_ray.normal, -dir_l_to_c) < DELTA) {continue;}
 
@@ -690,7 +690,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             // and camera_path.rays[t - 2] may also need to be set
             if (s == 0) {camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;}
             else if (s == 1) {camera_path.rays[t - 1].l_importance = 1.0f / (2.0f * PI);}
-            else if (t != 0) {
+            else {
                 Ray a, b, c;
                 a = get_ray(camera_path, light_path, t, s, s - 2);
                 b = get_ray(camera_path, light_path, t, s, s - 1);
@@ -768,8 +768,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
 
             float prior_camera_importance;
-            if (t == 0) {prior_camera_importance = 1.0f;}
-            else {prior_camera_importance = camera_path.rays[t - 1].tot_importance;}
+            prior_camera_importance = camera_path.rays[t - 1].tot_importance;
 
             float prior_light_importance;
             if (s == 0) {prior_light_importance = 1.0f;}
@@ -777,24 +776,24 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float p_s = prior_camera_importance * prior_light_importance;
 
-            float p_i = 1.0f;
+            float p_i = p_s;
 
             for (int i = s; i < s + t; i++) {
                 p_values[i + 1] = p_ratios[i] * p_i;
                 p_i = p_values[i + 1];
             }
 
-            p_i = 1.0f;
+            p_i = p_s;
 
             for (int i = s - 1; i >= 0; i--) {
                 p_values[i] = p_i / p_ratios[i];
                 p_i = p_values[i];
             }
 
-            p_values[s] = 1.0f;
+            p_values[s] = p_s;
 
             for (int i = 0; i < s + t + 1; i++) {
-                if (materials[get_ray(camera_path, light_path, t, s, i).material].type == 1) {
+                if (materials[get_ray(camera_path, light_path, t, s, i).material].type > 0) {
                     p_values[i] = 0.0f;
                     p_values[i + 1] = 0.0f;
                 }
