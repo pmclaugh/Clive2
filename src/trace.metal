@@ -411,6 +411,40 @@ float3 sample_normal(const thread Triangle &triangle, const thread float u, cons
     return normalize(triangle.n0 * (1 - u - v) + triangle.n1 * u + triangle.n2 * v);
 }
 
+void diffuse_bounce(const thread float3 x, const thread float3 y, const thread float3 n, const thread float3 wi, thread bool from_camera, thread float2 random_roll, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
+    if (from_camera) {
+        wo = random_hemisphere_cosine(x, y, n, random_roll);
+        f = dot(n, wo) / PI;
+        c_p = dot(n, wo) / PI;
+        l_p = 1.0f / (2 * PI);
+    } else {
+        wo = random_hemisphere_uniform(x, y, n, random_roll);
+        f = dot(n, wo) / PI;
+        c_p = dot(n, wi) / PI;
+        l_p = 1.0f / (2 * PI);
+    }
+}
+
+void reflect_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
+    wo = specular_reflection(wi, n);
+    f = GGX_BRDF_reflect(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, m));
+
+    float pf = degreve_fresnel(wi, m, ni, no);
+    float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+
+    c_p = pf * pm * reflect_jacobian(m, wo);
+    l_p = pf * pm * reflect_jacobian(m, wi);
+}
+
+void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
+    wo = GGX_transmit(wi, m, ni, no);
+    f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, m));
+    float pf = 1.0f - degreve_fresnel(wi, m, ni, no);
+    float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+    c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+    l_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+}
+
 kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    const device Box *boxes [[ buffer(1) ]],
                    const device Triangle *triangles [[ buffer(2) ]],
@@ -480,8 +514,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 x, y;
         orthonormal(n, x, y);
 
-        float3 wi, wo;
-        wi = -ray.direction;
+        float3 wi = -ray.direction;
 
         float rand_x_a = xorshift_random(seed0);
         float rand_y_a = xorshift_random(seed1);
@@ -491,56 +524,27 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float rand_y_b = xorshift_random(seed1);
         float2 random_roll_b = float2(rand_x_b, rand_y_b);
 
+        float3 wo;
         float f, c_p, l_p;
-        if (material.type == 0) {
-            if (path.from_camera) {
-                wo = random_hemisphere_cosine(x, y, n, random_roll_a);
-                f = dot(n, wo) / PI;
-                c_p = dot(n, wo) / PI;
-                l_p = 1.0f / (2 * PI);
-            } else {
-                wo = random_hemisphere_uniform(x, y, n, random_roll_a);
-                f = dot(n, wo) / PI;
-                c_p = dot(n, wi) / PI;
-                l_p = 1.0f / (2 * PI);
-            }
-        } else {
-            float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
-            if (dot(wi, m) < 0.0f) {break;}
-            if (dot(m, n) < 0.0f) {break;}
-            float fresnel = degreve_fresnel(wi, m, ni, no);
-            float pf = 1.0f;
 
+        float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
+        if (dot(wi, m) < 0.0f) {break;}
+        if (dot(m, n) < 0.0f) {break;}
+        float fresnel = degreve_fresnel(wi, m, ni, no);
+
+        if (material.type == 0) {
+            diffuse_bounce(x, y, n, wi, path.from_camera, random_roll_b, wo, f, c_p, l_p);
+        } else if (material.type == 1) {
             if (random_roll_b.x <= fresnel) {
-                wo = specular_reflection(wi, m);
-                if (dot(wo, n) < 0.0f) {break;}
-                f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
-                pf = fresnel;
-                float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
-                c_p = pf * pm * reflect_jacobian(m, wo);
-                l_p = pf * pm * reflect_jacobian(m, wi);
-            } else if (!material.transmissive) {
-                if (path.from_camera) {
-                    wo = random_hemisphere_cosine(x, y, n, random_roll_b);
-                    f = dot(n, wo) / PI;
-                    pf = 1.0f - fresnel;
-                    c_p = pf * dot(n, wo) / PI;
-                    l_p = pf / (2 * PI);
-                } else {
-                    wo = random_hemisphere_uniform(x, y, n, random_roll_b);
-                    f = dot(n, wo) / PI;
-                    c_p = dot(n, wi) / PI;
-                    l_p = 1.0f / (2 * PI);
-                }
+                reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
+            } else {
+                transmit_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
             }
-            else {
-                wo = GGX_transmit(wi, m, ni, no);
-                if (dot(wo, n) > 0.0f) {break;}
-                f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
-                pf = 1.0f - fresnel;
-                float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
-                c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
-                l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
+        } else if (material.type == 2) {
+            if (random_roll_b.x <= fresnel) {
+                reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
+            } else {
+                diffuse_bounce(x, y, n, wi, path.from_camera, random_roll_b, wo, f, c_p, l_p);
             }
         }
 
@@ -697,7 +701,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     aggregator.total_contribution = float3(0.0f);
     Camera c = camera[0];
 
-    for (int t = 0; t < camera_path.length + 1; t++){
+    for (int t = 2; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
 
             if (s + t < 2) {continue;}
@@ -892,7 +896,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             if (s == 0) {
                 color = camera_path.rays[t - 2].color * materials[light_path.rays[0].material].emission;
-                float3 dir_c_to_c = normalize(camera_path.rays[t - 1].origin - camera_path.rays[t - 2].origin);
             }
             else if (t == 0) {color = light_path.rays[s - 2].color;}
             else if (t == 1) {

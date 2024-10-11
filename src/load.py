@@ -148,9 +148,8 @@ def get_materials():
     materials['alpha'] = 0.0
 
     materials[0]['type'] = 1
-    materials[0]['transmissive'] = 1
     materials[5]['type'] = 1
-    materials[5]['transmissive'] = 0
+
     return materials
 
 
