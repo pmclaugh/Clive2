@@ -52,7 +52,7 @@ Material = np.dtype([
     ('type', np.int32),
     ('alpha', np.float32),
     ('ior', np.float32),
-    ('pad', np.int32),
+    ('transmissive', np.int32),
 ])
 
 Camera = np.dtype([

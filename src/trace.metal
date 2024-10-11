@@ -62,7 +62,7 @@ struct Material {
     int32_t type;
     float alpha;
     float ior;
-    int32_t pad;
+    int32_t transmissive;
 };
 
 
@@ -516,26 +516,30 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 if (dot(wo, n) < 0.0f) {break;}
                 f = GGX_BRDF_reflect(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
                 pf = fresnel;
-            } else {
+                float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+                c_p = pf * pm * reflect_jacobian(m, wo);
+                l_p = pf * pm * reflect_jacobian(m, wi);
+            } else if (!material.transmissive) {
+                if (path.from_camera) {
+                    wo = random_hemisphere_cosine(x, y, n, random_roll_b);
+                    f = dot(n, wo) / PI;
+                    c_p = dot(n, wo) / PI;
+                    l_p = 1.0f / (2 * PI);
+                } else {
+                    wo = random_hemisphere_uniform(x, y, n, random_roll_b);
+                    f = dot(n, wo) / PI;
+                    c_p = dot(n, wi) / PI;
+                    l_p = 1.0f / (2 * PI);
+                }
+            }
+            else {
                 wo = GGX_transmit(wi, m, ni, no);
                 if (dot(wo, n) > 0.0f) {break;}
                 f = GGX_BRDF_transmit(wi, wo, m, sampled_normal, ni, no, alpha) * abs(dot(wo, m));
                 pf = 1.0f - fresnel;
-            }
-
-            float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
-
-            if (dot(wo, n) > 0.0f) {
-                c_p = pf * pm * reflect_jacobian(m, wo);
-                l_p = pf * pm * reflect_jacobian(m, wi);
-            } else {
-                if (path.from_camera) {
-                    c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
-                    l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
-                } else {
-                    c_p = pf * pm * transmit_jacobian(wo, wi, -m, ni, no);
-                    l_p = pf * pm * transmit_jacobian(wi, wo, m, no, ni);
-                }
+                float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+                c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+                l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
             }
         }
 
@@ -753,7 +757,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float p_ratios[32];
             float p_values[32];
 
-            // set up p_ratios like p1/p0, p2/p1, p3/p2, ... out to pk+1/pk, where k = s + t - 1
             // populate missing values, these will be reset next loop so it's fine
 
             // camera_path.rays[t - 1] (the end of the camera path) needs its l_importance set,
@@ -810,7 +813,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            // above nonsense keeps this loop simple
+            // set up p_ratios like p1/p0, p2/p1, p3/p2, ... out to pk+1/pk, where k = s + t - 1
             for (int i = 0; i < s + t; i++) {
                 float num, denom;
                 if (i == 0) {
@@ -1020,8 +1023,7 @@ kernel void finalize_samples(const device WeightAggregator *weight_aggregators [
             else {y_idx = 0;}
 
             float weight = weight_aggregators[new_sample_index].weights[x_idx][y_idx];
-            float3 sample = weight_aggregators[new_sample_index].total_contribution * weight;
-            total_sample += sample;
+            total_sample += weight_aggregators[new_sample_index].total_contribution * weight;
         }
     }
     out[id] = float4(total_sample, 1.0f);
