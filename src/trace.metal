@@ -554,8 +554,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.color = f * ray.color;
         }
 
-        if (f == 0.0f) {break;}
-
         new_ray.direction = wo;
         new_ray.inv_direction = 1.0f / wo;
 
@@ -568,6 +566,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             ray.c_importance = c_p;
             new_ray.tot_importance = ray.tot_importance * new_ray.l_importance;
         }
+
+        if (f == 0.0f) {break;}
 
         path.rays[i] = ray;
         path.length = i + 1;
