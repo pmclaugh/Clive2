@@ -754,7 +754,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float p_values[32];
 
             // set up p_ratios like p1/p0, p2/p1, p3/p2, ... out to pk+1/pk, where k = s + t - 1
-            // populate missing values, these will be overwritten next loop so it's fine
+            // populate missing values, these will be reset next loop so it's fine
 
             // camera_path.rays[t - 1] (the end of the camera path) needs its l_importance set,
             // and camera_path.rays[t - 2] may also need to be set
@@ -809,6 +809,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
+            // above nonsense keeps this loop simple
             for (int i = 0; i < s + t; i++) {
                 float num, denom;
                 if (i == 0) {
