@@ -523,8 +523,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 if (path.from_camera) {
                     wo = random_hemisphere_cosine(x, y, n, random_roll_b);
                     f = dot(n, wo) / PI;
-                    c_p = dot(n, wo) / PI;
-                    l_p = 1.0f / (2 * PI);
+                    pf = 1.0f - fresnel;
+                    c_p = pf * dot(n, wo) / PI;
+                    l_p = pf / (2 * PI);
                 } else {
                     wo = random_hemisphere_uniform(x, y, n, random_roll_b);
                     f = dot(n, wo) / PI;
