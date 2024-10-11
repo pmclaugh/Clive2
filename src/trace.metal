@@ -440,15 +440,21 @@ void reflect_bounce(const thread float3 &wi, const thread float3 &n, const threa
     l_p = pf * pm * reflect_jacobian(m, wi);
 }
 
-void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
+void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread bool from_camera, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
     wo = GGX_transmit(wi, m, ni, no);
     f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, m));
 
     float pf = 1.0f - degreve_fresnel(wi, m, ni, no);
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
 
-    c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
-    l_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+    if (from_camera) {
+        c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+        l_p = pf * pm * transmit_jacobian(wo, wi, m, no, ni);
+    }
+    else {
+        c_p = pf * pm * transmit_jacobian(wo, wi, m, no, ni);
+        l_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+    }
 }
 
 kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
@@ -541,7 +547,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             if (random_roll_b.x <= fresnel) {
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
             } else {
-                transmit_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
+                transmit_bounce(wi, n, m, ni, no, alpha, path.from_camera, wo, f, c_p, l_p);
             }
         } else if (material.type == 2) {
             if (random_roll_b.x <= fresnel) {
