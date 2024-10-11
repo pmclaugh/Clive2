@@ -546,6 +546,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             } else {
                 diffuse_bounce(x, y, n, wi, path.from_camera, random_roll_b, wo, f, c_p, l_p);
             }
+        } else {
+            break;
         }
 
         if (dot(wi, triangle.normal) > 0.0f) {
@@ -636,9 +638,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
 
-    int sample_index = id;
     out[id] = float4(0.0f);
-    light_image[id] = float4(0.0f);
     WeightAggregator aggregator = weight_aggregators[id];
     aggregator.total_contribution = float3(0.0f);
     Camera c = camera[0];
@@ -653,7 +653,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             light_ray.triangle = -1;
             Ray camera_ray;
             camera_ray.triangle = -1;
-            sample_index = id;
             camera_path = camera_paths[id];
             light_path = light_paths[id];
 
@@ -718,9 +717,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             // light_path.rays[s - 1] (the end of the light path) needs its c_importance set.
             // s - 2 may also need to be set
-            if (t == 0) {light_path.rays[s - 1].c_importance = camera_path.rays[0].c_importance;}
-            else if (t == 1) {light_path.rays[s - 1].c_importance = 1.0f;}
-            else if (s != 0) {
+            if (s != 0) {
                 Ray a, b, c;
                 a = get_ray(camera_path, light_path, t, s, s + 1);
                 b = get_ray(camera_path, light_path, t, s, s);
@@ -821,25 +818,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             if (s == 0) {
                 color = camera_path.rays[t - 2].color * materials[light_path.rays[0].material].emission;
-            }
-            else if (t == 0) {color = light_path.rays[s - 2].color;}
-            else if (t == 1) {
-                if (s == 1) {color = materials[light_ray.material].emission;}
-                else {
-                    float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
-                    float3 prior_light_color = light_path.rays[s - 2].color;
-                    float3 prior_light_direction = light_path.rays[s - 2].direction;
-
-                    Material light_material = materials[light_ray.material];
-                    float3 light_geom_normal = triangles[light_ray.triangle].normal;
-                    float new_light_f = BRDF(-prior_light_direction, dir_l_to_c, light_ray.normal, light_geom_normal, light_material);
-                    color = prior_light_color * light_material.color * new_light_f;
-               }
-               g = geometry_term(camera_ray, light_ray);
-            }
-            else {
+            } else {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
-                float3 camera_color = float3(1.0f);
 
                 float3 prior_camera_color = camera_path.rays[t - 2].color;
                 float3 prior_camera_direction = camera_path.rays[t - 2].direction;
@@ -847,9 +827,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 Material camera_material = materials[camera_ray.material];
                 float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
                 float new_camera_f = BRDF(-prior_camera_direction, -dir_l_to_c, camera_ray.normal, camera_geom_normal, camera_material);
-                camera_color = prior_camera_color * new_camera_f * camera_material.color;
+                float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
-                float3 light_color = float3(1.0f);
+                float3 light_color;
                 if (s == 1) {
                     light_color = materials[light_ray.material].emission * abs(dot(camera_ray.normal, dir_l_to_c));
                 }
@@ -865,14 +845,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
-
-            if (sample_index == id) {
-                float3 sample = w * g * color / p_s;
-                aggregator.total_contribution += sample;
-            } else {
-                float3 sample = g * color / p_s;
-                light_image[sample_index] += float4(sample, 1.0f);
-            }
+            aggregator.total_contribution += w * g * color / p_s;
         }
     }
 
@@ -890,8 +863,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     }
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
-            int new_sample_x = (sample_index % c.pixel_width) + i;
-            int new_sample_y = (sample_index / c.pixel_width) + j;
+            int new_sample_x = (id % c.pixel_width) + i;
+            int new_sample_y = (id / c.pixel_width) + j;
 
             if (new_sample_x < 0 || new_sample_x >= c.pixel_width ||
                 new_sample_y < 0 || new_sample_y >= c.pixel_height) {
