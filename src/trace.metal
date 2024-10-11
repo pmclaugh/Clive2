@@ -449,10 +449,10 @@ void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thre
 
     if (from_camera) {
         c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
-        l_p = pf * pm * transmit_jacobian(wo, wi, m, no, ni);
+        l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
     }
     else {
-        c_p = pf * pm * transmit_jacobian(wo, wi, m, no, ni);
+        c_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
         l_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
     }
 }
