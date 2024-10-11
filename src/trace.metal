@@ -646,8 +646,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     for (int t = 2; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
 
-            if (s + t < 2) {continue;}
-
             // reset
             Ray light_ray;
             light_ray.triangle = -1;
@@ -656,7 +654,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             camera_path = camera_paths[id];
             light_path = light_paths[id];
 
-            // there should be cases for t=0 and t=1, but t=1 is very hard to do massively parallel,
+            // there should be cases for t=0 and t=1, but t=1 is hard to do massively parallel,
             // and t=0 doesn't work with a pinhole camera model.
 
             if (s == 0) {
