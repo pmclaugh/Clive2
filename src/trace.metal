@@ -237,10 +237,13 @@ float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float
     return normalize(r * cos(phi) * x_axis + r * sin(phi) * y_axis + z * z_axis);
 }
 
-float3 GGX_sample(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand, const thread float alpha) {
+float3 GGX_sample(const thread float3 &n, const thread float2 &rand, const thread float alpha) {
+    float3 x, y;
+    orthonormal(n, x, y);
+
     float theta = 2 * PI * rand.x;
     float phi = atan(alpha * sqrt(rand.y) / sqrt(1.0f - rand.y));
-    return normalize(sin(phi) * cos(theta) * x_axis + sin(phi) * sin(theta) * y_axis + cos(phi) * z_axis);
+    return normalize(sin(phi) * cos(theta) * x + sin(phi) * sin(theta) * y + cos(phi) * n);
 }
 
 float3 specular_reflection(const thread float3 &i, const thread float3 &m) {
@@ -331,7 +334,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float on = dot(o, n);
 
     float coeff = abs((im * om) / (in * on));
-    float num = no * no * D * G * (1 - F);
+    float num = no * no * D * G * (1.0f - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
     return coeff * num / denom;
@@ -411,7 +414,9 @@ float3 sample_normal(const thread Triangle &triangle, const thread float u, cons
     return normalize(triangle.n0 * (1 - u - v) + triangle.n1 * u + triangle.n2 * v);
 }
 
-void diffuse_bounce(const thread float3 x, const thread float3 y, const thread float3 n, const thread float3 wi, thread bool from_camera, thread float2 random_roll, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
+void diffuse_bounce(const thread float3 wi, const thread float3 n, thread bool from_camera, thread float2 random_roll, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
+    float3 x, y;
+    orthonormal(n, x, y);
     if (from_camera) {
         wo = random_hemisphere_cosine(x, y, n, random_roll);
         f = dot(n, wo) / PI;
@@ -511,9 +516,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (triangle.is_camera) {new_ray.hit_camera = best_i;}
         else {new_ray.hit_camera = -1;}
 
-        float3 x, y;
-        orthonormal(n, x, y);
-
         float3 wi = -ray.direction;
 
         float rand_x_a = xorshift_random(seed0);
@@ -527,13 +529,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 wo;
         float f, c_p, l_p;
 
-        float3 m = GGX_sample(x, y, n, random_roll_a, alpha);
+        float3 m = GGX_sample(n, random_roll_a, alpha);
         if (dot(wi, m) < 0.0f) {break;}
         if (dot(m, n) < 0.0f) {break;}
         float fresnel = degreve_fresnel(wi, m, ni, no);
 
         if (material.type == 0) {
-            diffuse_bounce(x, y, m, wi, path.from_camera, random_roll_b, wo, f, c_p, l_p);
+            diffuse_bounce(wi, m, path.from_camera, random_roll_b, wo, f, c_p, l_p);
         } else if (material.type == 1) {
             if (random_roll_b.x <= fresnel) {
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
@@ -544,7 +546,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             if (random_roll_b.x <= fresnel) {
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
             } else {
-                diffuse_bounce(x, y, m, wi, path.from_camera, random_roll_b, wo, f, c_p, l_p);
+                diffuse_bounce(wi, m, path.from_camera, random_roll_b, wo, f, c_p, l_p);
             }
         } else {
             break;
