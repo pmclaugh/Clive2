@@ -384,16 +384,19 @@ float PDF(const thread float3 &i, const thread float3 &o, const thread float3 &n
         }
 
         float3 m;
+        float pf;
+        float f = degreve_fresnel(i, n, ni, no);
         if (dot(i, geom_n) * dot(o, geom_n) > 0 && dot(i, n) * dot(o, n) > 0) {
             m = specular_reflect_half_direction(i, o);
+            pf = f;
         }
         else if (dot(i, geom_n) * dot(o, geom_n) < 0 && dot(i, n) * dot(o, n) < 0) {
             m = specular_transmit_half_direction(i, o, ni, no);
+            pf = 1.0f - f;
         } else {
             return 0.0f;
         }
 
-        float pf = degreve_fresnel(i, n, ni, no);
         float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
 
         if (dot(o, n) > 0.0f) {
@@ -751,9 +754,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float p_values[32];
 
             // set up p_ratios like p1/p0, p2/p1, p3/p2, ... out to pk+1/pk, where k = s + t - 1
-
             // populate missing values, these will be overwritten next loop so it's fine
-            // basically, camera_path.rays[t - 1] (the end of the camera path) needs its l_importance set,
+
+            // camera_path.rays[t - 1] (the end of the camera path) needs its l_importance set,
             // and camera_path.rays[t - 2] may also need to be set
             if (s == 0) {camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;}
             else if (s == 1) {camera_path.rays[t - 1].l_importance = 1.0f / (2.0f * PI);}
