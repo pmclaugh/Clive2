@@ -604,64 +604,6 @@ Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const
     else {return camera_path.rays[t + s - i - 1];}
 }
 
-int get_sample_index(const thread float3 &point, const thread Camera &camera) {
-    // Compute the direction from the camera's origin to the point
-    float3 dir = point - camera.center;
-
-    // Project the direction onto the camera's basis vectors
-    float x = dot(dir, camera.dx);
-    float y = dot(dir, camera.dy);
-
-    // Calculate the normalized pixel coordinates with FOV and aspect ratio
-    float normalizedX = x / (tan(camera.h_fov / 2.0));
-    float normalizedY = y / (tan(camera.v_fov / 2.0));
-
-    // Map normalized coordinates to pixel indices
-    int x_index = int((normalizedX + 0.5) * camera.pixel_width);
-    int y_index = int((normalizedY + 0.5) * camera.pixel_height);
-
-    // Clamp the indices to the texture dimensions
-    if (x_index < 0 || x_index >= camera.pixel_width || y_index < 0 || y_index >= camera.pixel_height) {
-        return -1; // Return -1 for out-of-bounds
-    }
-
-    // Return the linear index in the texture
-    return y_index * camera.pixel_width + x_index;
-}
-
-int map_camera_pixel(const thread Ray &source, const device Camera &camera, const device Triangle *triangles, const device Box *boxes, thread Ray &hit_ray){
-    float3 dir = normalize(camera.focal_point - source.origin);
-    Ray test_ray;
-    test_ray.origin = source.origin;
-    test_ray.direction = dir;
-    test_ray.inv_direction = normalize(1.0f / dir);
-    test_ray.triangle = source.triangle;
-    test_ray.normal = source.normal;
-
-    int best_i = -1;
-    float best_t = INFINITY;
-    float u, v;
-    traverse_bvh(test_ray, boxes, triangles, best_i, best_t, u, v);
-
-    if (best_i == -1) {return -1;}
-    if (triangles[best_i].is_camera == 0) {return -1;}
-    if (dot(test_ray.direction, triangles[best_i].normal) > 0.0f) {return -1;}
-
-    hit_ray.origin = test_ray.origin + test_ray.direction * best_t;
-    hit_ray.color = float3(1.0f);
-    hit_ray.direction = -dir;
-    hit_ray.normal = camera.direction;
-    hit_ray.material = triangles[best_i].material;
-    hit_ray.triangle = best_i;
-    hit_ray.hit_camera = 1;
-    hit_ray.hit_light = -1;
-    hit_ray.c_importance = 1.0f;
-    hit_ray.l_importance = 1.0f / (2.0f * PI);
-    hit_ray.tot_importance = hit_ray.c_importance;
-
-    return 1;
-}
-
 float3 pixel_center(const thread Camera &camera, const thread int x, const thread int y){
 
     float x_normalized = (x - 0.5 * camera.pixel_width) / (float)camera.pixel_width;
@@ -715,27 +657,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             camera_path = camera_paths[id];
             light_path = light_paths[id];
 
+            // there should be cases for t=0 and t=1, but t=1 is very hard to do massively parallel,
+            // and t=0 doesn't work with a pinhole camera model.
 
-            if (t == 0){
-                continue;
-                // light ray hits the camera plane. disabled due to pinhole camera model
-                light_ray = light_path.rays[s - 1];
-                if (light_ray.hit_camera < 0) {continue;}
-                sample_index = get_sample_index(light_ray.origin, c);
-                if (sample_index == -1) {continue;}
-            }
-            else if (t == 1) {
-                continue;
-                // light visibility to camera plane. WIP.
-                light_ray = light_path.rays[s - 1];
-                if (materials[light_ray.material].type == 1) {continue;}
-                int hit = map_camera_pixel(light_ray, camera[0], triangles, boxes, camera_ray);
-                if (hit == -1) {continue;}
-                sample_index = get_sample_index(camera_ray.origin, c);
-                if (sample_index == -1) {continue;}
-                camera_path.rays[0] = camera_ray;
-            }
-            else if (s == 0) {
+            if (s == 0) {
                 // camera ray hits a light source
                 camera_ray = camera_path.rays[t - 1];
                 if (camera_ray.hit_light < 0) {continue;}
