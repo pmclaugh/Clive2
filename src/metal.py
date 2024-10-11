@@ -1,6 +1,6 @@
 import metalcompute
 import numpy as np
-from camera import Camera, tone_map, basic_tone_map, double_image_tone_map
+from camera import Camera, tone_map, basic_tone_map
 from bvh import construct_BVH, np_flatten_bvh
 import cv2
 import metalcompute as mc

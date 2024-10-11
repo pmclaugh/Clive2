@@ -319,7 +319,6 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    // can remove abs(dot(o, n)) from the denominator to suppress fireflies but lose some brightness
     return (D * G * F) / (4.0f * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
@@ -403,9 +402,9 @@ float PDF(const thread float3 &i, const thread float3 &o, const thread float3 &n
         float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
 
         if (dot(o, n) > 0.0f) {
-            return pf * pm * reflect_jacobian(m, o) / abs(dot(o, m));
+            return pf * pm * reflect_jacobian(m, o);
         } else {
-            return pf * pm * transmit_jacobian(i, o, m, ni, no) / abs(dot(o, m));
+            return pf * pm * transmit_jacobian(i, o, m, ni, no);
         }
     }
 }
@@ -641,9 +640,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     Path light_path = light_paths[id];
 
     out[id] = float4(0.0f);
+    Camera c = camera[0];
+
     WeightAggregator aggregator = weight_aggregators[id];
     aggregator.total_contribution = float3(0.0f);
-    Camera c = camera[0];
 
     for (int t = 2; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -1008,6 +1008,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
 
     ray.normal = light_triangle.normal;
     ray.origin = light_triangle.v0 * u + light_triangle.v1 * v + light_triangle.v2 * w + DELTA * ray.normal;
+
     float3 x, y;
     orthonormal(ray.normal, x, y);
 
@@ -1020,7 +1021,6 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     ray.material = light_triangle.material;
     Material material = materials[ray.material];
     ray.color = material.emission * abs(dot(ray.normal, ray.direction));
-
     ray.triangle = light_triangle_indices[light_index];
 
     ray.c_importance = 1.0f; // filled in later
