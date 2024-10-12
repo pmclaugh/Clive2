@@ -809,16 +809,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            // experimental: disable techniques that are impossible due to our path length limit
-            for (int i = 0; i < s + t + 1; i++) {
-                if (i > 8){
-                    p_values[i] = 0.0f;
-                }
-                if (i < s + t - 7){
-                    p_values[i] = 0.0f;
-                }
-            }
-
             // this is because t=0 and t=1 are disabled. greatly enhances caustics by giving s==0 much more weight.
             p_values[s + t] = 0.0f;
             p_values[s + t - 1] = 0.0f;
