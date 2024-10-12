@@ -504,12 +504,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float alpha = material.alpha;
         float3 sampled_normal = sample_normal(triangle, u, v);
         float3 signed_normal;
-        if (dot(-ray.direction, triangle.normal) > DELTA) {
+        if (dot(-ray.direction, triangle.normal) > 0) {
             signed_normal = triangle.normal;
             n = sampled_normal;
             ni = 1.0f;
             no = material.ior;
-        } else if (dot(-ray.direction, triangle.normal) < -DELTA){
+        } else if (dot(-ray.direction, triangle.normal) < 0){
             signed_normal = -triangle.normal;
             n = -sampled_normal;
             ni = material.ior;
@@ -1027,7 +1027,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     float w = 1.0f - u - v;
 
     ray.normal = light_triangle.normal;
-    ray.origin = light_triangle.v0 * u + light_triangle.v1 * v + light_triangle.v2 * w + DELTA * ray.normal;
+    ray.origin = light_triangle.v0 * w + light_triangle.v1 * u + light_triangle.v2 * v + DELTA * ray.normal;
 
     float3 x, y;
     orthonormal(ray.normal, x, y);
