@@ -110,7 +110,7 @@ if __name__ == '__main__':
     camera_arr = c.to_struct()
     camera_tris = camera_geometry(c)
     dummy_smooth_normals(camera_tris)
-    tris += camera_tris
+    # tris += camera_tris
 
     # build and marshall BVH
     start_time = time.time()
