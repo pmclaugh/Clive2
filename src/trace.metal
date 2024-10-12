@@ -214,7 +214,7 @@ void orthonormal(const thread float3 &n, thread float3 &x, thread float3 &y){
 
 float2 sample_disk_concentric(const thread float2 &rand) {
     float2 offset = 2.0 * rand - float2(1.0, 1.0);
-    if (offset.x == 0 && offset.y == 0) {
+    if (abs(offset.x) < DELTA && abs(offset.y) < DELTA) {
         return float2(0, 0);
     }
     float theta, r;
@@ -542,8 +542,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float f, c_p, l_p;
 
         float3 m = GGX_sample(n, random_roll_a, alpha);
-//        if (dot(wi, m) < 0.0f) {break;}
-//        if (dot(m, n) < 0.0f) {break;}
+        if (dot(wi, m) < 0.0f) {break;}
+        if (dot(m, n) < 0.0f) {break;}
         new_ray.normal = m;
 
         float fresnel = degreve_fresnel(wi, m, ni, no);
@@ -584,7 +584,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.tot_importance = ray.tot_importance * new_ray.l_importance;
         }
 
-//        if (f == 0.0f) {break;}
+        if (f == 0.0f) {break;}
 
         path.rays[i] = ray;
         path.length = i + 1;
@@ -592,15 +592,16 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         ray = new_ray;
         new_ray = next_ray;
     }
+
     output_paths[id] = path;
 
-    for (int i = 0; i < path.length; i++){
-        if (path.rays[i].hit_light >= 0){
+    for (int i = 0; i < path.length; i++) {
+        if (path.rays[i].hit_light >= 0) {
             out[id] = float4(path.rays[i - 1].color / path.rays[i].tot_importance, 1);
-//            path.length = i + 1;
             break;
         }
     }
+
     random_buffer[2 * id] = seed0;
     random_buffer[2 * id + 1] = seed1;
 }
