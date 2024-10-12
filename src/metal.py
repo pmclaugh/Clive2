@@ -202,6 +202,7 @@ if __name__ == '__main__':
                 camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
                 retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                 image = unidirectional_image
+                print(f"max camera path length: {np.max(camera_paths['length'])}, min: {np.min(camera_paths['length'])}")
 
                 if not args.unidirectional:
                     # make light rays and rands
@@ -217,7 +218,7 @@ if __name__ == '__main__':
                     # retrieve light trace outputs
                     light_paths = np.frombuffer(out_light_paths, dtype=Path)
                     retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-
+                    print(f"max light path length: {np.max(light_paths['length'])}, min: {np.min(light_paths['length'])}")
                     # join paths
                     start_time = time.time()
                     join_fn(batch_size, out_camera_paths, out_light_paths, tri_buffer, mat_buffer, box_buffer, camera_arr[0],

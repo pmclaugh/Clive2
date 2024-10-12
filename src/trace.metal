@@ -176,19 +176,23 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
 
 bool visibility_test(const thread Ray a, const thread Ray b, const device Box *boxes, const device Triangle *triangles) {
     Ray test_ray;
-    test_ray.origin = a.origin + a.normal * 0.0001f;
-    float3 direction = (b.origin + b.normal * 0.0001f) - (a.origin + a.normal * 0.0001f);
+    test_ray.origin = a.origin;
+    float3 direction = b.origin - a.origin;
     float t_max = length(direction);
-    direction = direction / t_max;
+    direction = normalize(direction);
     test_ray.direction = direction;
     test_ray.inv_direction = 1.0 / direction;
     test_ray.triangle = a.triangle;
 
     int best_i = -1;
-    float best_t = t_max;
+    float best_t = INFINITY;
     float u, v;
+
     traverse_bvh(test_ray, boxes, triangles, best_i, best_t, u, v);
-    return best_t >= t_max;
+
+    if (best_i == -1) {return false;}
+    if (best_i == b.triangle) {return true;}
+    return false;
 }
 
 
@@ -490,6 +494,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float u, v;
         traverse_bvh(ray, boxes, triangles, best_i, best_t, u, v);
 
+        if (best_i == -1) {break;}
+
         Triangle triangle = triangles[best_i];
         Material material = materials[triangle.material];
 
@@ -536,8 +542,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float f, c_p, l_p;
 
         float3 m = GGX_sample(n, random_roll_a, alpha);
-        if (dot(wi, m) < 0.0f) {break;}
-        if (dot(m, n) < 0.0f) {break;}
+//        if (dot(wi, m) < 0.0f) {break;}
+//        if (dot(m, n) < 0.0f) {break;}
         new_ray.normal = m;
 
         float fresnel = degreve_fresnel(wi, m, ni, no);
@@ -578,7 +584,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.tot_importance = ray.tot_importance * new_ray.l_importance;
         }
 
-        if (f == 0.0f) {break;}
+//        if (f == 0.0f) {break;}
 
         path.rays[i] = ray;
         path.length = i + 1;
@@ -591,6 +597,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     for (int i = 0; i < path.length; i++){
         if (path.rays[i].hit_light >= 0){
             out[id] = float4(path.rays[i - 1].color / path.rays[i].tot_importance, 1);
+//            path.length = i + 1;
             break;
         }
     }
