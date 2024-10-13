@@ -178,7 +178,6 @@ bool visibility_test(const thread Ray a, const thread Ray b, const device Box *b
     Ray test_ray;
     test_ray.origin = a.origin;
     float3 direction = b.origin - a.origin;
-    float t_max = length(direction);
     direction = normalize(direction);
     test_ray.direction = direction;
     test_ray.inv_direction = 1.0 / direction;
@@ -198,15 +197,12 @@ bool visibility_test(const thread Ray a, const thread Ray b, const device Box *b
 
 void orthonormal(const thread float3 &n, thread float3 &x, thread float3 &y){
     float3 v;
-    if (abs(n.x) <= abs(n.y) && abs(n.x) <= abs(n.z)) {
+    if (abs(n.x) <= abs(n.y) && abs(n.x) <= abs(n.z))
         v = float3(1, 0, 0);
-    }
-    else if (abs(n.y) <= abs(n.z)) {
+    else if (abs(n.y) <= abs(n.z))
         v = float3(0, 1, 0);
-    }
-    else {
+    else
         v = float3(0, 0, 1);
-    }
 
     x = normalize(v - dot(v, n) * n);
     y = normalize(cross(n, x));
@@ -273,9 +269,8 @@ float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thre
     float cosTheta_i = abs(dot(i, m));
     float eta = ni / nt;
     float sinTheta_t2 = eta * eta * (1.0f - cosTheta_i * cosTheta_i);
-    if (sinTheta_t2 > 1.0f) {
+    if (sinTheta_t2 > 1.0f)
         return 1.0f;
-    }
     float cosTheta_t = sqrt(1.0f - sinTheta_t2);
     float r_parallel = (nt * cosTheta_i - ni * cosTheta_t) / (nt * cosTheta_i + ni * cosTheta_t);
     float r_perpendicular = (ni * cosTheta_i - nt * cosTheta_t) / (ni * cosTheta_i + nt * cosTheta_t);
@@ -479,12 +474,10 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     unsigned int seed0 = random_buffer[2 * id];
     unsigned int seed1 = random_buffer[2 * id + 1];
 
-    if (path.from_camera == 0) {
+    if (path.from_camera == 0)
         new_ray.l_importance = 1.0f / (2 * PI);
-    }
-    else {
+    else
         new_ray.c_importance = 1.0f;
-    }
 
     for (int i = 0; i < 8; i++) {
 
@@ -493,7 +486,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float u, v;
         traverse_bvh(ray, boxes, triangles, best_i, best_t, u, v);
 
-        if (best_i == -1) {break;}
+        if (best_i == -1)
+            break;
 
         Triangle triangle = triangles[best_i];
         Material material = materials[triangle.material];
@@ -522,10 +516,15 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.material = triangle.material;
         new_ray.triangle = best_i;
 
-        if (triangle.is_light && dot(ray.direction, triangle.normal) < 0.0f) {new_ray.hit_light = best_i;}
-        else {new_ray.hit_light = -1;}
-        if (triangle.is_camera) {new_ray.hit_camera = best_i;}
-        else {new_ray.hit_camera = -1;}
+        if (triangle.is_light && dot(ray.direction, triangle.normal) < 0.0f)
+            new_ray.hit_light = best_i;
+        else
+            new_ray.hit_light = -1;
+
+        if (triangle.is_camera)
+            new_ray.hit_camera = best_i;
+        else
+            new_ray.hit_camera = -1;
 
         float3 wi = -ray.direction;
 
@@ -541,34 +540,32 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float f, c_p, l_p;
 
         float3 m = GGX_sample(n, random_roll_a, alpha);
-        if (dot(wi, m) < 0.0f) {break;}
-        if (dot(m, n) < 0.0f) {break;}
+        if (dot(wi, m) < 0.0f)
+            break;
+        if (dot(m, n) < 0.0f)
+            break;
         new_ray.normal = m;
 
         float fresnel = degreve_fresnel(wi, m, ni, no);
-        if (material.type == 0) {
+        if (material.type == 0)
             diffuse_bounce(wi, m, path.from_camera, random_roll_b, wo, f, c_p, l_p);
-        } else if (material.type == 1) {
-            if (random_roll_b.x <= fresnel) {
+        else if (material.type == 1)
+            if (random_roll_b.x <= fresnel)
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
-            } else {
+            else
                 transmit_bounce(wi, n, m, ni, no, alpha, path.from_camera, wo, f, c_p, l_p);
-            }
-        } else if (material.type == 2) {
-            if (random_roll_b.x <= fresnel) {
+        else if (material.type == 2)
+            if (random_roll_b.x <= fresnel)
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
-            } else {
+            else
                 diffuse_bounce(wi, m, path.from_camera, random_roll_b, wo, f, c_p, l_p);
-            }
-        } else if (material.type == 3) {
+        else if (material.type == 3)
             reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
-        }
 
-        if (dot(wi, triangle.normal) > 0.0f) {
+        if (dot(wi, triangle.normal) > 0.0f)
             new_ray.color = f * ray.color * material.color;
-        } else {
+        else
             new_ray.color = f * ray.color;
-        }
 
         new_ray.direction = wo;
         new_ray.inv_direction = 1.0f / wo;
@@ -583,7 +580,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.tot_importance = ray.tot_importance * new_ray.l_importance;
         }
 
-        if (f == 0.0f) {break;}
+        if (f == 0.0f)
+            break;
 
         path.rays[i] = ray;
         path.length = i + 1;
@@ -821,11 +819,14 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             p_values[s + t - 1] = 0.0f;
 
             float sum = 0.0f;
-            for (int i = 0; i < s + t + 1; i++) {sum += p_values[i];}
+            for (int i = 0; i < s + t + 1; i++)
+                sum += p_values[i];
 
             float w;
-            if (p_values[s] > 0.0f && sum > 0.0f) {w = p_values[s] / sum;}
-            else {continue;}
+            if (p_values[s] > 0.0f && sum > 0.0f)
+                w = p_values[s] / sum;
+            else
+                continue;
 
             float3 color = float3(1.0f);
             float g = 1.0f;
@@ -871,11 +872,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     float sigma = 0.5f * sqrt(pixel_phys_width * pixel_phys_width + pixel_phys_height * pixel_phys_height);
 
     // zero weights
-    for (int i = 0; i < 3; i++) {
-        for (int j = 0; j < 3; j++) {
+    for (int i = 0; i < 3; i++)
+        for (int j = 0; j < 3; j++)
             aggregator.weights[i][j] = 0.0f;
-        }
-    }
+
     // calculate weights
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
@@ -896,13 +896,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
         }
     }
     // sum weights
-    if (weight_sum != 0.0f) {
-        for (int i = 0; i < 3; i++) {
-            for (int j = 0; j < 3; j++) {
+    if (weight_sum != 0.0f)
+        for (int i = 0; i < 3; i++)
+            for (int j = 0; j < 3; j++)
                 aggregator.weights[i][j] = aggregator.weights[i][j] / weight_sum;
-            }
-        }
-    }
 
     // write outputs
     out[id] = float4(aggregator.total_contribution, 1.0f);
@@ -953,7 +950,8 @@ kernel void finalize_samples(const device WeightAggregator *weight_aggregators [
 
 kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
                                  device unsigned int *random_buffer [[ buffer(1) ]],
-                                 device Ray *out [[ buffer(2) ]],
+                                 device int *camera_triangle_indices [[ buffer(2) ]],
+                                 device Ray *out [[ buffer(3) ]],
                                  uint id [[ thread_position_in_grid ]]) {
     Camera c = camera[0];
     Ray ray;
@@ -983,7 +981,7 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     ray.color = float3(1.0f);
 
     ray.material = 7;
-    ray.triangle = -1;
+    ray.triangle = camera_triangle_indices[0];
     ray.hit_light = -1;
     ray.hit_camera = -1;
     ray.from_camera = 1;
@@ -1027,7 +1025,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     float w = 1.0f - u - v;
 
     ray.normal = light_triangle.normal;
-    ray.origin = light_triangle.v0 * w + light_triangle.v1 * u + light_triangle.v2 * v + DELTA * ray.normal;
+    ray.origin = light_triangle.v0 * u + light_triangle.v1 * v + light_triangle.v2 * w + DELTA * ray.normal;
 
     float3 x, y;
     orthonormal(ray.normal, x, y);
@@ -1042,9 +1040,8 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     Material material = materials[ray.material];
     ray.color = material.emission * abs(dot(ray.normal, ray.direction));
 
-    // todo: what is going on here?
-    //ray.triangle = light_triangle_indices[light_index];
-    ray.triangle = -1;
+    // todo this should be light_triangle_indices[light_index] but that behaves strangely
+    ray.triangle = light_triangle_indices[0];
 
     ray.c_importance = 1.0f; // filled in later
     ray.l_importance = 1.0f / (light_count * surface_area);

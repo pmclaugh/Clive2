@@ -110,7 +110,7 @@ if __name__ == '__main__':
     camera_arr = c.to_struct()
     camera_tris = camera_geometry(c)
     dummy_smooth_normals(camera_tris)
-    # tris += camera_tris
+    tris += camera_tris
 
     # build and marshall BVH
     start_time = time.time()
@@ -153,6 +153,7 @@ if __name__ == '__main__':
     light_counts = dev.buffer(np.array([len(light_triangles)], dtype=np.int32))
     light_surface_areas = dev.buffer(np.array([surface_area(t) for t in light_triangles], dtype=np.float32))
     light_triangle_indices = np.array([i for i, t in enumerate(triangles) if t['is_light'] == 1])
+    camera_triangle_indices = np.array([i for i, t in enumerate(triangles) if t['is_camera'] == 1])
 
     # populate initial rand buffer
     randoms = np.random.randint(0, 2 ** 32, size=(batch_size, 2), dtype=np.uint32)
@@ -189,7 +190,7 @@ if __name__ == '__main__':
 
                 # make camera rays and rands
                 camera_ray_start_time = time.time()
-                camera_ray_fn(batch_size, camera_buffer, rand_buffer, camera_ray_buffer)
+                camera_ray_fn(batch_size, camera_buffer, rand_buffer, camera_triangle_indices, camera_ray_buffer)
                 print(f"Create camera rays in {time.time() - camera_ray_start_time}")
 
                 # trace camera paths
