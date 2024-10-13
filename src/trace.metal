@@ -932,13 +932,19 @@ kernel void finalize_samples(const device WeightAggregator *weight_aggregators [
             // flip indices around center
             int x_idx, y_idx;
 
-            if (i < 0) {x_idx = 2;}
-            else if (i == 0) {x_idx = 1;}
-            else {x_idx = 0;}
+            if (i < 0)
+                x_idx = 2;
+            else if (i == 0)
+                x_idx = 1;
+            else
+                x_idx = 0;
 
-            if (j < 0) {y_idx = 2;}
-            else if (j == 0) {y_idx = 1;}
-            else {y_idx = 0;}
+            if (j < 0)
+                y_idx = 2;
+            else if (j == 0)
+                y_idx = 1;
+            else
+                y_idx = 0;
 
             float weight = weight_aggregators[new_sample_index].weights[x_idx][y_idx];
             total_sample += weight_aggregators[new_sample_index].total_contribution * weight;
@@ -1041,7 +1047,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     ray.color = material.emission * abs(dot(ray.normal, ray.direction));
 
     // todo this should be light_triangle_indices[light_index] but that behaves strangely
-    ray.triangle = light_triangle_indices[0];
+    ray.triangle = -1;
 
     ray.c_importance = 1.0f; // filled in later
     ray.l_importance = 1.0f / (light_count * surface_area);
