@@ -1002,12 +1002,12 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
 
 
 kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(0) ]],
-                                const device int *counts [[buffer(1) ]],
-                                const device float *surface_areas [[buffer(2) ]],
-                                const device int *light_triangle_indices [[buffer(3) ]],
-                                const device Material *materials[[buffer(4) ]],
-                                device unsigned int *random_buffer [[buffer(5) ]],
-                                device Ray *out [[buffer(6) ]],
+                                const device float *surface_areas [[buffer(1) ]],
+                                const device int32_t *light_triangle_indices [[buffer(2) ]],
+                                const device Material *materials[[buffer(3) ]],
+                                device unsigned int *random_buffer [[buffer(4) ]],
+                                device Ray *out [[buffer(5) ]],
+                                const device int32_t *counts [[buffer(6) ]],
                                 uint id [[thread_position_in_grid]]) {
     Ray ray;
     ray.from_camera = 0;
@@ -1046,8 +1046,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     Material material = materials[ray.material];
     ray.color = material.emission * abs(dot(ray.normal, ray.direction));
 
-    // todo this should be light_triangle_indices[light_index] but that behaves strangely
-    ray.triangle = -1;
+    ray.triangle = light_triangle_indices[light_index];
 
     ray.c_importance = 1.0f; // filled in later
     ray.l_importance = 1.0f / (light_count * surface_area);
