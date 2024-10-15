@@ -1,9 +1,10 @@
 import metalcompute
 import numpy as np
-from camera import Camera, tone_map, basic_tone_map, double_image_tone_map
+from camera import Camera, tone_map, basic_tone_map
 from bvh import construct_BVH, np_flatten_bvh
 import cv2
 import metalcompute as mc
+from collections import Counter
 import time
 from struct_types import Path
 from struct_types import Camera as camera_struct
@@ -150,9 +151,10 @@ if __name__ == '__main__':
     light_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
     light_triangles = np.array([t for t in triangles if t['is_light'] == 1])
     light_triangle_buffer = dev.buffer(light_triangles)
-    light_counts = dev.buffer(np.array([len(light_triangles)], dtype=np.int32))
+    light_counts = dev.buffer(np.array(len(light_triangles), dtype=np.int32))
     light_surface_areas = dev.buffer(np.array([surface_area(t) for t in light_triangles], dtype=np.float32))
-    light_triangle_indices = np.array([i for i, t in enumerate(triangles) if t['is_light'] == 1])
+    light_triangle_indices = np.array([i for i, t in enumerate(triangles) if t['is_light'] == 1], dtype=np.int32)
+    camera_triangle_indices = np.array([i for i, t in enumerate(triangles) if t['is_camera'] == 1], dtype=np.int32)
 
     # populate initial rand buffer
     randoms = np.random.randint(0, 2 ** 32, size=(batch_size, 2), dtype=np.uint32)
@@ -202,12 +204,18 @@ if __name__ == '__main__':
                 camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
                 retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                 image = unidirectional_image
+                print(f"max camera path length: {np.max(camera_paths['length'])}, min: {np.min(camera_paths['length'])}")
+                counter = Counter(camera_paths['length'])
+                print(counter)
 
                 if not args.unidirectional:
                     # make light rays and rands
                     light_ray_start_time = time.time()
-                    light_ray_fn(batch_size, light_triangle_buffer, light_counts, light_surface_areas, light_triangle_indices, mat_buffer, rand_buffer, light_ray_buffer)
+                    light_ray_fn(batch_size, light_triangle_buffer, light_surface_areas, light_triangle_indices, mat_buffer, rand_buffer, light_ray_buffer, light_counts)
                     print(f"Create light rays in {time.time() - light_ray_start_time}")
+
+                    # debug light rays
+                    light_rays = np.frombuffer(light_ray_buffer, dtype=Ray)
 
                     # trace light paths
                     start_time = time.time()
@@ -217,7 +225,9 @@ if __name__ == '__main__':
                     # retrieve light trace outputs
                     light_paths = np.frombuffer(out_light_paths, dtype=Path)
                     retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-
+                    print(f"max light path length: {np.max(light_paths['length'])}, min: {np.min(light_paths['length'])}")
+                    counter = Counter(light_paths['length'])
+                    print(counter)
                     # join paths
                     start_time = time.time()
                     join_fn(batch_size, out_camera_paths, out_light_paths, tri_buffer, mat_buffer, box_buffer, camera_arr[0],
@@ -247,7 +257,7 @@ if __name__ == '__main__':
                     print("NaNs in summed image!!!")
                     break
 
-                to_display = tone_map(summed_image / (i + 1) + summed_light_image)
+                to_display = tone_map(summed_image / (i + 1))
 
                 if args.filter:
                     # todo: this is a decent improvement and denoises a fair bit
