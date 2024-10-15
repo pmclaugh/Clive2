@@ -191,7 +191,7 @@ if __name__ == '__main__':
 
                 # make camera rays and rands
                 camera_ray_start_time = time.time()
-                camera_ray_fn(batch_size, camera_buffer, rand_buffer, camera_triangle_indices, camera_ray_buffer)
+                camera_ray_fn(batch_size, camera_buffer, rand_buffer, camera_ray_buffer)
                 print(f"Create camera rays in {time.time() - camera_ray_start_time}")
 
                 # trace camera paths

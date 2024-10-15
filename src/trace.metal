@@ -956,8 +956,7 @@ kernel void finalize_samples(const device WeightAggregator *weight_aggregators [
 
 kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
                                  device unsigned int *random_buffer [[ buffer(1) ]],
-                                 device int *camera_triangle_indices [[ buffer(2) ]],
-                                 device Ray *out [[ buffer(3) ]],
+                                 device Ray *out [[ buffer(2) ]],
                                  uint id [[ thread_position_in_grid ]]) {
     Camera c = camera[0];
     Ray ray;
@@ -987,7 +986,7 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     ray.color = float3(1.0f);
 
     ray.material = 7;
-    ray.triangle = camera_triangle_indices[0];
+    ray.triangle = -1;
     ray.hit_light = -1;
     ray.hit_camera = -1;
     ray.from_camera = 1;
