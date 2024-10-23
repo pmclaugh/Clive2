@@ -296,8 +296,9 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
     float cosTheta2 = cosTheta * cosTheta;
     float tan2 = (1 - cosTheta2) / cosTheta2;
 
-    float denom = cosTheta2 * (alpha2 - 1.0) + 1.0;
-    return alpha2 / (PI * denom * denom);
+    float denom = alpha2 + tan2;
+    denom = cosTheta2 * cosTheta2 * PI * denom * denom;
+    return alpha2 / denom;
 }
 
 float reflect_jacobian(const thread float3 &m, const thread float3 &o) {
@@ -464,7 +465,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                    device Path *output_paths [[ buffer(6) ]],
                    device float4 *float_debug [[ buffer(7) ]],
                    uint id [[ thread_position_in_grid ]]) {
-    Path path;
+    Path path {};
     path.length = 0;
     Ray ray, new_ray, next_ray;
     ray = rays[id];
@@ -895,7 +896,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             weight_sum += weight;
         }
     }
-    // sum weights
+    // apply weights
     if (weight_sum != 0.0f)
         for (int i = 0; i < 3; i++)
             for (int j = 0; j < 3; j++)
@@ -959,7 +960,7 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
                                  device Ray *out [[ buffer(2) ]],
                                  uint id [[ thread_position_in_grid ]]) {
     Camera c = camera[0];
-    Ray ray;
+    Ray ray {};
 
     uint seed0 = random_buffer[2 * id];
     uint seed1 = random_buffer[2 * id + 1];
@@ -981,7 +982,7 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     origin = origin + direction * DELTA;
     ray.origin = origin;
     ray.direction = direction;
-    ray.normal = c.direction;
+    ray.normal = direction;
     ray.inv_direction = 1.0f / direction;
     ray.color = float3(1.0f);
 
@@ -1008,7 +1009,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
                                 device Ray *out [[buffer(5) ]],
                                 const device int32_t *counts [[buffer(6) ]],
                                 uint id [[thread_position_in_grid]]) {
-    Ray ray;
+    Ray ray {};
     ray.from_camera = 0;
     ray.hit_light = -1;
     ray.hit_camera = -1;
