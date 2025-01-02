@@ -189,7 +189,6 @@ bool visibility_test(const thread Ray a, const thread Ray b, const device Box *b
 
     traverse_bvh(test_ray, boxes, triangles, best_i, best_t, u, v);
 
-    if (best_i == -1) {return false;}
     if (best_i == b.triangle) {return true;}
     return false;
 }
@@ -224,9 +223,9 @@ float3 GGX_sample(const thread float3 &n, const thread float2 &rand, const threa
     float3 x, y;
     orthonormal(n, x, y);
 
-    float theta = 2 * PI * rand.x;
-    float phi = atan(alpha * sqrt(rand.y) / sqrt(1.0f - rand.y));
-    return normalize(sin(phi) * cos(theta) * x + sin(phi) * sin(theta) * y + cos(phi) * n);
+    float theta = atan(alpha * sqrt(rand.y) / sqrt(1.0f - rand.y));
+    float phi = 2 * PI * rand.x;
+    return normalize(sin(theta) * cos(phi) * x + sin(theta) * sin(phi) * y + cos(theta) * n);
 }
 
 float3 specular_reflection(const thread float3 &i, const thread float3 &m) {
@@ -411,7 +410,7 @@ void diffuse_bounce(const thread float3 wi, const thread float3 n, thread bool f
 }
 
 void reflect_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
-    wo = specular_reflection(wi, n);
+    wo = specular_reflection(wi, m);
     f = GGX_BRDF_reflect(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, m));
 
     float pf = degreve_fresnel(wi, m, ni, no);
@@ -541,7 +540,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             if (random_roll_b.x <= fresnel)
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
             else
-                diffuse_bounce(wi, m, path.from_camera, random_roll_b, wo, f, c_p, l_p);
+                diffuse_bounce(wi, n, path.from_camera, random_roll_b, wo, f, c_p, l_p);
         else if (material.type == 3)
             reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
 
