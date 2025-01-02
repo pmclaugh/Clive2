@@ -524,14 +524,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         float3 m = GGX_sample(n, random_roll_a, alpha);
         if (dot(wi, m) < 0.0f)
-            break;
+            m = specular_reflection(m, n);
         if (dot(m, n) < 0.0f)
             break;
         new_ray.normal = m;
 
         float fresnel = degreve_fresnel(wi, m, ni, no);
         if (material.type == 0)
-            diffuse_bounce(wi, m, path.from_camera, random_roll_b, wo, f, c_p, l_p);
+            diffuse_bounce(wi, n, path.from_camera, random_roll_b, wo, f, c_p, l_p);
         else if (material.type == 1)
             if (random_roll_b.x <= fresnel)
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
