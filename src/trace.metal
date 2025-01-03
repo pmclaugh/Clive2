@@ -210,13 +210,13 @@ void orthonormal(const thread float3 &n, thread float3 &x, thread float3 &y){
 float3 random_hemisphere_cosine(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
     float theta = acos(sqrt(rand.x));
     float phi = 2 * PI * rand.y;
-    return sin(theta) * cos(phi) * x_axis + sin(theta) * sin(phi) * y_axis + cos(theta) * z_axis;
+    return normalize(sin(theta) * cos(phi) * x_axis + sin(theta) * sin(phi) * y_axis + cos(theta) * z_axis);
 }
 
 float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
     float theta = acos(rand.x);
     float phi = 2 * PI * rand.y;
-    return sin(theta) * cos(phi) * x_axis + sin(theta) * sin(phi) * y_axis + cos(theta) * z_axis;
+    return normalize(sin(theta) * cos(phi) * x_axis + sin(theta) * sin(phi) * y_axis + cos(theta) * z_axis);
 }
 
 float3 GGX_sample(const thread float3 &n, const thread float2 &rand, const thread float alpha) {
@@ -411,7 +411,7 @@ void diffuse_bounce(const thread float3 wi, const thread float3 n, thread bool f
 
 void reflect_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
     wo = specular_reflection(wi, m);
-    f = GGX_BRDF_reflect(wi, wo, m, n, ni, no, alpha);
+    f = GGX_BRDF_reflect(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, n));
 
     float pf = degreve_fresnel(wi, m, ni, no);
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
@@ -422,7 +422,7 @@ void reflect_bounce(const thread float3 &wi, const thread float3 &n, const threa
 
 void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread bool from_camera, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
     wo = GGX_transmit(wi, m, ni, no);
-    f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha);
+    f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, n));
 
     float pf = 1.0 - degreve_fresnel(wi, m, ni, no);
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
