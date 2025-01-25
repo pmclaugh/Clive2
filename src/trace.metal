@@ -208,26 +208,10 @@ void orthonormal(const thread float3 &n, thread float3 &x, thread float3 &y){
     y = normalize(cross(n, x));
 }
 
-float2 sample_disk_concentric(const thread float2 &rand) {
-    float2 offset = 2.0 * rand - float2(1.0, 1.0);
-    if (abs(offset.x) < DELTA && abs(offset.y) < DELTA) {
-        return float2(0, 0);
-    }
-    float theta, r;
-    if (abs(offset.x) > abs(offset.y)) {
-        r = offset.x;
-        theta = PI / 4.0 * (offset.y / offset.x);
-    } else {
-        r = offset.y;
-        theta = PI / 2.0 - PI / 4.0 * (offset.x / offset.y);
-    }
-    return r * float2(cos(theta), sin(theta));
-}
-
 float3 random_hemisphere_cosine(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
-    float2 d = sample_disk_concentric(rand);
-    float z = sqrt(max(0., 1 - d.x * d.x - d.y * d.y));
-    return normalize(d.x * x_axis + d.y * y_axis + z * z_axis);
+    float theta = acos(sqrt(rand.x));
+    float phi = 2 * PI * rand.y;
+    return normalize(sin(theta) * cos(phi) * x_axis + sin(theta) * sin(phi) * y_axis + cos(theta) * z_axis);
 }
 
 float3 random_hemisphere_uniform(const thread float3 &x_axis, const thread float3 &y_axis, const thread float3 &z_axis, const thread float2 &rand) {
@@ -428,7 +412,7 @@ void diffuse_bounce(const thread float3 wi, const thread float3 n, thread bool f
 }
 
 void reflect_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
-    wo = specular_reflection(wi, n);
+    wo = specular_reflection(wi, m);
     f = GGX_BRDF_reflect(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, m));
 
     float pf = degreve_fresnel(wi, m, ni, no);
@@ -548,7 +532,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         float fresnel = degreve_fresnel(wi, m, ni, no);
         if (material.type == 0)
-            diffuse_bounce(wi, m, path.from_camera, random_roll_b, wo, f, c_p, l_p);
+            diffuse_bounce(wi, n, path.from_camera, random_roll_b, wo, f, c_p, l_p);
         else if (material.type == 1)
             if (random_roll_b.x <= fresnel)
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
@@ -558,7 +542,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             if (random_roll_b.x <= fresnel)
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
             else
-                diffuse_bounce(wi, m, path.from_camera, random_roll_b, wo, f, c_p, l_p);
+                diffuse_bounce(wi, n, path.from_camera, random_roll_b, wo, f, c_p, l_p);
         else if (material.type == 3)
             reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
 
