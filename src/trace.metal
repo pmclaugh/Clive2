@@ -480,14 +480,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float ni, no;
         float alpha = material.alpha;
         float3 sampled_normal = sample_normal(triangle, u, v);
-        float3 signed_normal;
         if (dot(-ray.direction, triangle.normal) > 0) {
-            signed_normal = triangle.normal;
             n = sampled_normal;
             ni = 1.0f;
             no = material.ior;
         } else if (dot(-ray.direction, triangle.normal) < 0){
-            signed_normal = -triangle.normal;
             n = -sampled_normal;
             ni = material.ior;
             no = 1.0f;
