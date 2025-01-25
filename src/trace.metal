@@ -540,9 +540,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float f, c_p, l_p;
 
         float3 m = GGX_sample(n, random_roll_a, alpha);
-        if (dot(wi, m) < 0.0f)
-            break;
-        if (dot(m, n) < 0.0f)
+        if (dot(wi, m) < 0.0)
+            m = specular_reflection(m, n);
+        if (dot(m, n) < 0.0)
             break;
         new_ray.normal = m;
 
