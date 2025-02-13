@@ -321,76 +321,6 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     return coeff * num / denom;
 }
 
-float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread Material material) {
-    if (material.type == 0) {
-        return abs(dot(o, n));
-    }
-    else {
-        float ni, no, alpha;
-        alpha = material.alpha;
-        if (dot(i, geom_n) > 0.0) {
-            ni = 1.0;
-            no = material.ior;
-        }
-        else {
-            ni = material.ior;
-            no = 1.0;
-        }
-        if (dot(i, geom_n) * dot(o, geom_n) > 0 && dot(i, n) * dot(o, n) > 0) {
-            float3 m = specular_reflect_half_direction(i, o);
-            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha) * abs(dot(o, m));
-        }
-        else if (dot(i, geom_n) * dot(o, geom_n) < 0 && dot(i, n) * dot(o, n) < 0) {
-            float3 m = specular_transmit_half_direction(i, o, ni, no);
-            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha) * abs(dot(o, m));
-        }
-        else {
-            return 0.0;
-        }
-    }
-}
-
-float PDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const device float3 &geom_n, const Material material, bool from_camera) {
-    if (material.type == 0) {
-        if (from_camera) {return abs(dot(o, n)) / PI;}
-        else {return 1.0 / (2.0 * PI);}
-    }
-    else {
-        float ni, no, alpha;
-        alpha = material.alpha;
-        if (dot(i, geom_n) > 0.0) {
-            ni = 1.0;
-            no = material.ior;
-        }
-        else {
-            ni = material.ior;
-            no = 1.0;
-        }
-
-        float3 m;
-        float pf;
-        float f = degreve_fresnel(i, n, ni, no);
-        if (dot(i, geom_n) * dot(o, geom_n) > 0 && dot(i, n) * dot(o, n) > 0) {
-            m = specular_reflect_half_direction(i, o);
-            pf = f;
-        }
-        else if (dot(i, geom_n) * dot(o, geom_n) < 0 && dot(i, n) * dot(o, n) < 0) {
-            m = specular_transmit_half_direction(i, o, ni, no);
-            pf = 1.0 - f;
-        } else {
-            return 0.0;
-        }
-
-        float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
-
-        if (dot(o, n) > 0.0) {
-            return pf * pm * reflect_jacobian(m, o);
-        } else {
-            return pf * pm * transmit_jacobian(i, o, m, ni, no);
-        }
-    }
-}
-
 float3 sample_normal(const thread Triangle &triangle, const thread float u, const thread float v) {
     return normalize(triangle.n0 * (1 - u - v) + triangle.n1 * u + triangle.n2 * v);
 }
@@ -430,8 +360,8 @@ void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thre
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
 
     if (from_camera) {
-        c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
-        l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
+        c_p = pm * transmit_jacobian(wi, wo, m, ni, no);
+        l_p = pm * transmit_jacobian(wo, wi, -m, no, ni);
     }
     else {
         c_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
@@ -617,6 +547,76 @@ float3 pixel_center(const thread Camera &camera, const thread int x, const threa
 float gaussian_weight(const thread float3 &p, const thread float3 &q, const thread float sigma){
     float dist = length(p - q);
     return exp(-dist * dist / (2.0 * sigma * sigma));
+}
+
+float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const thread float3 &geom_n, const thread Material material) {
+    if (material.type == 0) {
+        return abs(dot(o, n));
+    }
+    else {
+        float ni, no, alpha;
+        alpha = material.alpha;
+        if (dot(i, geom_n) > 0.0) {
+            ni = 1.0;
+            no = material.ior;
+        }
+        else {
+            ni = material.ior;
+            no = 1.0;
+        }
+        if (dot(i, geom_n) * dot(o, geom_n) > 0 && dot(i, n) * dot(o, n) > 0) {
+            float3 m = specular_reflect_half_direction(i, o);
+            return GGX_BRDF_reflect(i, o, m, n, ni, no, alpha) * abs(dot(o, m));
+        }
+        else if (dot(i, geom_n) * dot(o, geom_n) < 0 && dot(i, n) * dot(o, n) < 0) {
+            float3 m = specular_transmit_half_direction(i, o, ni, no);
+            return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha) * abs(dot(o, m));
+        }
+        else {
+            return 0.0;
+        }
+    }
+}
+
+float PDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const device float3 &geom_n, const Material material, bool from_camera) {
+    if (material.type == 0) {
+        if (from_camera) {return abs(dot(o, n)) / PI;}
+        else {return 1.0 / (2.0 * PI);}
+    }
+    else {
+        float ni, no, alpha;
+        alpha = material.alpha;
+        if (dot(i, geom_n) > 0.0) {
+            ni = 1.0;
+            no = material.ior;
+        }
+        else {
+            ni = material.ior;
+            no = 1.0;
+        }
+
+        float3 m;
+        float pf;
+        float f = degreve_fresnel(i, n, ni, no);
+        if (dot(i, geom_n) * dot(o, geom_n) > 0 && dot(i, n) * dot(o, n) > 0) {
+            m = specular_reflect_half_direction(i, o);
+            pf = f;
+        }
+        else if (dot(i, geom_n) * dot(o, geom_n) < 0 && dot(i, n) * dot(o, n) < 0) {
+            m = specular_transmit_half_direction(i, o, ni, no);
+            pf = 1.0 - f;
+        } else {
+            return 0.0;
+        }
+
+        float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
+
+        if (dot(o, n) > 0.0) {
+            return pf * pm * reflect_jacobian(m, o);
+        } else {
+            return pf * pm * transmit_jacobian(i, o, m, ni, no);
+        }
+    }
 }
 
 kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
