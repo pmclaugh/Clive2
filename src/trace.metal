@@ -131,7 +131,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
         return;
     }
     float t = f * dot(edge2, q);
-    if (t > 0.0f) {
+    if (t > 0.0) {
         hit = true;
         t_out = t;
     } else {
@@ -226,7 +226,7 @@ float3 GGX_sample(const thread float3 &n, const thread float2 &rand, const threa
     orthonormal(n, x, y);
 
     float theta = 2 * PI * rand.x;
-    float phi = atan(alpha * sqrt(rand.y) / sqrt(1.0f - rand.y));
+    float phi = atan(alpha * sqrt(rand.y) / sqrt(1.0 - rand.y));
     return normalize(sin(phi) * cos(theta) * x + sin(phi) * sin(theta) * y + cos(phi) * n);
 }
 
@@ -252,10 +252,10 @@ float3 specular_transmit_half_direction(const thread float3 &i, const thread flo
 float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thread float ni, const thread float nt) {
     float cosTheta_i = abs(dot(i, m));
     float eta = ni / nt;
-    float sinTheta_t2 = eta * eta * (1.0f - cosTheta_i * cosTheta_i);
-    if (sinTheta_t2 > 1.0f)
-        return 1.0f;
-    float cosTheta_t = sqrt(1.0f - sinTheta_t2);
+    float sinTheta_t2 = eta * eta * (1.0 - cosTheta_i * cosTheta_i);
+    if (sinTheta_t2 >= 1.0)
+        return 1.0;
+    float cosTheta_t = sqrt(1.0 - sinTheta_t2);
     float r_parallel = (nt * cosTheta_i - ni * cosTheta_t) / (nt * cosTheta_i + ni * cosTheta_t);
     float r_perpendicular = (ni * cosTheta_i - nt * cosTheta_t) / (ni * cosTheta_i + nt * cosTheta_t);
     return 0.5f * (r_parallel * r_parallel + r_perpendicular * r_perpendicular);
@@ -263,9 +263,9 @@ float degreve_fresnel(const thread float3 &i, const thread float3 &m, const thre
 
 float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3 &n, const thread float alpha) {
     float mv = dot(m, v);
-    float sin2 = 1.0f - mv * mv;
+    float sin2 = 1.0 - mv * mv;
     float tan2 = sin2 / (mv * mv);
-    return 2.0f / (1.0f + sqrt(1.0f + alpha * alpha * tan2));
+    return 2.0 / (1.0 + sqrt(1.0 + alpha * alpha * tan2));
 }
 
 float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
@@ -273,7 +273,7 @@ float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 
 }
 
 float GGX_D(const thread float3 &m, const thread float3 &n, const thread float alpha) {
-    if (alpha == 0.0f) {return 1.0f;}
+    if (alpha == 0.0) {return 1.0;}
 
     float alpha2 = alpha * alpha;
     float cosTheta = dot(m, n);
@@ -285,7 +285,7 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
 }
 
 float reflect_jacobian(const thread float3 &m, const thread float3 &o) {
-    return 1.0f / (4.0f * abs(dot(m, o)));
+    return 1.0 / (4.0 * abs(dot(m, o)));
 }
 
 float transmit_jacobian(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float ni, const thread float no) {
@@ -301,7 +301,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    return (D * G * F) / (4.0f * abs(dot(i, n)) * abs(dot(o, n)));
+    return (D * G * F) / (4.0 * abs(dot(i, n)) * abs(dot(o, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -315,7 +315,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float on = dot(o, n);
 
     float coeff = abs((im * om) / (in * on));
-    float num = no * no * D * G * (1.0f - F);
+    float num = no * no * D * G * (1.0 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
     return coeff * num / denom;
@@ -328,13 +328,13 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
     else {
         float ni, no, alpha;
         alpha = material.alpha;
-        if (dot(i, geom_n) > 0.0f) {
-            ni = 1.0f;
+        if (dot(i, geom_n) > 0.0) {
+            ni = 1.0;
             no = material.ior;
         }
         else {
             ni = material.ior;
-            no = 1.0f;
+            no = 1.0;
         }
         if (dot(i, geom_n) * dot(o, geom_n) > 0 && dot(i, n) * dot(o, n) > 0) {
             float3 m = specular_reflect_half_direction(i, o);
@@ -345,7 +345,7 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
             return GGX_BRDF_transmit(i, o, m, n, ni, no, alpha) * abs(dot(o, m));
         }
         else {
-            return 0.0f;
+            return 0.0;
         }
     }
 }
@@ -353,18 +353,18 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
 float PDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const device float3 &geom_n, const Material material, bool from_camera) {
     if (material.type == 0) {
         if (from_camera) {return abs(dot(o, n)) / PI;}
-        else {return 1.0f / (2.0f * PI);}
+        else {return 1.0 / (2.0 * PI);}
     }
     else {
         float ni, no, alpha;
         alpha = material.alpha;
-        if (dot(i, geom_n) > 0.0f) {
-            ni = 1.0f;
+        if (dot(i, geom_n) > 0.0) {
+            ni = 1.0;
             no = material.ior;
         }
         else {
             ni = material.ior;
-            no = 1.0f;
+            no = 1.0;
         }
 
         float3 m;
@@ -376,14 +376,14 @@ float PDF(const thread float3 &i, const thread float3 &o, const thread float3 &n
         }
         else if (dot(i, geom_n) * dot(o, geom_n) < 0 && dot(i, n) * dot(o, n) < 0) {
             m = specular_transmit_half_direction(i, o, ni, no);
-            pf = 1.0f - f;
+            pf = 1.0 - f;
         } else {
-            return 0.0f;
+            return 0.0;
         }
 
         float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
 
-        if (dot(o, n) > 0.0f) {
+        if (dot(o, n) > 0.0) {
             return pf * pm * reflect_jacobian(m, o);
         } else {
             return pf * pm * transmit_jacobian(i, o, m, ni, no);
@@ -402,12 +402,12 @@ void diffuse_bounce(const thread float3 wi, const thread float3 n, thread bool f
         wo = random_hemisphere_cosine(x, y, n, random_roll);
         f = dot(n, wo) / PI;
         c_p = dot(n, wo) / PI;
-        l_p = 1.0f / (2 * PI);
+        l_p = 1.0 / (2 * PI);
     } else {
         wo = random_hemisphere_uniform(x, y, n, random_roll);
         f = dot(n, wo) / PI;
         c_p = dot(n, wi) / PI;
-        l_p = 1.0f / (2 * PI);
+        l_p = 1.0 / (2 * PI);
     }
 }
 
@@ -426,7 +426,7 @@ void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thre
     wo = GGX_transmit(wi, m, ni, no);
     f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, m));
 
-    float pf = 1.0f - degreve_fresnel(wi, m, ni, no);
+    float pf = 1.0 - degreve_fresnel(wi, m, ni, no);
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
 
     if (from_camera) {
@@ -459,9 +459,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     unsigned int seed1 = random_buffer[2 * id + 1];
 
     if (path.from_camera == 0)
-        new_ray.l_importance = 1.0f / (2 * PI);
+        new_ray.l_importance = 1.0 / (2 * PI);
     else
-        new_ray.c_importance = 1.0f;
+        new_ray.c_importance = 1.0;
 
     for (int i = 0; i < 8; i++) {
 
@@ -482,12 +482,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 sampled_normal = sample_normal(triangle, u, v);
         if (dot(-ray.direction, triangle.normal) > 0) {
             n = sampled_normal;
-            ni = 1.0f;
+            ni = 1.0;
             no = material.ior;
         } else if (dot(-ray.direction, triangle.normal) < 0){
             n = -sampled_normal;
             ni = material.ior;
-            no = 1.0f;
+            no = 1.0;
         }
         else {
             break;
@@ -497,7 +497,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.material = triangle.material;
         new_ray.triangle = best_i;
 
-        if (triangle.is_light && dot(ray.direction, triangle.normal) < 0.0f)
+        if (triangle.is_light && dot(ray.direction, triangle.normal) < 0.0)
             new_ray.hit_light = best_i;
         else
             new_ray.hit_light = -1;
@@ -543,13 +543,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         else if (material.type == 3)
             reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
 
-        if (dot(wi, triangle.normal) > 0.0f)
+        if (dot(wi, triangle.normal) > 0.0)
             new_ray.color = f * ray.color * material.color;
         else
             new_ray.color = f * ray.color;
 
         new_ray.direction = wo;
-        new_ray.inv_direction = 1.0f / wo;
+        new_ray.inv_direction = 1.0 / wo;
 
         if (path.from_camera) {
             next_ray.c_importance = c_p;
@@ -561,7 +561,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.tot_importance = ray.tot_importance * new_ray.l_importance;
         }
 
-        if (f == 0.0f)
+        if (f == 0.0)
             break;
 
         path.rays[i] = ray;
@@ -616,7 +616,7 @@ float3 pixel_center(const thread Camera &camera, const thread int x, const threa
 
 float gaussian_weight(const thread float3 &p, const thread float3 &q, const thread float sigma){
     float dist = length(p - q);
-    return exp(-dist * dist / (2.0f * sigma * sigma));
+    return exp(-dist * dist / (2.0 * sigma * sigma));
 }
 
 kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
@@ -633,11 +633,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
 
-    out[id] = float4(0.0f);
+    out[id] = float4(0.0);
     Camera c = camera[0];
 
     WeightAggregator aggregator = weight_aggregators[id];
-    aggregator.total_contribution = float3(0.0f);
+    aggregator.total_contribution = float3(0.0);
 
     for (int t = 2; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -685,7 +685,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             // camera_path.rays[t - 1] (the end of the camera path) needs its l_importance set,
             // and camera_path.rays[t - 2] may also need to be set
             if (s == 0) {camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;}
-            else if (s == 1) {camera_path.rays[t - 1].l_importance = 1.0f / (2.0f * PI);}
+            else if (s == 1) {camera_path.rays[t - 1].l_importance = 1.0 / (2.0 * PI);}
             else {
                 Ray a, b, c;
                 a = get_ray(camera_path, light_path, t, s, s - 2);
@@ -767,7 +767,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             prior_camera_importance = camera_path.rays[t - 1].tot_importance;
 
             float prior_light_importance;
-            if (s == 0) {prior_light_importance = 1.0f;}
+            if (s == 0) {prior_light_importance = 1.0;}
             else {prior_light_importance = light_path.rays[s - 1].tot_importance;}
 
             float p_s = prior_camera_importance * prior_light_importance;
@@ -790,27 +790,27 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             for (int i = 0; i < s + t + 1; i++) {
                 if (materials[get_ray(camera_path, light_path, t, s, i).material].type > 0) {
-                    p_values[i] = 0.0f;
-                    p_values[i + 1] = 0.0f;
+                    p_values[i] = 0.0;
+                    p_values[i + 1] = 0.0;
                 }
             }
 
             // this is because t=0 and t=1 are disabled. greatly enhances caustics by giving s==0 much more weight.
-            p_values[s + t] = 0.0f;
-            p_values[s + t - 1] = 0.0f;
+            p_values[s + t] = 0.0;
+            p_values[s + t - 1] = 0.0;
 
-            float sum = 0.0f;
+            float sum = 0.0;
             for (int i = 0; i < s + t + 1; i++)
                 sum += p_values[i];
 
             float w;
-            if (p_values[s] > 0.0f && sum > 0.0f)
+            if (p_values[s] > 0.0 && sum > 0.0)
                 w = p_values[s] / sum;
             else
                 continue;
 
-            float3 color = float3(1.0f);
-            float g = 1.0f;
+            float3 color = float3(1.0);
+            float g = 1.0;
 
             if (s == 0) {
                 color = camera_path.rays[t - 2].color * materials[light_path.rays[0].material].emission;
@@ -847,7 +847,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     }
 
     // prep weights for final gather based on exact ray position relative to nearby pixels
-    float weight_sum = 0.0f;
+    float weight_sum = 0.0;
     float pixel_phys_width = c.phys_width / c.pixel_width;
     float pixel_phys_height = c.phys_height / c.pixel_height;
     float sigma = 0.5f * sqrt(pixel_phys_width * pixel_phys_width + pixel_phys_height * pixel_phys_height);
@@ -855,7 +855,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     // zero weights
     for (int i = 0; i < 3; i++)
         for (int j = 0; j < 3; j++)
-            aggregator.weights[i][j] = 0.0f;
+            aggregator.weights[i][j] = 0.0;
 
     // calculate weights
     for (int i = -1; i < 2; i++) {
@@ -877,13 +877,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
         }
     }
     // sum weights
-    if (weight_sum != 0.0f)
+    if (weight_sum != 0.0)
         for (int i = 0; i < 3; i++)
             for (int j = 0; j < 3; j++)
                 aggregator.weights[i][j] = aggregator.weights[i][j] / weight_sum;
 
     // write outputs
-    out[id] = float4(aggregator.total_contribution, 1.0f);
+    out[id] = float4(aggregator.total_contribution, 1.0);
     weight_aggregators[id] = aggregator;
 }
 
@@ -894,7 +894,7 @@ kernel void finalize_samples(const device WeightAggregator *weight_aggregators [
                              uint id [[ thread_position_in_grid ]]) {
 
     // final gather. in separate kernel to globally sync
-    float3 total_sample = float3(0.0f);
+    float3 total_sample = float3(0.0);
     Camera c = camera[0];
 
     for (int i = -1; i < 2; i++) {
@@ -931,7 +931,7 @@ kernel void finalize_samples(const device WeightAggregator *weight_aggregators [
             total_sample += weight_aggregators[new_sample_index].total_contribution * weight;
         }
     }
-    out[id] = float4(total_sample, 1.0f);
+    out[id] = float4(total_sample, 1.0);
 }
 
 
@@ -963,16 +963,16 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     ray.origin = origin;
     ray.direction = direction;
     ray.normal = c.direction;
-    ray.inv_direction = 1.0f / direction;
-    ray.color = float3(1.0f);
+    ray.inv_direction = 1.0 / direction;
+    ray.color = float3(1.0);
 
     ray.material = 7;
     ray.triangle = -1;
     ray.hit_light = -1;
     ray.hit_camera = -1;
     ray.from_camera = 1;
-    ray.c_importance = 1.0f / (c.phys_width * c.phys_height);
-    ray.l_importance = 1.0f; // filled in later
+    ray.c_importance = 1.0 / (c.phys_width * c.phys_height);
+    ray.l_importance = 1.0; // filled in later
     ray.tot_importance = ray.c_importance;
 
     out[id] = ray;
@@ -1004,11 +1004,11 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
 
     float u = xorshift_random(seed0);
     float v = xorshift_random(seed1);
-    if (u + v > 1.0f) {
-        u = 1.0f - u;
-        v = 1.0f - v;
+    if (u + v > 1.0) {
+        u = 1.0 - u;
+        v = 1.0 - v;
     }
-    float w = 1.0f - u - v;
+    float w = 1.0 - u - v;
 
     ray.normal = light_triangle.normal;
     ray.origin = light_triangle.v0 * u + light_triangle.v1 * v + light_triangle.v2 * w + DELTA * ray.normal;
@@ -1020,7 +1020,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     float rand_y = xorshift_random(seed1);
     float2 random_roll = float2(rand_x, rand_y);
     ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
-    ray.inv_direction = 1.0f / ray.direction;
+    ray.inv_direction = 1.0 / ray.direction;
 
     ray.material = light_triangle.material;
     Material material = materials[ray.material];
@@ -1028,8 +1028,8 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
 
     ray.triangle = light_triangle_indices[light_index];
 
-    ray.c_importance = 1.0f; // filled in later
-    ray.l_importance = 1.0f / (light_count * surface_area);
+    ray.c_importance = 1.0; // filled in later
+    ray.l_importance = 1.0 / (light_count * surface_area);
     ray.tot_importance = ray.l_importance;
 
     out[id] = ray;
