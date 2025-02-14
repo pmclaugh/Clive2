@@ -649,7 +649,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
     WeightAggregator aggregator = weight_aggregators[id];
     aggregator.total_contribution = float3(0.0);
-//    aggregator.center_pixel_idx = camera_path.rays[0].pixel_idx;
+    aggregator.center_pixel_idx = camera_path.rays[0].pixel_idx;
 
     for (int t = 2; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -962,7 +962,6 @@ kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggr
         int compare_idx = weight_aggregators[i].center_pixel_idx;
         if (compare_idx == id) {
             total_sample += weight_aggregators[i].total_contribution;
-            sample_counts[id] += 1;
         }
     }
     out[id] = float4(total_sample, 1.0);
@@ -983,8 +982,10 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     float x_offset = xorshift_random(seed0);
     float y_offset = xorshift_random(seed1);
 
-    int pixel_x = id % c.pixel_width;
-    int pixel_y = id / c.pixel_width;
+    int pixel_idx = indices[id];
+
+    int pixel_x = pixel_idx % c.pixel_width;
+    int pixel_y = pixel_idx / c.pixel_width;
 
     float x_normalized = (pixel_x + x_offset - 0.5 * c.pixel_width) / (float)c.pixel_width;
     float y_normalized = (pixel_y + y_offset - 0.5 * c.pixel_height) / (float)c.pixel_height;
@@ -1010,8 +1011,7 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     ray.l_importance = 1.0; // filled in later
     ray.tot_importance = ray.c_importance;
 
-//    ray.pixel_idx = indices[id];
-    ray.pixel_idx = id;
+    ray.pixel_idx = pixel_idx;
 
     out[id] = ray;
     random_buffer[2 * id] = seed0;

@@ -130,6 +130,7 @@ if __name__ == '__main__':
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
     summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
+    summed_sample_counts = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.int32)
 
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
     light_image = np.zeros(summed_image.shape, dtype=np.float32)
@@ -195,10 +196,11 @@ if __name__ == '__main__':
                 camera_ray_start_time = time.time()
                 mc.release(indices_buffer)
                 if args.adaptive and i > 0:
-                    indices = get_adaptive_indices(summed_image)
+                    indices = get_adaptive_indices(summed_image / summed_sample_counts)
                 else:
                     indices = np.arange(batch_size, dtype=np.int32)
                 indices_buffer = dev.buffer(indices)
+                print(indices)
                 camera_ray_fn(batch_size, camera_buffer, rand_buffer, indices_buffer, camera_ray_buffer)
                 print(f"Create camera rays in {time.time() - camera_ray_start_time}")
 
@@ -247,14 +249,16 @@ if __name__ == '__main__':
                     light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
                     start_time = time.time()
-                    if args.adaptive:
+                    if args.adaptive and i > 0:
                         adaptive_finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples, sample_counts)
                     else:
                         finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples, sample_counts)
                     print(f"Sample {i} finalize time: {time.time() - start_time}")
                     finalized_image = np.frombuffer(finalized_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                    finalized_sample_counts = np.frombuffer(sample_counts, dtype=np.int32).reshape(c.pixel_height, c.pixel_width, 1)
 
                     image = finalized_image
+                    summed_sample_counts += finalized_sample_counts
 
                 # post processing. tone map, sum, division
                 print(np.sum(np.isnan(image)), "nans in image")
@@ -268,7 +272,7 @@ if __name__ == '__main__':
                     print("NaNs in summed image!!!")
                     break
 
-                to_display = tone_map(summed_image / (i + 1))
+                to_display = tone_map(summed_image / summed_sample_counts)
 
                 if args.filter:
                     # todo: this is a decent improvement and denoises a fair bit
