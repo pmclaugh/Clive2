@@ -12,6 +12,7 @@ from datetime import datetime
 import argparse
 import os
 from load import *
+from adaptive import get_adaptive_indices
 
 
 if __name__ == '__main__':
@@ -27,6 +28,7 @@ if __name__ == '__main__':
     parser.add_argument("--scene", type=str, default="teapots")
     parser.add_argument("--unidirectional", action="store_true")
     parser.add_argument("--filter", action="store_true")
+    parser.add_argument("--adaptive", action="store_true")
     args = parser.parse_args()
 
     os.makedirs(f'../output/{args.movie_name}', exist_ok=True)
@@ -40,6 +42,7 @@ if __name__ == '__main__':
     camera_ray_fn = dev.kernel(kernel).function("generate_camera_rays")
     light_ray_fn = dev.kernel(kernel).function("generate_light_rays")
     finalize_fn = dev.kernel(kernel).function("finalize_samples")
+    adaptive_finalize_fn = dev.kernel(kernel).function("adaptive_finalize_samples")
 
     tris = []
     if args.scene == "empty":
@@ -144,9 +147,11 @@ if __name__ == '__main__':
     final_out_light_image = dev.buffer(batch_size * 16)
     weight_aggregators = dev.buffer(batch_size * 64)
     finalized_samples = dev.buffer(batch_size * 16)
+    sample_counts = dev.buffer(batch_size * 4)
 
     camera_buffer = dev.buffer(c.to_struct())
     camera_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
+    indices_buffer = dev.buffer(batch_size * 4)
 
     light_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
     light_triangles = np.array([t for t in triangles if t['is_light'] == 1])
@@ -186,12 +191,15 @@ if __name__ == '__main__':
             for i in range(args.samples):
                 start_sample_time = time.time()
 
-                trace_fn = dev.kernel(kernel).function("generate_paths")
-                join_fn = dev.kernel(kernel).function("connect_paths")
-
                 # make camera rays and rands
                 camera_ray_start_time = time.time()
-                camera_ray_fn(batch_size, camera_buffer, rand_buffer, camera_ray_buffer)
+                mc.release(indices_buffer)
+                if args.adaptive and i > 0:
+                    indices = get_adaptive_indices(summed_image)
+                else:
+                    indices = np.arange(batch_size, dtype=np.int32)
+                indices_buffer = dev.buffer(indices)
+                camera_ray_fn(batch_size, camera_buffer, rand_buffer, indices_buffer, camera_ray_buffer)
                 print(f"Create camera rays in {time.time() - camera_ray_start_time}")
 
                 # trace camera paths
@@ -239,7 +247,10 @@ if __name__ == '__main__':
                     light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
                     start_time = time.time()
-                    finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples)
+                    if args.adaptive:
+                        adaptive_finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples, sample_counts)
+                    else:
+                        finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples, sample_counts)
                     print(f"Sample {i} finalize time: {time.time() - start_time}")
                     finalized_image = np.frombuffer(finalized_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 

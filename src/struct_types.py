@@ -15,6 +15,8 @@ Ray = np.dtype([
     ('hit_light', np.int32),
     ('from_camera', np.int32),
     ('hit_camera', np.int32),
+    ('pixel_idx', np.int32),
+    ('pad', np.int32, 3),
 ])
 
 Path = np.dtype([
