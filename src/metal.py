@@ -145,7 +145,7 @@ if __name__ == '__main__':
 
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_light_image = dev.buffer(batch_size * 16)
-    weight_aggregators = dev.buffer(batch_size * 64)
+    weight_aggregators = dev.buffer(batch_size * 128)
     finalized_samples = dev.buffer(batch_size * 16)
     sample_counts = dev.buffer(batch_size * 4)
 
