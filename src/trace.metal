@@ -450,9 +450,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float2 random_roll_b = float2(rand_x_b, rand_y_b);
 
         float3 wo;
-        float f = 1.0;
-        float c_p = 1.0;
-        float l_p = 1.0;
+        float f, c_p, l_p;
 
         float3 m = GGX_sample(n, random_roll_a, alpha);
         if (dot(wi, m) < 0.0)
@@ -477,10 +475,13 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         else if (material.type == 3)
             reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
 
-        if (dot(wi, triangle.normal) > 0.0)
-            new_ray.color = f * ray.color * material.color;
+        // this slightly contrived pattern is to avoid double-coloring on transmission
+        if (dot(wi, triangle.normal) > 0.0 && dot(wo, triangle.normal) > 0.0)
+            new_ray.color = f * ray.color * material.color; // external reflection
+        else if (dot(wi, triangle.normal) < 0.0 && dot(wo, triangle.normal) > 0.0)
+            new_ray.color = f * ray.color * material.color; // egress
         else
-            new_ray.color = f * ray.color;
+            new_ray.color = f * ray.color; // internal reflection, ingress
 
         new_ray.direction = wo;
         new_ray.inv_direction = 1.0 / wo;
@@ -880,6 +881,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             weight_sum += weight;
         }
     }
+
     // sum weights
     if (weight_sum != 0.0)
         for (int i = 0; i < 3; i++)
@@ -1028,7 +1030,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
 
     ray.material = light_triangle.material;
     Material material = materials[ray.material];
-    ray.color = material.emission * abs(dot(ray.normal, ray.direction));
+    ray.color = material.emission * dot(ray.direction, ray.normal);
 
     ray.triangle = light_triangle_indices[light_index];
 

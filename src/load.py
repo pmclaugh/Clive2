@@ -1,6 +1,6 @@
 import numpy as np
 import objloader
-from constants import UNIT_X, UNIT_Y, UNIT_Z, RED, BLUE, GREEN, CYAN, WHITE, INVALID, INF, NEG_INF
+from constants import UNIT_X, UNIT_Y, UNIT_Z, RED, BLUE, GREEN, CYAN, WHITE, FULL_WHITE, INVALID, INF, NEG_INF
 from collections import defaultdict
 from plyfile import PlyData
 from functools import cached_property
@@ -134,7 +134,7 @@ def get_materials():
     materials['color'] = np.zeros((8, 4), dtype=np.float32)
     materials['color'][0][:3] = RED
     materials['color'][1][:3] = GREEN
-    materials['color'][2][:3] = CYAN
+    materials['color'][2][:3] = BLUE
     materials['color'][3][:3] = WHITE
     materials['color'][4][:3] = WHITE
     materials['color'][5][:3] = BLUE
@@ -166,6 +166,7 @@ def triangles_for_box(box_min, box_max):
     right_top_back = box_max - span * UNIT_Z
 
     shrink = np.array([.25, .95, .25], dtype=np.float32)
+    big_shrink = [.95, .95, .95]
     tris = [
         # back wall
         Triangle(left_bottom_back, right_bottom_back, right_top_back, material=4),
@@ -189,9 +190,9 @@ def triangles_for_box(box_min, box_max):
         Triangle(left_top_back * shrink, right_top_back * shrink, right_top_front * shrink, material=6, emitter=True),
         Triangle(left_top_back * shrink, right_top_front * shrink, left_top_front * shrink, material=6, emitter=True),
 
-        # wall light
-        # Triangle(left_bottom_front * shrink, right_top_front * shrink, right_bottom_front * shrink, material=6, emitter=True),
-        # Triangle(left_bottom_front * shrink, left_top_front * shrink, right_top_front * shrink, material=6, emitter=True),
+        # # wall light
+        # Triangle(left_bottom_front * big_shrink, right_top_front * big_shrink, right_bottom_front * big_shrink, material=6, emitter=True),
+        # Triangle(left_bottom_front * big_shrink, left_top_front * big_shrink, right_top_front * big_shrink, material=6, emitter=True),
     ]
     return tris
 
