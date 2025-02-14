@@ -269,6 +269,8 @@ float GGX_G1(const thread float3 &v, const thread float3 &m, const thread float3
 }
 
 float GGX_G(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float alpha) {
+    if (dot(i, m) * dot(i, n) <= 0.0) {return 0.0;}
+    if (dot(o, m) * dot(o, n) <= 0.0) {return 0.0;}
     return GGX_G1(i, m, n, alpha) * GGX_G1(o, m, n, alpha);
 }
 
@@ -301,7 +303,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    return (D * G * F) / (4.0 * abs(dot(i, n)) * abs(dot(o, n)));
+    return (D * G * F) / (4.0 * dot(i, m) * dot(o, m));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -314,11 +316,11 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float in = dot(i, n);
     float on = dot(o, n);
 
-    float coeff = abs((im * om) / (in * on));
+    float coeff = (im * om) / (in * on);
     float num = no * no * D * G * (1.0 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
-    return coeff * num / denom;
+    return num / denom;
 }
 
 float3 sample_normal(const thread Triangle &triangle, const thread float u, const thread float v) {
@@ -414,7 +416,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             n = sampled_normal;
             ni = 1.0;
             no = material.ior;
-        } else if (dot(-ray.direction, triangle.normal) < 0){
+        } else if (dot(-ray.direction, triangle.normal) < 0) {
             n = -sampled_normal;
             ni = material.ior;
             no = 1.0;
@@ -448,7 +450,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float2 random_roll_b = float2(rand_x_b, rand_y_b);
 
         float3 wo;
-        float f, c_p, l_p;
+        float f = 1.0;
+        float c_p = 1.0;
+        float l_p = 1.0;
 
         float3 m = GGX_sample(n, random_roll_a, alpha);
         if (dot(wi, m) < 0.0)
@@ -492,6 +496,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         }
 
         if (f == 0.0)
+            break;
+
+        if (dot(wi, m) * dot(wi, n) <= 0.0)
+            break;
+
+        if (dot(wo, m) * dot(wo, n) <= 0.0)
             break;
 
         path.rays[i] = ray;
