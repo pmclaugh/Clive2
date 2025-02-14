@@ -316,7 +316,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float in = dot(i, n);
     float on = dot(o, n);
 
-    float coeff = (im * om) / (in * on);
+//    float coeff = (im * om) / (in * on);
     float num = no * no * D * G * (1.0 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
@@ -496,12 +496,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         }
 
         if (f == 0.0)
-            break;
-
-        if (dot(wi, m) * dot(wi, n) <= 0.0)
-            break;
-
-        if (dot(wo, m) * dot(wo, n) <= 0.0)
             break;
 
         path.rays[i] = ray;
