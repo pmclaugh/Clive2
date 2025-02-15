@@ -25,7 +25,7 @@ struct Ray {
 struct WeightAggregator {
     float3 weights[3];
     float3 total_contribution;
-    int32_t center_pixel_idx;
+    int32_t pixel_idx;
     int32_t pad[3];
 };
 
@@ -478,7 +478,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
                 reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
             else
                 diffuse_bounce(wi, n, path.from_camera, random_roll_b, wo, f, c_p, l_p);
-        else if (material.type == 3)
+        else
             reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
 
         // this slightly contrived pattern is to avoid double-coloring on transmission
@@ -649,7 +649,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
     WeightAggregator aggregator = weight_aggregators[id];
     aggregator.total_contribution = float3(0.0);
-    aggregator.center_pixel_idx = camera_path.rays[0].pixel_idx;
+    aggregator.pixel_idx = camera_path.rays[0].pixel_idx;
 
     for (int t = 2; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -952,17 +952,16 @@ kernel void finalize_samples(const device WeightAggregator *weight_aggregators [
 kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggregators [[ buffer(0) ]],
                              const device Camera *camera [[ buffer(1) ]],
                              device float4 *out [[ buffer(2) ]],
-                             device int *sample_counts [[ buffer(3) ]],
+                             device uint32_t *sample_counts [[ buffer(3) ]],
                              uint id [[ thread_position_in_grid ]]) {
     Camera c = camera[0];
+    out[id] = float4(0);
     uint32_t total_num_samples = c.pixel_width * c.pixel_height;
     float3 total_sample = float3(0.0);
     uint32_t sample_count = 0;
-    for (int i = 0; i < total_num_samples; i++) {
-        int compare_idx = weight_aggregators[i].center_pixel_idx;
-        if (compare_idx == id) {
-            total_sample += weight_aggregators[i].total_contribution;
-        }
+    for (uint32_t i = 0; i < total_num_samples; i++) {
+        WeightAggregator aggregator = weight_aggregators[i];
+        sample_count += (uint32_t)(aggregator.pixel_idx == id);
     }
     out[id] = float4(total_sample, 1.0);
     sample_counts[id] = sample_count;
