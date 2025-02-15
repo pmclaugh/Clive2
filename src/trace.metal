@@ -25,8 +25,6 @@ struct Ray {
 struct WeightAggregator {
     float3 weights[3];
     float3 total_contribution;
-    int32_t pixel_idx;
-    int32_t pad[3];
 };
 
 struct Path {
@@ -649,7 +647,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
     WeightAggregator aggregator = weight_aggregators[id];
     aggregator.total_contribution = float3(0.0);
-    aggregator.pixel_idx = camera_path.rays[0].pixel_idx;
+    uint32_t pixel_idx = camera_path.rays[0].pixel_idx;
 
     for (int t = 2; t < camera_path.length + 1; t++){
         for (int s = 0; s < light_path.length + 1; s++){
@@ -872,8 +870,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     // calculate weights
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
-            int new_sample_x = (id % c.pixel_width) + i;
-            int new_sample_y = (id / c.pixel_width) + j;
+            int new_sample_x = (pixel_idx % c.pixel_width) + i;
+            int new_sample_y = (pixel_idx / c.pixel_width) + j;
 
             if (new_sample_x < 0 || new_sample_x >= c.pixel_width ||
                 new_sample_y < 0 || new_sample_y >= c.pixel_height) {
@@ -900,71 +898,40 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     weight_aggregators[id] = aggregator;
 }
 
-
-kernel void finalize_samples(const device WeightAggregator *weight_aggregators [[ buffer(0) ]],
-                             const device Camera *camera [[ buffer(1) ]],
+kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggregators [[ buffer(0) ]],
+                             const device Camera *camera_buffer [[ buffer(1) ]],
                              device float4 *out [[ buffer(2) ]],
                              device uint32_t *sample_counts [[ buffer(3) ]],
+                             const device uint32_t *sample_bin_offsets [[ buffer(4) ]],
                              uint id [[ thread_position_in_grid ]]) {
-
-    // final gather. in separate kernel to globally sync
+    Camera camera = camera_buffer[0];
+    out[id] = float4(0);
     float3 total_sample = float3(0.0);
-    Camera c = camera[0];
-
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
-            int new_sample_x = (id % c.pixel_width) + i;
-            int new_sample_y = (id / c.pixel_width) + j;
+            int sample_x = (id % camera.pixel_width) + i;
+            int sample_y = (id / camera.pixel_width) + j;
 
-            if (new_sample_x < 0 || new_sample_x >= c.pixel_width ||
-                new_sample_y < 0 || new_sample_y >= c.pixel_height) {
+            if (sample_x < 0 || sample_x >= camera.pixel_width ||
+                sample_y < 0 || sample_y >= camera.pixel_height) {
                 continue;
             }
 
-            int new_sample_index = new_sample_y * c.pixel_width + new_sample_x;
-            if (new_sample_index < 0 || new_sample_index >= c.pixel_width * c.pixel_height) {continue;}
+            int sample_index = sample_y * camera.pixel_width + sample_x;
+            if (sample_index < 0 || sample_index >= camera.pixel_width * camera.pixel_height) {continue;}
 
-            // flip indices around center
             int x_idx, y_idx;
+            x_idx = 1 - i;
+            y_idx = 1 - j;
 
-            if (i < 0)
-                x_idx = 2;
-            else if (i == 0)
-                x_idx = 1;
-            else
-                x_idx = 0;
-
-            if (j < 0)
-                y_idx = 2;
-            else if (j == 0)
-                y_idx = 1;
-            else
-                y_idx = 0;
-
-            float weight = weight_aggregators[new_sample_index].weights[x_idx][y_idx];
-            total_sample += weight_aggregators[new_sample_index].total_contribution * weight;
+            for (uint32_t k = sample_bin_offsets[sample_index]; k < sample_bin_offsets[sample_index + 1]; k++) {
+                float weight = weight_aggregators[k].weights[x_idx][y_idx];
+                total_sample += weight_aggregators[k].total_contribution * weight;
+            }
         }
     }
+    sample_counts[id] = sample_bin_offsets[id + 1] - sample_bin_offsets[id];
     out[id] = float4(total_sample, 1.0);
-    sample_counts[id] = 1;
-}
-
-kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggregators [[ buffer(0) ]],
-                             const device Camera *camera [[ buffer(1) ]],
-                             device float4 *out [[ buffer(2) ]],
-                             device uint32_t *sample_counts [[ buffer(3) ]],
-                             uint id [[ thread_position_in_grid ]]) {
-    Camera c = camera[0];
-    out[id] = float4(0);
-    uint32_t total_num_samples = c.pixel_width * c.pixel_height;
-    float3 total_sample = float3(0.0);
-    uint32_t sample_count = 0;
-    for (uint32_t i = 0; i < total_num_samples; i++) {
-        WeightAggregator aggregator = weight_aggregators[i];
-        sample_count += (uint32_t)(aggregator.pixel_idx == id);
-    }
-    out[id] = float4(total_sample, 1.0);
-    sample_counts[id] = sample_count;
  }
 
 kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
