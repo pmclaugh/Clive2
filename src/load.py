@@ -11,7 +11,6 @@ import time
 def unit(v):
     return v / np.linalg.norm(v)
 
-
 class Triangle:
     v0 = np.zeros(3, dtype=np.float64)
     v1 = np.zeros(3, dtype=np.float64)
@@ -53,7 +52,6 @@ class Triangle:
         e2 = (self.v2 - self.v0)[0:3]
         return np.linalg.norm(np.cross(e1, e2)) / 2
 
-
 def load_obj(obj_path, offset=None, material=None, scale=1.0):
     if offset is None:
         offset = np.zeros(3)
@@ -83,7 +81,6 @@ def load_obj(obj_path, offset=None, material=None, scale=1.0):
 
         triangles.append(triangle)
     return triangles
-
 
 def load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
     if offset is None:
@@ -128,7 +125,6 @@ def load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
     print(f'done loading ply. loaded {len(triangles)} triangles, dropped {dropped_triangles}')
     return triangles
 
-
 def get_materials():
     materials = np.zeros(8, dtype=Material)
     materials['color'] = np.zeros((8, 4), dtype=np.float32)
@@ -151,7 +147,6 @@ def get_materials():
     materials[5]['type'] = 1
 
     return materials
-
 
 def triangles_for_box(box_min, box_max):
     span = box_max - box_min
@@ -196,7 +191,6 @@ def triangles_for_box(box_min, box_max):
     ]
     return tris
 
-
 def camera_geometry(camera):
     bottom_corner = camera.origin + camera.dx * camera.phys_width
     top_corner = camera.origin + camera.dx * camera.phys_width + camera.dy * camera.phys_height
@@ -207,7 +201,6 @@ def camera_geometry(camera):
     ]
     return tris
 
-
 def random_uvs(num):
     u = np.random.rand(num)
     v = np.random.rand(num)
@@ -216,7 +209,6 @@ def random_uvs(num):
     v[need_flipped] = 1 - v[need_flipped]
     w = 1 - u - v
     return u, v, w
-
 
 def fast_generate_light_rays(triangles, num_rays):
     emitter_indices = np.array([i for i, t in enumerate(triangles) if t['is_light']])
@@ -241,16 +233,13 @@ def fast_generate_light_rays(triangles, num_rays):
     rays['material'] = 6
     return rays
 
-
 def unit(v):
     return v / np.linalg.norm(v)
-
 
 def surface_area(t):
     e1 = (t['v1'] - t['v0'])[0:3]
     e2 = (t['v2'] - t['v0'])[0:3]
     return np.linalg.norm(np.cross(e1, e2)) / 2
-
 
 def smooth_normals(triangles):
     vertex_triangles = defaultdict(list)
@@ -282,7 +271,6 @@ def smooth_normals(triangles):
                     triangles[j].n1 = avg_normal / normal_mag
                 else:
                     triangles[j].n2 = avg_normal / normal_mag
-
 
 def dummy_smooth_normals(triangles):
     for t in triangles:

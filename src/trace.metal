@@ -905,7 +905,7 @@ kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggr
                              const device uint32_t *sample_bin_offsets [[ buffer(4) ]],
                              uint id [[ thread_position_in_grid ]]) {
     Camera camera = camera_buffer[0];
-    out[id] = float4(0);
+    out[id] = float4(0.0);
     float3 total_sample = float3(0.0);
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
@@ -920,12 +920,8 @@ kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggr
             int sample_index = sample_y * camera.pixel_width + sample_x;
             if (sample_index < 0 || sample_index >= camera.pixel_width * camera.pixel_height) {continue;}
 
-            int x_idx, y_idx;
-            x_idx = 1 - i;
-            y_idx = 1 - j;
-
             for (uint32_t k = sample_bin_offsets[sample_index]; k < sample_bin_offsets[sample_index + 1]; k++) {
-                float weight = weight_aggregators[k].weights[x_idx][y_idx];
+                float weight = weight_aggregators[k].weights[1 - i][1 - j];
                 total_sample += weight_aggregators[k].total_contribution * weight;
             }
         }

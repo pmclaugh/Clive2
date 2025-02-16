@@ -7,12 +7,12 @@ def get_adaptive_indices(image):
     # measure local variance for each pixel
     @njit
     def local_variance(window):
-        return np.std(window)
+        return np.std(window - window[window.size // 2])
 
     # get image brightness
     brightness = np.linalg.norm(image, axis=2)
 
-    kernel_size = 5
+    kernel_size = (5, 5)
     variance_map = generic_filter(brightness, local_variance, size=kernel_size)
 
     # now select the pixels to sample by weighted roll

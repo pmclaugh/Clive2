@@ -152,6 +152,7 @@ if __name__ == '__main__':
     camera_buffer = dev.buffer(c.to_struct())
     camera_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
     indices_buffer = dev.buffer(batch_size * 4)
+    summed_bins_buffer = dev.buffer((batch_size + 1) * 4)
 
     light_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
     light_triangles = np.array([t for t in triangles if t['is_light'] == 1])
@@ -192,14 +193,14 @@ if __name__ == '__main__':
                 start_sample_time = time.time()
 
                 # make camera rays and rands
-                camera_ray_start_time = time.time()
                 mc.release(indices_buffer)
+                mc.release(summed_bins_buffer)
                 if args.adaptive and i > 0:
                     bins, summed_bins, indices = get_adaptive_indices(tone_map(summed_image / summed_sample_counts))
                 else:
-                    indices = np.arange(batch_size, dtype=np.int32)
-                    bins = np.ones(batch_size, dtype=np.int32)
-                    summed_bins = np.arange(batch_size, dtype=np.int32)
+                    indices = np.arange(batch_size, dtype=np.uint32)
+                    bins = np.ones(batch_size, dtype=np.uint32)
+                    summed_bins = np.arange(batch_size + 1, dtype=np.uint32)
                 indices_buffer = dev.buffer(indices)
                 summed_bins_buffer = dev.buffer(summed_bins)
 
@@ -228,10 +229,7 @@ if __name__ == '__main__':
                     light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
                     # finalize
-                    # if args.adaptive and i > 0:
                     adaptive_finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples, sample_counts, summed_bins_buffer)
-                    # else:
-                    #     finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples, sample_counts)
                     finalized_image = np.frombuffer(finalized_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                     finalized_sample_counts = np.frombuffer(sample_counts, dtype=np.int32).reshape(c.pixel_height, c.pixel_width, 1)
 
