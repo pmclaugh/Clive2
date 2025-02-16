@@ -200,7 +200,7 @@ if __name__ == '__main__':
                 else:
                     indices = np.arange(batch_size, dtype=np.uint32)
                     bins = np.ones(batch_size, dtype=np.uint32)
-                    summed_bins = np.arange(batch_size + 1, dtype=np.uint32)
+                    summed_bins = np.arange(batch_size + 2, dtype=np.uint32)
                 indices_buffer = dev.buffer(indices)
                 summed_bins_buffer = dev.buffer(summed_bins)
 

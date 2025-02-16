@@ -23,8 +23,15 @@ def get_adaptive_indices(image):
     rolls = np.random.rand(variance_map.size) * variance_sum
     adaptive_indices = np.searchsorted(prefix_sum, rolls).astype(np.uint32)
 
-    bins = np.bincount(adaptive_indices)
+    bins = np.bincount(adaptive_indices, minlength=image.shape[0] * image.shape[1])
     summed_bins = np.insert(np.cumsum(bins), 0, 0).astype(np.uint32)
+    try:
+        assert summed_bins.size == image.shape[0] * image.shape[1] + 1
+    except AssertionError:
+        print(summed_bins.size, image.shape[0] * image.shape[1] + 1)
+        print(summed_bins)
+        print(image.shape)
+        raise
     sorted_indices = adaptive_indices[np.argsort(adaptive_indices)].astype(np.uint32)
 
     return bins, summed_bins, sorted_indices

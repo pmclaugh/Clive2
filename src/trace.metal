@@ -907,6 +907,7 @@ kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggr
     Camera camera = camera_buffer[0];
     out[id] = float4(0.0);
     float3 total_sample = float3(0.0);
+    uint32_t sample_count;
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
             int sample_x = (id % camera.pixel_width) + i;
