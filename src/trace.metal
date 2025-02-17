@@ -479,6 +479,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         else
             reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
 
+
+        f = 1.0;
+        c_p = 1.0;
+        l_p = 1.0;
+
         // this slightly contrived pattern is to avoid double-coloring on transmission
         if (dot(wi, triangle.normal) > 0.0 && dot(wo, triangle.normal) > 0.0)
             new_ray.color = f * ray.color * material.color; // external reflection
@@ -903,11 +908,14 @@ kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggr
                              device float4 *out [[ buffer(2) ]],
                              device uint32_t *sample_counts [[ buffer(3) ]],
                              const device uint32_t *sample_bin_offsets [[ buffer(4) ]],
+                             device float *sample_weights [[ buffer(5) ]],
                              uint id [[ thread_position_in_grid ]]) {
     Camera camera = camera_buffer[0];
     out[id] = float4(0.0);
     float3 total_sample = float3(0.0);
-    uint32_t sample_count;
+    sample_counts[id] = 0;
+    sample_weights[id] = 0.0;
+    float weight_sum = 0.0;
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
             int sample_x = (id % camera.pixel_width) + i;
@@ -924,11 +932,13 @@ kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggr
             for (uint32_t k = sample_bin_offsets[sample_index]; k < sample_bin_offsets[sample_index + 1]; k++) {
                 float weight = weight_aggregators[k].weights[1 - i][1 - j];
                 total_sample += weight_aggregators[k].total_contribution * weight;
+                weight_sum += weight;
             }
         }
     }
     sample_counts[id] = sample_bin_offsets[id + 1] - sample_bin_offsets[id];
     out[id] = float4(total_sample, 1.0);
+    sample_weights[id] = weight_sum;
  }
 
 kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],

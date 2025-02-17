@@ -130,6 +130,7 @@ if __name__ == '__main__':
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
     summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
     summed_sample_counts = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.int32)
+    summed_sample_weights = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.float32)
 
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
     light_image = np.zeros(summed_image.shape, dtype=np.float32)
@@ -153,6 +154,7 @@ if __name__ == '__main__':
     camera_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
     indices_buffer = dev.buffer(batch_size * 4)
     summed_bins_buffer = dev.buffer((batch_size + 1) * 4)
+    sample_weights = dev.buffer(batch_size * 4)
 
     light_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
     light_triangles = np.array([t for t in triangles if t['is_light'] == 1])
@@ -196,11 +198,11 @@ if __name__ == '__main__':
                 mc.release(indices_buffer)
                 mc.release(summed_bins_buffer)
                 if args.adaptive and i > 0:
-                    bins, summed_bins, indices = get_adaptive_indices(tone_map(summed_image / summed_sample_counts))
+                    bins, summed_bins, indices = get_adaptive_indices(tone_map(summed_image / summed_sample_weights))
                 else:
                     indices = np.arange(batch_size, dtype=np.uint32)
                     bins = np.ones(batch_size, dtype=np.uint32)
-                    summed_bins = np.arange(batch_size + 2, dtype=np.uint32)
+                    summed_bins = np.arange(batch_size + 1, dtype=np.uint32)
                 indices_buffer = dev.buffer(indices)
                 summed_bins_buffer = dev.buffer(summed_bins)
 
@@ -214,6 +216,7 @@ if __name__ == '__main__':
                 unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                 image = unidirectional_image
                 finalized_sample_counts = np.ones((c.pixel_height, c.pixel_width, 1), dtype=np.int32)
+                finalized_sample_weights = np.ones((c.pixel_height, c.pixel_width, 1), dtype=np.float32)
 
                 if not args.unidirectional:
                     # light paths
@@ -229,27 +232,29 @@ if __name__ == '__main__':
                     light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
                     # finalize
-                    adaptive_finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples, sample_counts, summed_bins_buffer)
+                    adaptive_finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples, sample_counts, summed_bins_buffer, sample_weights)
                     finalized_image = np.frombuffer(finalized_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                     finalized_sample_counts = np.frombuffer(sample_counts, dtype=np.int32).reshape(c.pixel_height, c.pixel_width, 1)
+                    finalized_sample_weights = np.frombuffer(sample_weights, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 1)
 
                     image = finalized_image
 
                 summed_image += np.nan_to_num(image, posinf=0, neginf=0)
                 summed_light_image += np.nan_to_num(light_image, posinf=0, neginf=0)
                 summed_sample_counts += finalized_sample_counts
+                summed_sample_weights += finalized_sample_weights
 
                 if np.any(np.isnan(summed_image)):
                     print("NaNs in summed image!!!")
                     break
 
-                to_display = tone_map(summed_image / summed_sample_counts)
+                to_display = tone_map(summed_image / summed_sample_weights)
                 # to_display = tone_map(image / np.maximum(1, finalized_sample_counts))
                 # to_display = summed_sample_counts / np.max(summed_sample_counts)
                 # to_display = finalized_sample_counts / np.max(finalized_sample_counts)
 
                 if args.filter:
-                    to_display = cv2.bilateralFilter(to_display, 5, 50, 50)
+                    to_display = cv2.bilateralFilter(to_display, 9, 50, 50)
 
                 if np.any(np.isnan(to_display)):
                     print("NaNs in to_display!!!")
