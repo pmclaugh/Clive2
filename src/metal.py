@@ -174,20 +174,32 @@ if __name__ == '__main__':
         if args.total_frames > 1:
             # temporary to make a movie
             time_parameter = f / args.total_frames
-            x = np.cos(time_parameter * 2 * np.pi) * 9
-            z = np.sin(time_parameter * 2 * np.pi) * 9
-            c.center = np.array([x, 1.5, z])
-            c.direction = unit(np.array([-x, 0, -z]))
+            tris = []
+            y1 = np.cos(time_parameter * 2 * np.pi) * 2 + 1
+            y2 = np.sin(time_parameter * 2 * np.pi) * 2 + 1
+            tris += load_obj('../resources/teapot.obj', offset=np.array([0, y1, 2.5]), material=5)
+            tris += load_obj('../resources/teapot.obj', offset=np.array([0, y2, -2.5]), material=0)
+            smooth_normals(tris)
+            box_tris = triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
+            dummy_smooth_normals(box_tris)
+            tris += box_tris
 
-            # update camera buffer
-            camera_arr = c.to_struct()
-            mc.release(camera_buffer)
-            del camera_buffer
-            camera_buffer = dev.buffer(c.to_struct())
+            bvh = construct_BVH(tris)
+            boxes, triangles = np_flatten_bvh(bvh)
+
+            # reset buffers
+            mc.release(box_buffer)
+            mc.release(tri_buffer)
+            del box_buffer
+            del tri_buffer
+            box_buffer = dev.buffer(boxes)
+            tri_buffer = dev.buffer(triangles)
 
             # zero image buffers
             summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
             summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
+            summed_sample_counts = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.int32)
+            summed_sample_weights = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.float32)
 
         try:
             # render loop
