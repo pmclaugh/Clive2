@@ -10,7 +10,7 @@ def get_adaptive_indices(image):
     # measure local variance for each pixel
     @njit
     def local_variance(window):
-        return np.std(window)
+        return np.var(window)
 
     # convert to grayscale
     brightness = cv2.cvtColor(image.astype(np.float32), cv2.COLOR_BGR2GRAY)
@@ -18,6 +18,9 @@ def get_adaptive_indices(image):
     variance_map = generic_filter(brightness, local_variance, size=kernel_size)
     cv2.imshow("variance", (variance_map / np.max(variance_map)))
     cv2.waitKey(1)
+
+    # cap the variance so edges don't completely dominate
+    variance_map = np.clip(variance_map, 0, np.median(variance_map) * 2)
 
     variance_map = variance_map.flatten()
     variance_sum = np.sum(variance_map)
