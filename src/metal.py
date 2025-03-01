@@ -12,6 +12,7 @@ from datetime import datetime
 import argparse
 import os
 from load import *
+from adaptive import get_adaptive_indices
 
 
 if __name__ == '__main__':
@@ -27,6 +28,7 @@ if __name__ == '__main__':
     parser.add_argument("--scene", type=str, default="teapots")
     parser.add_argument("--unidirectional", action="store_true")
     parser.add_argument("--filter", action="store_true")
+    parser.add_argument("--adaptive", action="store_true")
     args = parser.parse_args()
 
     os.makedirs(f'../output/{args.movie_name}', exist_ok=True)
@@ -39,7 +41,7 @@ if __name__ == '__main__':
     join_fn = dev.kernel(kernel).function("connect_paths")
     camera_ray_fn = dev.kernel(kernel).function("generate_camera_rays")
     light_ray_fn = dev.kernel(kernel).function("generate_light_rays")
-    finalize_fn = dev.kernel(kernel).function("finalize_samples")
+    adaptive_finalize_fn = dev.kernel(kernel).function("adaptive_finalize_samples")
 
     tris = []
     if args.scene == "empty":
@@ -49,7 +51,7 @@ if __name__ == '__main__':
         # load the teapots
         tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, 2.5]), material=5)
         tris += load_obj('../resources/teapot.obj', offset=np.array([0, 0, -2.5]), material=0)
-        cam_center = np.array([7, 1.5, 8])
+        cam_center = np.array([7, 0, 8])
         cam_dir = unit(np.array([-1, 0, -1]))
     elif args.scene == "dragon":
         # load a reasonable dragon
@@ -127,6 +129,8 @@ if __name__ == '__main__':
 
     summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
     summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
+    summed_sample_counts = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.int32)
+    summed_sample_weights = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.float32)
 
     to_display = np.zeros(summed_image.shape, dtype=np.uint8)
     light_image = np.zeros(summed_image.shape, dtype=np.float32)
@@ -142,11 +146,15 @@ if __name__ == '__main__':
 
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_light_image = dev.buffer(batch_size * 16)
-    weight_aggregators = dev.buffer(batch_size * 64)
+    weight_aggregators = dev.buffer(batch_size * 128)
     finalized_samples = dev.buffer(batch_size * 16)
+    sample_counts = dev.buffer(batch_size * 4)
 
     camera_buffer = dev.buffer(c.to_struct())
     camera_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
+    indices_buffer = dev.buffer(batch_size * 4)
+    summed_bins_buffer = dev.buffer((batch_size + 1) * 4)
+    sample_weights = dev.buffer(batch_size * 4)
 
     light_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
     light_triangles = np.array([t for t in triangles if t['is_light'] == 1])
@@ -166,102 +174,100 @@ if __name__ == '__main__':
         if args.total_frames > 1:
             # temporary to make a movie
             time_parameter = f / args.total_frames
-            x = np.cos(time_parameter * 2 * np.pi) * 9
-            z = np.sin(time_parameter * 2 * np.pi) * 9
-            c.center = np.array([x, 1.5, z])
-            c.direction = unit(np.array([-x, 0, -z]))
+            tris = []
+            y1 = np.cos(time_parameter * 2 * np.pi) * 2 + 1
+            y2 = np.sin(time_parameter * 2 * np.pi) * 2 + 1
+            tris += load_obj('../resources/teapot.obj', offset=np.array([0, y1, 2.5]), material=5)
+            tris += load_obj('../resources/teapot.obj', offset=np.array([0, y2, -2.5]), material=0)
+            smooth_normals(tris)
+            box_tris = triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
+            dummy_smooth_normals(box_tris)
+            tris += box_tris
 
-            # update camera buffer
-            camera_arr = c.to_struct()
-            mc.release(camera_buffer)
-            del camera_buffer
-            camera_buffer = dev.buffer(c.to_struct())
+            bvh = construct_BVH(tris)
+            boxes, triangles = np_flatten_bvh(bvh)
+
+            # reset buffers
+            mc.release(box_buffer)
+            mc.release(tri_buffer)
+            del box_buffer
+            del tri_buffer
+            box_buffer = dev.buffer(boxes)
+            tri_buffer = dev.buffer(triangles)
 
             # zero image buffers
             summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
             summed_light_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)
+            summed_sample_counts = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.int32)
+            summed_sample_weights = np.zeros((c.pixel_height, c.pixel_width, 1), dtype=np.float32)
 
         try:
             # render loop
             for i in range(args.samples):
                 start_sample_time = time.time()
 
-                trace_fn = dev.kernel(kernel).function("generate_paths")
-                join_fn = dev.kernel(kernel).function("connect_paths")
-
                 # make camera rays and rands
-                camera_ray_start_time = time.time()
-                camera_ray_fn(batch_size, camera_buffer, rand_buffer, camera_ray_buffer)
-                print(f"Create camera rays in {time.time() - camera_ray_start_time}")
+                mc.release(indices_buffer)
+                mc.release(summed_bins_buffer)
+                if args.adaptive and i > 0:
+                    bins, summed_bins, indices = get_adaptive_indices(tone_map(summed_image / summed_sample_weights))
+                else:
+                    indices = np.arange(batch_size, dtype=np.uint32)
+                    bins = np.ones(batch_size, dtype=np.uint32)
+                    summed_bins = np.arange(batch_size + 1, dtype=np.uint32)
+                indices_buffer = dev.buffer(indices)
+                summed_bins_buffer = dev.buffer(summed_bins)
 
-                # trace camera paths
-                start_time = time.time()
+                # make camera rays
+                camera_ray_fn(batch_size, camera_buffer, rand_buffer, indices_buffer, camera_ray_buffer)
+
+                # trace
                 trace_fn(batch_size, camera_ray_buffer, box_buffer, tri_buffer, mat_buffer, rand_buffer, out_camera_image, out_camera_paths, out_camera_debug_image)
-                print(f"Sample {i} camera trace time: {time.time() - start_time}")
 
-                # retrieve camera trace outputs
+                # unidirectional outputs
                 unidirectional_image = np.frombuffer(out_camera_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-                camera_paths = np.frombuffer(out_camera_paths, dtype=Path)
-                retrieved_camera_debug_image = np.frombuffer(out_camera_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                 image = unidirectional_image
-                print(f"max camera path length: {np.max(camera_paths['length'])}, min: {np.min(camera_paths['length'])}")
-                counter = Counter(camera_paths['length'])
-                print(counter)
+                finalized_sample_counts = np.ones((c.pixel_height, c.pixel_width, 1), dtype=np.int32)
+                finalized_sample_weights = np.ones((c.pixel_height, c.pixel_width, 1), dtype=np.float32)
 
                 if not args.unidirectional:
-                    # make light rays and rands
-                    light_ray_start_time = time.time()
+                    # light paths
                     light_ray_fn(batch_size, light_triangle_buffer, light_surface_areas, light_triangle_indices, mat_buffer, rand_buffer, light_ray_buffer, light_counts)
-                    print(f"Create light rays in {time.time() - light_ray_start_time}")
-
-                    # debug light rays
-                    light_rays = np.frombuffer(light_ray_buffer, dtype=Ray)
-
-                    # trace light paths
-                    start_time = time.time()
                     trace_fn(batch_size, light_ray_buffer, box_buffer, tri_buffer, mat_buffer, rand_buffer, out_light_image, out_light_paths, out_light_debug_image)
-                    print(f"Sample {i} light trace time: {time.time() - start_time}")
 
-                    # retrieve light trace outputs
-                    light_paths = np.frombuffer(out_light_paths, dtype=Path)
-                    retrieved_light_debug_image = np.frombuffer(out_light_debug_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-                    print(f"max light path length: {np.max(light_paths['length'])}, min: {np.min(light_paths['length'])}")
-                    counter = Counter(light_paths['length'])
-                    print(counter)
-                    # join paths
-                    start_time = time.time()
+                    # join
                     join_fn(batch_size, out_camera_paths, out_light_paths, tri_buffer, mat_buffer, box_buffer, camera_arr[0],
                             weight_aggregators, final_out_samples, final_out_light_image)
-                    print(f"Sample {i} join time: {time.time() - start_time}")
 
-                    # retrieve joined path outputs
+                    # retrieve outputs
                     bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                     light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
-                    start_time = time.time()
-                    finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples)
-                    print(f"Sample {i} finalize time: {time.time() - start_time}")
+                    # finalize
+                    adaptive_finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples, sample_counts, summed_bins_buffer, sample_weights)
                     finalized_image = np.frombuffer(finalized_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                    finalized_sample_counts = np.frombuffer(sample_counts, dtype=np.int32).reshape(c.pixel_height, c.pixel_width, 1)
+                    finalized_sample_weights = np.frombuffer(sample_weights, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 1)
 
                     image = finalized_image
 
-                # post processing. tone map, sum, division
-                print(np.sum(np.isnan(image)), "nans in image")
-                print(np.sum(np.any(np.isnan(image), axis=2)), "pixels with nans")
-                print(np.sum(np.isinf(image)), "infs in image")
-
                 summed_image += np.nan_to_num(image, posinf=0, neginf=0)
                 summed_light_image += np.nan_to_num(light_image, posinf=0, neginf=0)
+                summed_sample_counts += finalized_sample_counts
+                summed_sample_weights += finalized_sample_weights
 
                 if np.any(np.isnan(summed_image)):
                     print("NaNs in summed image!!!")
                     break
 
-                to_display = tone_map(summed_image / (i + 1))
+                to_display = tone_map(summed_image / summed_sample_weights)
+                # to_display = tone_map(image / np.maximum(1, finalized_sample_counts))
+                # to_display = summed_sample_counts / np.max(summed_sample_counts)
+                # to_display = finalized_sample_counts / np.max(finalized_sample_counts)
 
                 if args.filter:
-                    # todo: this is a decent improvement and denoises a fair bit
-                    to_display = cv2.bilateralFilter(to_display, 5, 50, 50)
+                    to_display = cv2.bilateralFilter(to_display, 9, 50, 50)
+
                 if np.any(np.isnan(to_display)):
                     print("NaNs in to_display!!!")
                     break
@@ -284,3 +290,4 @@ if __name__ == '__main__':
             cv2.imwrite(f'../output/{args.movie_name}/frame_{f:04d}.png', to_display)
 
         f += 1
+        print("most sampled pixel:", np.argmax(summed_sample_counts), "with", np.max(summed_sample_counts), "samples")
