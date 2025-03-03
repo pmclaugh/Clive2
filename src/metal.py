@@ -89,6 +89,24 @@ if __name__ == '__main__':
         print(f"done loading dragon in {time.time() - load_time}")
         cam_center = np.array([0, 2.5, 6])
         cam_dir = unit(np.array([0, 0, -1]))
+    elif args.scene == "happy":
+        load_time = time.time()
+        tris += load_ply('../resources/happy_vrip_res2.ply', offset=np.array([0, -4, 0]), material=5, scale=35)
+        cam_center = np.array([0, 1, 6])
+        cam_dir = unit(np.array([0, 0, -1]))
+        print(f"done loading happy in {time.time() - load_time}")
+    elif args.scene == "happy-small":
+        load_time = time.time()
+        tris += load_ply('../resources/happy_vrip_res4.ply', offset=np.array([0, -4, 0]), material=5, scale=35)
+        cam_center = np.array([0, 1, 6])
+        cam_dir = unit(np.array([0, 0, -1]))
+        print(f"done loading happy in {time.time() - load_time}")
+    elif args.scene == "big-happy":
+        load_time = time.time()
+        tris += load_ply('../resources/happy_vrip.ply', offset=np.array([0, -4, 0]), material=5, scale=35)
+        cam_center = np.array([0, 1, 6])
+        cam_dir = unit(np.array([0, 0, -1]))
+        print(f"done loading happy in {time.time() - load_time}")
     else:
         raise ValueError(f"Unknown scene {args.scene}")
 
@@ -175,25 +193,11 @@ if __name__ == '__main__':
             # temporary to make a movie
             time_parameter = f / args.total_frames
             tris = []
-            y1 = np.cos(time_parameter * 2 * np.pi) * 2 + 1
-            y2 = np.sin(time_parameter * 2 * np.pi) * 2 + 1
-            tris += load_obj('../resources/teapot.obj', offset=np.array([0, y1, 2.5]), material=5)
-            tris += load_obj('../resources/teapot.obj', offset=np.array([0, y2, -2.5]), material=0)
-            smooth_normals(tris)
-            box_tris = triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
-            dummy_smooth_normals(box_tris)
-            tris += box_tris
-
-            bvh = construct_BVH(tris)
-            boxes, triangles = np_flatten_bvh(bvh)
-
-            # reset buffers
-            mc.release(box_buffer)
-            mc.release(tri_buffer)
-            del box_buffer
-            del tri_buffer
-            box_buffer = dev.buffer(boxes)
-            tri_buffer = dev.buffer(triangles)
+            materials = get_materials()
+            alpha = (np.sin(time_parameter * 2 * np.pi) + 1) / 2 * 0.9
+            print(f"frame {f}, alpha {alpha}")
+            materials[5]['alpha'] = alpha
+            mat_buffer = dev.buffer(materials)
 
             # zero image buffers
             summed_image = np.zeros((c.pixel_height, c.pixel_width, 3), dtype=np.float32)

@@ -141,10 +141,10 @@ def get_materials():
     materials['type'] = 0
 
     materials['ior'] = 1.5
-    materials['alpha'] = 0.0
+    materials['alpha'] = 0.5
 
-    materials[0]['type'] = 1
-    materials[5]['type'] = 1
+    materials[0]['type'] = 3
+    materials[5]['type'] = 3
 
     return materials
 
@@ -160,8 +160,9 @@ def triangles_for_box(box_min, box_max):
     right_bottom_front = box_max - span * UNIT_Y
     right_top_back = box_max - span * UNIT_Z
 
+    # shrink = np.array([.1, .95, .1], dtype=np.float32)
     shrink = np.array([.25, .95, .25], dtype=np.float32)
-    big_shrink = [.95, .95, .95]
+    # shrink = np.array([.95, .95, .95], dtype=np.float32)
     tris = [
         # back wall
         Triangle(left_bottom_back, right_bottom_back, right_top_back, material=4),
@@ -184,10 +185,6 @@ def triangles_for_box(box_min, box_max):
         # ceiling light # NB this assumes box is centered on the origin, at least wrt x and z
         Triangle(left_top_back * shrink, right_top_back * shrink, right_top_front * shrink, material=6, emitter=True),
         Triangle(left_top_back * shrink, right_top_front * shrink, left_top_front * shrink, material=6, emitter=True),
-
-        # # wall light
-        # Triangle(left_bottom_front * big_shrink, right_top_front * big_shrink, right_bottom_front * big_shrink, material=6, emitter=True),
-        # Triangle(left_bottom_front * big_shrink, left_top_front * big_shrink, right_top_front * big_shrink, material=6, emitter=True),
     ]
     return tris
 
