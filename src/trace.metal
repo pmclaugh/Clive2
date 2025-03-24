@@ -332,17 +332,10 @@ float3 sample_normal(const thread Triangle &triangle, const thread float u, cons
 void diffuse_bounce(const thread float3 wi, const thread float3 n, thread bool from_camera, thread float2 random_roll, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
     float3 x, y;
     orthonormal(n, x, y);
-    if (from_camera) {
-        wo = random_hemisphere_cosine(x, y, n, random_roll);
-        f = dot(n, wo) / PI;
-        c_p = dot(n, wo) / PI;
-        l_p = 1.0 / (2 * PI);
-    } else {
-        wo = random_hemisphere_uniform(x, y, n, random_roll);
-        f = dot(n, wo) / PI;
-        c_p = dot(n, wi) / PI;
-        l_p = 1.0 / (2 * PI);
-    }
+    wo = random_hemisphere_cosine(x, y, n, random_roll);
+    f = dot(n, wo) / PI;
+    c_p = dot(n, wo) / PI;
+    l_p = dot(n, wo) / PI;
 }
 
 void reflect_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
@@ -391,11 +384,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
     unsigned int seed0 = random_buffer[2 * id];
     unsigned int seed1 = random_buffer[2 * id + 1];
-
-    if (path.from_camera == 0)
-        new_ray.l_importance = 1.0 / (2 * PI);
-    else
-        new_ray.c_importance = 1.0;
 
     for (int i = 0; i < 8; i++) {
 
@@ -461,7 +449,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             m = specular_reflection(m, n);
         if (dot(m, n) < 0.0)
             break;
-        new_ray.normal = m;
+
+        new_ray.normal = n;
 
         float fresnel = degreve_fresnel(wi, m, ni, no);
         if (material.type == 0)
@@ -594,8 +583,7 @@ float BRDF(const thread float3 &i, const thread float3 &o, const thread float3 &
 
 float PDF(const thread float3 &i, const thread float3 &o, const thread float3 &n, const device float3 &geom_n, const Material material, bool from_camera) {
     if (material.type == 0) {
-        if (from_camera) {return abs(dot(o, n)) / PI;}
-        else {return 1.0 / (2.0 * PI);}
+        return abs(dot(o, n)) / PI;
     }
     else {
         float ni, no, alpha;
@@ -865,7 +853,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     float weight_sum = 0.0;
     float pixel_phys_width = c.phys_width / c.pixel_width;
     float pixel_phys_height = c.phys_height / c.pixel_height;
-    float sigma = 0.5f * sqrt(pixel_phys_width * pixel_phys_width + pixel_phys_height * pixel_phys_height);
+    float sigma = 0.25f * sqrt(pixel_phys_width * pixel_phys_width + pixel_phys_height * pixel_phys_height);
 
     // zero weights
     for (int i = 0; i < 3; i++)
@@ -968,7 +956,7 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
 
     float3 origin = c.center + x_vector + y_vector;
     float3 direction = normalize(c.focal_point - origin);
-    origin = origin + direction * DELTA;
+//    origin = origin + direction * DELTA;
     ray.origin = origin;
     ray.direction = direction;
     ray.normal = c.direction;
