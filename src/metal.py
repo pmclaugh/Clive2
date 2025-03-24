@@ -98,7 +98,7 @@ if __name__ == '__main__':
     elif args.scene == "happy-small":
         load_time = time.time()
         tris += load_ply('../resources/happy_vrip_res4.ply', offset=np.array([0, -4, 0]), material=5, scale=35)
-        cam_center = np.array([0, 1, 6])
+        cam_center = np.array([0, 1, 5.5])
         cam_dir = unit(np.array([0, 0, -1]))
         print(f"done loading happy in {time.time() - load_time}")
     elif args.scene == "big-happy":
