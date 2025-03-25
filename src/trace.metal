@@ -389,6 +389,11 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     path.from_camera = ray.from_camera;
     out[id] = float4(0, 0, 0, 0);
 
+    if (path.from_camera == 0)
+        new_ray.l_importance = 1.0;
+    else
+        new_ray.c_importance = 1.0;
+
     unsigned int seed0 = random_buffer[2 * id];
     unsigned int seed1 = random_buffer[2 * id + 1];
 
