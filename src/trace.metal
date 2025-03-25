@@ -475,6 +475,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         else
             reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
 
+//        c_p = 1.0;
+//        c_p = abs(c_p);
+
         // this slightly contrived pattern is to avoid double-coloring on transmission
         if (dot(wi, triangle.normal) > 0.0 && dot(wo, triangle.normal) > 0.0)
             new_ray.color = f * ray.color * material.color; // external reflection
@@ -496,7 +499,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.tot_importance = ray.tot_importance * new_ray.l_importance;
         }
 
-        if (f == 0.0)
+        if (f < 0.0)
             break;
 
         path.rays[i] = ray;
@@ -510,7 +513,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
     for (int i = 0; i < path.length; i++) {
         if (path.rays[i].hit_light >= 0) {
-            out[id] = float4(path.rays[i - 1].color / path.rays[i].tot_importance, 1);
+            out[id] = float4(path.rays[i - 1].color / path.rays[i - 2].tot_importance, 1);
             break;
         }
     }
@@ -860,7 +863,7 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     ray.hit_light = -1;
     ray.hit_camera = -1;
     ray.from_camera = 1;
-    ray.c_importance = 1.0 / (c.phys_width * c.phys_height);
+    ray.c_importance = 1.0;
     ray.l_importance = 1.0; // filled in later
     ray.tot_importance = ray.c_importance;
 
