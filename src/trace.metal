@@ -475,10 +475,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         else
             reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
 
-
-        f = 1.0;
-        c_p = 1.0;
-        l_p = 1.0;
+//        f = 1.0;
+//        c_p = 1.0;
+//        l_p = 1.0;
 
         // this slightly contrived pattern is to avoid double-coloring on transmission
         if (dot(wi, triangle.normal) > 0.0 && dot(wo, triangle.normal) > 0.0)
