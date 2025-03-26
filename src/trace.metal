@@ -391,9 +391,9 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     unsigned int seed1 = random_buffer[2 * id + 1];
 
     if (path.from_camera == 0)
-        new_ray.l_importance = 1.0;
+        new_ray.l_importance = ray.l_importance;
     else
-        new_ray.c_importance = 1.0;
+        new_ray.c_importance = ray.c_importance;
 
     for (int i = 0; i < 8; i++) {
 
@@ -619,7 +619,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float p_values[32];
 
             // populate missing values, these will be reset next loop so it's fine
-
             if (s == 0) {
                 camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;
             } else {
@@ -657,8 +656,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 p_ratios[i] = num / denom;
             }
 
-            float prior_camera_importance;
-            prior_camera_importance = camera_ray.tot_importance;
+            float prior_camera_importance = camera_ray.tot_importance;
 
             float prior_light_importance;
             if (s == 0) {prior_light_importance = 1.0;}
@@ -682,19 +680,18 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             p_values[s] = p_s;
 
-            for (int i = 0; i < s + t + 1; i++) {
+            for (int i = 0; i < s + t; i++) {
                 if (materials[get_ray(camera_path, light_path, t, s, i).material].type > 0) {
                     p_values[i] = 0.0;
                     p_values[i + 1] = 0.0;
                 }
             }
 
-            // this is because t=0 and t=1 are disabled. greatly enhances caustics by giving s==0 much more weight.
-            p_values[s + t] = 0.0;
+            // this is because t=0 and t=1 are disabled. greatly enhances caustics.
             p_values[s + t - 1] = 0.0;
 
             float sum = 0.0;
-            for (int i = 0; i < s + t + 1; i++)
+            for (int i = 0; i < s + t; i++)
                 sum += p_values[i];
 
             float w;
@@ -719,7 +716,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float3 prior_camera_direction = camera_path.rays[t - 2].direction;
 
                 Material camera_material = materials[camera_ray.material];
-                float3 camera_geom_normal = triangles[camera_ray.triangle].normal;
                 float new_camera_f = abs(dot(-dir_l_to_c, camera_ray.normal)) / PI;
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
@@ -732,7 +728,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     float3 prior_light_direction = light_path.rays[s - 2].direction;
 
                     Material light_material = materials[light_ray.material];
-                    float3 light_geom_normal = triangles[light_ray.triangle].normal;
                     float new_light_f = abs(dot(dir_l_to_c, light_ray.normal)) / PI;
                     light_color = prior_light_color * new_light_f * light_material.color;
                 }
