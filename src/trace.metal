@@ -501,9 +501,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             new_ray.tot_importance = ray.tot_importance * new_ray.l_importance;
         }
 
-        if (f < 0.0)
-            break;
-
         path.rays[i] = ray;
         path.length = i + 1;
 
@@ -688,7 +685,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             for (int i = 0; i < s + t + 1; i++) {
                 if (materials[get_ray(camera_path, light_path, t, s, i).material].type > 0) {
                     p_values[i] = 0.0;
-                    p_values[i + 1] = 0.0;
                 }
             }
 
