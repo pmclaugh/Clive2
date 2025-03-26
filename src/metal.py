@@ -129,9 +129,9 @@ if __name__ == '__main__':
         phys_height=1,
     )
     camera_arr = c.to_struct()
-    camera_tris = camera_geometry(c)
-    dummy_smooth_normals(camera_tris)
-    tris += camera_tris
+    # camera_tris = camera_geometry(c)
+    # dummy_smooth_normals(camera_tris)
+    # tris += camera_tris
 
     # build and marshall BVH
     start_time = time.time()
