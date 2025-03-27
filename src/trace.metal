@@ -391,7 +391,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     unsigned int seed1 = random_buffer[2 * id + 1];
 
     if (path.from_camera == 0) {
-        new_ray.l_importance = abs(dot(ray.normal, -ray.direction)) / PI;
+        new_ray.l_importance = 1.0 / (2.0 * PI);
     }
     else {
         new_ray.c_importance = ray.c_importance;
@@ -479,9 +479,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         else
             reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
 
-        // this slightly contrived pattern is to avoid double-coloring on transmission
         if (dot(wi, triangle.normal) > 0.0 && dot(wo, triangle.normal) > 0.0)
-            new_ray.color = f * ray.color * material.color; // external reflection
+        {
+            if (material.type > 0) {
+                new_ray.color = f * ray.color;
+            } else {
+                new_ray.color = f * ray.color * material.color;
+            }
+        }
         else if (dot(wi, triangle.normal) < 0.0 && dot(wo, triangle.normal) > 0.0)
             new_ray.color = f * ray.color * material.color; // egress
         else
