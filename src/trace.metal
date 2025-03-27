@@ -619,8 +619,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (dot(camera_ray.normal, -dir_l_to_c) < DELTA) {continue;}
 
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)) {continue;}
+                if (light_ray.triangle == camera_ray.triangle) {continue;}
             }
-            if (light_ray.triangle == camera_ray.triangle) {continue;}
 
             float p_ratios[32];
             float p_values[32];
@@ -711,8 +711,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             if (s == 0) {
                 float3 prior_color = camera_path.rays[t - 2].color;
-                float3 emission = materials[light_path.rays[0].material].emission;
-                color = prior_color * emission * abs(dot(camera_ray.normal, camera_ray.direction)) / PI;
+                float3 emission = materials[camera_ray.material].emission;
+                color = prior_color * emission;
             } else {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
 
@@ -915,7 +915,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
 
     ray.material = light_triangle.material;
     Material material = materials[ray.material];
-    ray.color = material.emission * dot(ray.direction, ray.normal);
+    ray.color = material.emission;
 
     ray.triangle = light_triangle_indices[light_index];
 
