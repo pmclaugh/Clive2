@@ -665,14 +665,12 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float p_s = prior_camera_importance * prior_light_importance;
 
             float p_i = p_s;
-
-            for (int i = s; i < s + t; i++) {
+            for (int i = s; i < s + t + 1; i++) {
                 p_values[i + 1] = p_ratios[i] * p_i;
                 p_i = p_values[i + 1];
             }
 
             p_i = p_s;
-
             for (int i = s - 1; i >= 0; i--) {
                 p_values[i] = p_i / p_ratios[i];
                 p_i = p_values[i];
@@ -680,7 +678,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             p_values[s] = p_s;
 
-            for (int i = 0; i < s + t; i++) {
+            for (int i = 0; i < s + t + 1; i++) {
                 if (materials[get_ray(camera_path, light_path, t, s, i).material].type > 0) {
                     p_values[i] = 0.0;
                     p_values[i + 1] = 0.0;
@@ -689,9 +687,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             // this is because t=0 and t=1 are disabled. greatly enhances caustics.
             p_values[s + t - 1] = 0.0;
+            p_values[s + t] = 0.0;
 
             float sum = 0.0;
-            for (int i = 0; i < s + t; i++)
+            for (int i = 0; i < s + t + 1; i++)
                 sum += p_values[i];
 
             float w;
@@ -706,9 +705,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             if (s == 0) {
                 float3 prior_color = camera_path.rays[t - 2].color;
                 float3 emission = materials[light_path.rays[0].material].emission;
-                float3 normal = camera_path.rays[t - 1].normal;
-                float3 direction = camera_path.rays[t - 1].direction;
-                color = prior_color * emission * abs(dot(normal, direction)) / PI;
+                color = prior_color * emission * abs(dot(camera_ray.normal, camera_ray.direction)) / PI;
             } else {
                 float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
 
@@ -734,7 +731,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
-            // p_i == p_s means this could be just g * color / sum, but I think this is clearer
             aggregator.total_contribution += w * g * color / p_s;
         }
     }
@@ -743,7 +739,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     float weight_sum = 0.0;
     float pixel_phys_width = c.phys_width / c.pixel_width;
     float pixel_phys_height = c.phys_height / c.pixel_height;
-    float sigma = 0.25f * sqrt(pixel_phys_width * pixel_phys_width + pixel_phys_height * pixel_phys_height);
+    float sigma = 0.5f * sqrt(pixel_phys_width * pixel_phys_width + pixel_phys_height * pixel_phys_height);
 
     // zero weights
     for (int i = 0; i < 3; i++)
