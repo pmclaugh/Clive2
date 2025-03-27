@@ -390,10 +390,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     unsigned int seed0 = random_buffer[2 * id];
     unsigned int seed1 = random_buffer[2 * id + 1];
 
-    if (path.from_camera == 0)
-        new_ray.l_importance = ray.l_importance;
-    else
+    if (path.from_camera == 0) {
+        new_ray.l_importance = abs(dot(ray.normal, -ray.direction)) / PI;
+    }
+    else {
         new_ray.c_importance = ray.c_importance;
+    }
 
     for (int i = 0; i < 8; i++) {
 
@@ -491,7 +493,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (path.from_camera) {
             next_ray.c_importance = c_p;
             ray.l_importance = l_p;
-            new_ray.tot_importance = ray.tot_importance * new_ray.c_importance;
+            if (i == 0) {
+                new_ray.tot_importance = ray.tot_importance;
+            }
+            else {
+                new_ray.tot_importance = ray.tot_importance * new_ray.c_importance;
+            }
         } else {
             next_ray.l_importance = l_p;
             ray.c_importance = c_p;
@@ -567,26 +574,26 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           device float4 *light_image [[ buffer(8) ]],
                           uint id [[ thread_position_in_grid ]]) {
 
-    Path thread_camera_path = camera_paths[id];
-    Path thread_light_path = light_paths[id];
+    Path camera_path = camera_paths[id];
+    Path light_path = light_paths[id];
 
     out[id] = float4(0.0);
     Camera c = camera[0];
 
     WeightAggregator aggregator = weight_aggregators[id];
     aggregator.total_contribution = float3(0.0);
-    uint32_t pixel_idx = thread_camera_path.rays[0].pixel_idx;
+    uint32_t pixel_idx = camera_path.rays[0].pixel_idx;
 
-    for (int t = 2; t < thread_camera_path.length + 1; t++){
-        for (int s = 0; s < thread_light_path.length + 1; s++){
+    for (int t = 2; t < camera_path.length + 1; t++){
+        for (int s = 0; s < light_path.length + 1; s++){
 
             // reset
             Ray light_ray;
             light_ray.triangle = -1;
             Ray camera_ray;
             camera_ray.triangle = -1;
-            Path camera_path = thread_camera_path;
-            Path light_path = thread_light_path;
+            Path camera_path = camera_paths[id];
+            Path light_path = light_paths[id];
 
             // there should be cases for t=0 and t=1, but t=1 is hard to do massively parallel,
             // and t=0 doesn't work with a pinhole camera model.
@@ -678,7 +685,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             p_values[s] = p_s;
 
-            for (int i = 0; i < s + t + 1; i++) {
+            for (int i = 0; i < s + t; i++) {
                 if (materials[get_ray(camera_path, light_path, t, s, i).material].type > 0) {
                     p_values[i] = 0.0;
                     p_values[i + 1] = 0.0;
@@ -760,7 +767,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             int new_sample_index = new_sample_y * c.pixel_width + new_sample_x;
             if (new_sample_index < 0 || new_sample_index >= c.pixel_width * c.pixel_height) {continue;}
 
-            float weight = gaussian_weight(pixel_center(c, new_sample_x, new_sample_y), thread_camera_path.rays[0].origin, sigma);
+            float weight = gaussian_weight(pixel_center(c, new_sample_x, new_sample_y), camera_path.rays[0].origin, sigma);
             aggregator.weights[i + 1][j + 1] = weight;
             weight_sum += weight;
         }
