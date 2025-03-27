@@ -318,7 +318,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float in = dot(i, n);
     float on = dot(o, n);
 
-//    float coeff = (im * om) / (in * on);
+    float coeff = (im * om) / (in * on);
     float num = no * no * D * G * (1.0 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
@@ -356,7 +356,7 @@ void reflect_bounce(const thread float3 &wi, const thread float3 &n, const threa
 
 void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread bool from_camera, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
     wo = GGX_transmit(wi, m, ni, no);
-    f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, m));
+    f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha);
 
     float pf = 1.0 - degreve_fresnel(wi, m, ni, no);
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
