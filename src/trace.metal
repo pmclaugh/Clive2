@@ -305,7 +305,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    return (D * G * F) / (4.0 * dot(i, m) * dot(o, m));
+    return (D * G * F) / (4.0 * abs(dot(i, n)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -322,7 +322,7 @@ float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const th
     float num = no * no * D * G * (1.0 - F);
     float denom = (ni * im + no * om) * (ni * im + no * om);
 
-    return num / denom;
+    return coeff * num / denom;
 }
 
 float3 sample_normal(const thread Triangle &triangle, const thread float u, const thread float v) {
@@ -345,7 +345,7 @@ void diffuse_bounce(const thread float3 wi, const thread float3 n, thread bool f
 
 void reflect_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
     wo = specular_reflection(wi, m);
-    f = GGX_BRDF_reflect(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, m));
+    f = GGX_BRDF_reflect(wi, wo, m, n, ni, no, alpha);
 
     float pf = degreve_fresnel(wi, m, ni, no);
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
@@ -480,13 +480,10 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
 
         if (dot(wi, triangle.normal) > 0.0 && dot(wo, triangle.normal) > 0.0)
-        {
-            if (material.type > 0) {
+            if (material.type > 0)
                 new_ray.color = f * ray.color;
-            } else {
+            else
                 new_ray.color = f * ray.color * material.color;
-            }
-        }
         else if (dot(wi, triangle.normal) < 0.0 && dot(wo, triangle.normal) > 0.0)
             new_ray.color = f * ray.color * material.color; // egress
         else
@@ -730,7 +727,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
                 float3 light_color;
                 if (s == 1) {
-                    light_color = materials[light_ray.material].emission * abs(dot(camera_ray.normal, dir_l_to_c));
+                    light_color = materials[light_ray.material].emission;
                 }
                 else {
                     float3 prior_light_color = light_path.rays[s - 2].color;
@@ -744,6 +741,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 g = geometry_term(camera_ray, light_ray);
             }
             aggregator.total_contribution += w * g * color / p_s;
+
+            for (int i = 0; i < 32; i++) {
+                p_values[i] = 0.0;
+                p_ratios[i] = 0.0;
+            }
         }
     }
 
