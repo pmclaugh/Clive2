@@ -539,7 +539,7 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
     camera_cos = abs(dot(a.normal, delta));
     light_cos = abs(dot(b.normal, -delta));
 
-    return (camera_cos * light_cos) / (dist * dist);
+    return 1.0 / (dist * dist);
 }
 
 Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const thread int t, const thread int s, const thread int i){
@@ -596,6 +596,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             camera_ray.triangle = -1;
             Path camera_path = camera_paths[id];
             Path light_path = light_paths[id];
+            float3 dir_l_to_c;
 
             // there should be cases for t=0 and t=1, but t=1 is hard to do massively parallel,
             // and t=0 doesn't work with a pinhole camera model.
@@ -614,7 +615,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (materials[light_ray.material].type > 0) {continue;}
                 if (materials[camera_ray.material].type > 0) {continue;}
 
-                float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
+                dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
 
                 // backface culling
                 if (dot(light_ray.normal, dir_l_to_c) < DELTA) {continue;}
@@ -631,7 +632,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             if (s == 0) {
                 camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;
             } else {
-                float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
                 camera_path.rays[t - 1].l_importance = abs(dot(light_ray.normal, dir_l_to_c)) / PI;
                 light_path.rays[s - 1].c_importance = abs(dot(camera_ray.normal, -dir_l_to_c)) / PI;
             }
@@ -716,11 +716,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float3 emission = materials[camera_ray.material].emission;
                 color = prior_color * emission;
             } else {
-                float3 dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
-
                 float3 prior_camera_color = camera_path.rays[t - 2].color;
-                float3 prior_camera_direction = camera_path.rays[t - 2].direction;
-
                 Material camera_material = materials[camera_ray.material];
                 float new_camera_f = abs(dot(-dir_l_to_c, camera_ray.normal)) / PI;
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
@@ -731,8 +727,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
                 else {
                     float3 prior_light_color = light_path.rays[s - 2].color;
-                    float3 prior_light_direction = light_path.rays[s - 2].direction;
-
                     Material light_material = materials[light_ray.material];
                     float new_light_f = abs(dot(dir_l_to_c, light_ray.normal)) / PI;
                     light_color = prior_light_color * new_light_f * light_material.color;
