@@ -395,11 +395,12 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     unsigned int seed0 = random_buffer[2 * id];
     unsigned int seed1 = random_buffer[2 * id + 1];
 
-    if (path.from_camera == 0) {
+    if (path.from_camera == 0)
         new_ray.l_importance = 1.0 / (2.0 * PI);
-    }
     else {
+        // this seems reasonable to me, but unsure. no real effect til t < 2 enabled.
         new_ray.c_importance = ray.c_importance;
+        ray.c_importance = 1.0;
     }
 
     for (int i = 0; i < 8; i++) {
@@ -485,10 +486,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             reflect_bounce(wi, n, m, ni, no, alpha, path.from_camera, wo, f, c_p, l_p);
 
         if (dot(wi, triangle.normal) > 0.0 && dot(wo, triangle.normal) > 0.0)
-            if (material.type > 0)
-                new_ray.color = f * ray.color;
-            else
-                new_ray.color = f * ray.color * material.color;
+            new_ray.color = f * ray.color * material.color; // external reflection
         else if (dot(wi, triangle.normal) < 0.0 && dot(wo, triangle.normal) > 0.0)
             new_ray.color = f * ray.color * material.color; // egress
         else
