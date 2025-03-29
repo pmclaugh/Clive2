@@ -115,7 +115,7 @@ if __name__ == '__main__':
     print("done smoothing normals in", time.time() - smooth_time)
 
     # manually define a box around the teapots, don't smooth it
-    box_tris = triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]))
+    box_tris = triangles_for_box(np.array([-10, -2, -10]), np.array([10, 10, 10]), light_height=0.95)
     dummy_smooth_normals(box_tris)
     tris += box_tris
 

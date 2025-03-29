@@ -356,7 +356,7 @@ void reflect_bounce(const thread float3 &wi, const thread float3 &n, const threa
 
 void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread bool from_camera, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
     wo = GGX_transmit(wi, m, ni, no);
-    f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha);
+    f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, n));
 
     float pf = 1.0 - degreve_fresnel(wi, m, ni, no);
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
@@ -533,12 +533,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 float geometry_term(const thread Ray &a, const thread Ray &b){
     float3 delta = b.origin - a.origin;
     float dist = length(delta);
-    delta = normalize(delta);
 
-    float camera_cos, light_cos;
-    camera_cos = abs(dot(a.normal, delta));
-    light_cos = abs(dot(b.normal, -delta));
-
+    // Veach's geometry term has cosines in the numerator, but I include those in f, so just 1 here.
     return 1.0 / (dist * dist);
 }
 
