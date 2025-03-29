@@ -343,15 +343,20 @@ void diffuse_bounce(const thread float3 wi, const thread float3 n, thread bool f
     }
 }
 
-void reflect_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
+void reflect_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread bool from_camera, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
     wo = specular_reflection(wi, m);
     f = GGX_BRDF_reflect(wi, wo, m, n, ni, no, alpha);
 
     float pf = degreve_fresnel(wi, m, ni, no);
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
 
-    c_p = pf * pm * reflect_jacobian(m, wo);
-    l_p = pf * pm * reflect_jacobian(m, wi);
+    if (from_camera) {
+        c_p = pf * pm * reflect_jacobian(m, wo);
+        l_p = pf * pm * reflect_jacobian(m, wi);
+    } else {
+        c_p = pf * pm * reflect_jacobian(m, wi);
+        l_p = pf * pm * reflect_jacobian(m, wo);
+    }
 }
 
 void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread bool from_camera, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
@@ -362,8 +367,8 @@ void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thre
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
 
     if (from_camera) {
-        c_p = pm * transmit_jacobian(wi, wo, m, ni, no);
-        l_p = pm * transmit_jacobian(wo, wi, -m, no, ni);
+        c_p = pf * pm * transmit_jacobian(wi, wo, m, ni, no);
+        l_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
     }
     else {
         c_p = pf * pm * transmit_jacobian(wo, wi, -m, no, ni);
@@ -468,16 +473,16 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             diffuse_bounce(wi, n, path.from_camera, random_roll_b, wo, f, c_p, l_p);
         else if (material.type == 1)
             if (random_roll_b.x <= fresnel)
-                reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
+                reflect_bounce(wi, n, m, ni, no, alpha, path.from_camera, wo, f, c_p, l_p);
             else
                 transmit_bounce(wi, n, m, ni, no, alpha, path.from_camera, wo, f, c_p, l_p);
         else if (material.type == 2)
             if (random_roll_b.x <= fresnel)
-                reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
+                reflect_bounce(wi, n, m, ni, no, alpha, path.from_camera, wo, f, c_p, l_p);
             else
                 diffuse_bounce(wi, n, path.from_camera, random_roll_b, wo, f, c_p, l_p);
         else
-            reflect_bounce(wi, n, m, ni, no, alpha, wo, f, c_p, l_p);
+            reflect_bounce(wi, n, m, ni, no, alpha, path.from_camera, wo, f, c_p, l_p);
 
         if (dot(wi, triangle.normal) > 0.0 && dot(wo, triangle.normal) > 0.0)
             if (material.type > 0)
