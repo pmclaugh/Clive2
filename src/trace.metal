@@ -498,12 +498,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         if (path.from_camera) {
             next_ray.c_importance = c_p;
             ray.l_importance = l_p;
-            if (i == 0) {
-                new_ray.tot_importance = ray.tot_importance;
-            }
-            else {
-                new_ray.tot_importance = ray.tot_importance * new_ray.c_importance;
-            }
+            new_ray.tot_importance = ray.tot_importance * new_ray.c_importance;
         } else {
             next_ray.l_importance = l_p;
             ray.c_importance = c_p;
@@ -534,11 +529,15 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 }
 
 float geometry_term(const thread Ray &a, const thread Ray &b){
-    float3 delta = b.origin - a.origin;
-    float dist = length(delta);
-
+    float dist = length(b.origin - a.origin);
     // Veach's geometry term has cosines in the numerator, but I include those in f, so just 1 here.
     return 1.0 / (dist * dist);
+
+//    float dist = length(b.origin - a.origin);
+//    float3 dir = normalize(b.origin - a.origin);
+//    float cos_a = abs(dot(a.normal, dir));
+//    float cos_b = abs(dot(b.normal, -dir));
+//    return (cos_a * cos_b) / (dist * dist);
 }
 
 Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const thread int t, const thread int s, const thread int i){
@@ -607,8 +606,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
             else {
                 // regular join
-                light_ray = light_path.rays[s - 1];
                 camera_ray = camera_path.rays[t - 1];
+                light_ray = light_path.rays[s - 1];
 
                 // skip specular joins
                 if (materials[light_ray.material].type > 0) {continue;}
