@@ -133,7 +133,7 @@ void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triang
         return;
     }
     float t = f * dot(edge2, q);
-    if (t > 0.0) {
+    if (t > DELTA) {
         hit = true;
         t_out = t;
     } else {
@@ -151,6 +151,7 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
         Box box = boxes[box_id];
         bool hit = false;
         float t = INFINITY;
+        float u, v;
         ray_box_intersect(ray, box, hit, t);
         if (hit && t < best_t) {
             if (box.right == 0) {
@@ -158,11 +159,9 @@ void traverse_bvh(const thread Ray &ray, const device Box *boxes, const device T
                 stack[stack_ptr++] = box.left + 1;
             } else {
                 for (int i = box.left; i < box.right; i++) {
-                    if (ray.triangle == i) {continue;}
                     Triangle triangle = triangles[i];
-                    bool hit = false;
+                    hit = false;
                     t = INFINITY;
-                    float u, v;
                     ray_triangle_intersect(ray, triangle, hit, t, u, v);
                     if (hit && t < best_t) {
                         best_i = i;
@@ -192,6 +191,7 @@ bool visibility_test(const thread Ray a, const thread Ray b, const device Box *b
     traverse_bvh(test_ray, boxes, triangles, best_i, best_t, u, v);
 
     if (best_i == -1) {return false;}
+    if (best_i == a.triangle) {return false;}
     if (best_i == b.triangle) {return true;}
     return false;
 }
