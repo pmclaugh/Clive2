@@ -169,11 +169,11 @@ if __name__ == '__main__':
 
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_light_image = dev.buffer(batch_size * 16)
-    weight_aggregators = dev.buffer(batch_size * 128)
+    weight_aggregators = dev.buffer(batch_size * 64)
     finalized_samples = dev.buffer(batch_size * 16)
     sample_counts = dev.buffer(batch_size * 4)
 
-    camera_buffer = dev.buffer(c.to_struct())
+    camera_buffer = dev.buffer(np.array([c.to_struct()]))
     camera_ray_buffer = dev.buffer(batch_size * Ray.itemsize)
     indices_buffer = dev.buffer(batch_size * 4)
     summed_bins_buffer = dev.buffer((batch_size + 1) * 4)
@@ -245,14 +245,14 @@ if __name__ == '__main__':
                     trace_fn(batch_size, light_ray_buffer, box_buffer, tri_buffer, mat_buffer, rand_buffer, out_light_image, out_light_paths, out_light_debug_image)
 
                     # join
-                    join_fn(batch_size, out_camera_paths, out_light_paths, tri_buffer, mat_buffer, box_buffer, camera_arr[0],
+                    join_fn(batch_size, out_camera_paths, out_light_paths, tri_buffer, mat_buffer, box_buffer, camera_buffer,
                             weight_aggregators, final_out_samples, out_light_indices, out_light_path_indices, out_light_ray_indices, out_light_weights)
 
                     # retrieve outputs
                     bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
                     # finalize
-                    adaptive_finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples, sample_counts, summed_bins_buffer, sample_weights)
+                    adaptive_finalize_fn(batch_size, weight_aggregators, camera_buffer, finalized_samples, sample_counts, summed_bins_buffer, sample_weights)
                     finalized_image = np.frombuffer(finalized_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
                     finalized_sample_counts = np.frombuffer(sample_counts, dtype=np.int32).reshape(c.pixel_height, c.pixel_width, 1)
                     finalized_sample_weights = np.frombuffer(sample_weights, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 1)
@@ -272,11 +272,13 @@ if __name__ == '__main__':
                     sorted_ray_indices = dev.buffer(light_ray_indices[sorting_indices][missed_count:])
                     sorted_light_weights = dev.buffer(light_weights[sorting_indices][missed_count:])
 
-                    light_image_gather_fn(batch_size, out_light_paths, sorted_path_indices, sorted_ray_indices, summed_bins, sorted_light_weights, out_light_image)
+                    light_image_gather_fn(batch_size, out_light_paths, sorted_path_indices, sorted_ray_indices, summed_bins, sorted_light_weights, out_light_image, finalized_sample_weights)
                     light_image = np.frombuffer(out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
-                    image = light_image
+                    # image = light_image
+                    # image = bidirectional_image
                     # image = finalized_image
+                    image = light_image + finalized_image
 
                 summed_image += np.nan_to_num(image, posinf=0, neginf=0)
                 summed_light_image += np.nan_to_num(light_image, posinf=0, neginf=0)
@@ -287,8 +289,8 @@ if __name__ == '__main__':
                     print("NaNs in summed image!!!")
                     break
 
-                to_display = tone_map(summed_image)
-                # to_display = tone_map(summed_image / summed_sample_weights)
+                # to_display = tone_map(summed_image / (i + 1))
+                to_display = tone_map(summed_image / summed_sample_weights)
                 # to_display = tone_map(image / np.maximum(1, finalized_sample_counts))
                 # to_display = summed_sample_counts / np.max(summed_sample_counts)
                 # to_display = finalized_sample_counts / np.max(finalized_sample_counts)

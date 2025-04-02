@@ -23,7 +23,7 @@ struct Ray {
 };
 
 struct WeightAggregator {
-    float3 weights[3];
+    float weights[3][3];
     float3 total_contribution;
 };
 
@@ -539,24 +539,23 @@ Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const
     else {return camera_path.rays[t + s - i - 1];}
 }
 
-float3 pixel_center(const thread Camera &camera, const thread int x, const thread int y){
+float3 pixel_center(const thread Camera camera, const thread int x, const thread int y){
 
     float x_normalized = (x - 0.5 * camera.pixel_width) / (float)camera.pixel_width;
     float y_normalized = (y - 0.5 * camera.pixel_height) / (float)camera.pixel_height;
 
-    float3 x_vector = x_normalized * tan(camera.h_fov / 2.0) * camera.dx;
-    float3 y_vector = y_normalized * tan(camera.v_fov / 2.0) * camera.dy;
+    float3 x_vector = x_normalized * camera.phys_width * camera.dx;
+    float3 y_vector = y_normalized * camera.phys_height * camera.dy;
 
     float3 origin = camera.center + x_vector + y_vector;
 
     return origin;
 }
 
-float gaussian_weight(const thread float3 &p, const thread float3 &q, const thread float sigma){
+float gaussian_weight(const thread float3 p, const thread float3 q, const thread float sigma){
     float dist = length(p - q);
     return exp(-dist * dist / (2.0 * sigma * sigma));
 }
-
 
 void world_ray_to_camera_ray(const device Box *boxes,
                             const device Triangle *triangles,
@@ -591,8 +590,8 @@ void world_ray_to_camera_ray(const device Box *boxes,
     float3 camera_point = test_ray.origin + best_t * test_ray.direction;
     float x = dot(camera_point - camera.center, camera.dx);
     float y = dot(camera_point - camera.center, camera.dy);
-    int pixel_x = (int)(x / camera.phys_width * camera.pixel_width) + camera.pixel_width / 2;
-    int pixel_y = (int)(y / camera.phys_height * camera.pixel_height) + camera.pixel_height / 2;
+    int pixel_x = (int)round((x / camera.phys_width + 0.5) * camera.pixel_width);
+    int pixel_y = (int)round((y / camera.phys_height + 0.5) * camera.pixel_height);
 
     pixel_idx = pixel_y * camera.pixel_width + pixel_x;
 
@@ -606,6 +605,8 @@ void world_ray_to_camera_ray(const device Box *boxes,
     camera_ray.tot_importance = 1.0;
     camera_ray.l_importance = 1.0;
     camera_ray.c_importance = 1.0;
+    camera_ray.hit_light = -1;
+    camera_ray.hit_camera = best_i;
 }
 
 
@@ -629,7 +630,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     out[id] = float4(0.0);
     Camera c = camera[0];
 
-    WeightAggregator aggregator = weight_aggregators[id];
+    WeightAggregator aggregator;
     aggregator.total_contribution = float3(0.0);
     int pixel_idx = camera_path.rays[0].pixel_idx;
     int light_pixel_idx = -1;
@@ -760,7 +761,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            // this is because t=0 and t=1 are disabled. greatly enhances caustics.
 //            p_values[s + t - 1] = 0.0;
             p_values[s + t] = 0.0;
 
@@ -782,7 +782,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float3 emission = materials[camera_ray.material].emission;
                 color = prior_color * emission;
             } else if (t == 1) {
-                float3 prior_color = light_path.rays[s - 2].color;
+                float3 prior_color = light_path.rays[max(0, s - 2)].color;
                 float new_light_f = abs(dot(dir_l_to_c, light_ray.normal)) / PI;
                 color = prior_color * new_light_f * materials[light_ray.material].color;
                 g = geometry_term(light_ray, camera_ray);
@@ -827,7 +827,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
         for (int j = 0; j < 3; j++)
             aggregator.weights[i][j] = 0.0;
 
-    // calculate weights
+    // calculate and sum weights
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
             int new_sample_x = (pixel_idx % c.pixel_width) + i;
@@ -847,7 +847,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
         }
     }
 
-    // sum weights
+    // normalize weights
     if (weight_sum != 0.0)
         for (int i = 0; i < 3; i++)
             for (int j = 0; j < 3; j++)
@@ -865,6 +865,7 @@ kernel void light_image_gather(const device Path *light_paths [[ buffer(0) ]],
                                const device int32_t *bins [[ buffer(3) ]],
                                const device float *weights [[ buffer(4) ]],
                                device float4 *light_image [[ buffer(5) ]],
+                               device float *sum_weights [[ buffer(6) ]],
                                uint id [[ thread_position_in_grid ]]) {
     int start_idx = bins[id];
     int end_idx = bins[id + 1];
@@ -878,9 +879,10 @@ kernel void light_image_gather(const device Path *light_paths [[ buffer(0) ]],
         Ray ray = path.rays[ray_idx];
         total_contribution += weights[i] * ray.color;
         sample_count++;
-        weight_sum += weights[i];
+        weight_sum += abs(weights[i]); // todo shouldn't need abs here
     }
-    light_image[id] = float4(total_contribution / max(1, sample_count), 1.0);
+    light_image[id] = abs(float4(total_contribution, 1.0)); // todo shouldn't need abs here
+    sum_weights[id] += weight_sum;
 }
 
 
@@ -944,8 +946,8 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     float x_normalized = (pixel_x + x_offset - 0.5 * c.pixel_width) / (float)c.pixel_width;
     float y_normalized = (pixel_y + y_offset - 0.5 * c.pixel_height) / (float)c.pixel_height;
 
-    float3 x_vector = x_normalized * c.dx * tan(c.h_fov / 2.0);
-    float3 y_vector = y_normalized * c.dy * tan(c.v_fov / 2.0);
+    float3 x_vector = x_normalized * c.dx * c.phys_width;// * tan(c.h_fov / 2.0);
+    float3 y_vector = y_normalized * c.dy * c.phys_height;// * tan(c.v_fov / 2.0);
 
     float3 origin = c.center + x_vector + y_vector;
     float3 direction = normalize(c.focal_point - origin);
