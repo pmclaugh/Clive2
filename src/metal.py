@@ -42,6 +42,7 @@ if __name__ == '__main__':
     camera_ray_fn = dev.kernel(kernel).function("generate_camera_rays")
     light_ray_fn = dev.kernel(kernel).function("generate_light_rays")
     adaptive_finalize_fn = dev.kernel(kernel).function("adaptive_finalize_samples")
+    light_image_gather_fn = dev.kernel(kernel).function("light_image_gather")
 
     tris = []
     if args.scene == "empty":
@@ -129,9 +130,9 @@ if __name__ == '__main__':
         phys_height=1,
     )
     camera_arr = c.to_struct()
-    # camera_tris = camera_geometry(c)
-    # dummy_smooth_normals(camera_tris)
-    # tris += camera_tris
+    camera_tris = camera_geometry(c)
+    dummy_smooth_normals(camera_tris)
+    tris += camera_tris
 
     # build and marshall BVH
     start_time = time.time()
@@ -161,6 +162,10 @@ if __name__ == '__main__':
     out_light_image = dev.buffer(batch_size * 16)
     out_light_paths = dev.buffer(batch_size * Path.itemsize)
     out_light_debug_image = dev.buffer(batch_size * 16)
+    out_light_indices = dev.buffer(batch_size * 8 * 4)
+    out_light_path_indices = dev.buffer(batch_size * 8 * 4)
+    out_light_ray_indices = dev.buffer(batch_size * 8 * 4)
+    out_light_weights = dev.buffer(batch_size * 8 * 4)
 
     final_out_samples = dev.buffer(batch_size * 16)
     final_out_light_image = dev.buffer(batch_size * 16)
@@ -241,11 +246,10 @@ if __name__ == '__main__':
 
                     # join
                     join_fn(batch_size, out_camera_paths, out_light_paths, tri_buffer, mat_buffer, box_buffer, camera_arr[0],
-                            weight_aggregators, final_out_samples, final_out_light_image)
+                            weight_aggregators, final_out_samples, out_light_indices, out_light_path_indices, out_light_ray_indices)
 
                     # retrieve outputs
                     bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
-                    light_image = np.frombuffer(final_out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
                     # finalize
                     adaptive_finalize_fn(batch_size, weight_aggregators, camera_arr[0], finalized_samples, sample_counts, summed_bins_buffer, sample_weights)
@@ -253,7 +257,24 @@ if __name__ == '__main__':
                     finalized_sample_counts = np.frombuffer(sample_counts, dtype=np.int32).reshape(c.pixel_height, c.pixel_width, 1)
                     finalized_sample_weights = np.frombuffer(sample_weights, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 1)
 
-                    image = finalized_image
+                    # test: light indices
+                    light_image_indices = np.frombuffer(out_light_indices, dtype=np.int32)
+                    light_path_indices = np.frombuffer(out_light_path_indices, dtype=np.int32)
+                    light_ray_indices = np.frombuffer(out_light_ray_indices, dtype=np.int32)
+
+                    bins = np.bincount(light_image_indices[light_image_indices >= 0], minlength=image.shape[0] * image.shape[1])
+                    summed_bins = dev.buffer(np.insert(np.cumsum(bins), 0, 0).astype(np.uint32))
+                    sorting_indices = np.argsort(light_image_indices)
+                    missed_count = np.sum(light_image_indices < 0)
+
+                    sorted_path_indices = dev.buffer(light_path_indices[sorting_indices][missed_count:])
+                    sorted_ray_indices = dev.buffer(light_ray_indices[sorting_indices][missed_count:])
+
+                    light_image_gather_fn(batch_size, out_light_paths, sorted_path_indices, sorted_ray_indices, summed_bins, out_light_image)
+                    light_image = np.frombuffer(out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+
+                    image = light_image
+                    # image = finalized_image
 
                 summed_image += np.nan_to_num(image, posinf=0, neginf=0)
                 summed_light_image += np.nan_to_num(light_image, posinf=0, neginf=0)
@@ -264,7 +285,8 @@ if __name__ == '__main__':
                     print("NaNs in summed image!!!")
                     break
 
-                to_display = tone_map(summed_image / summed_sample_weights)
+                to_display = tone_map(summed_image)
+                # to_display = tone_map(summed_image / summed_sample_weights)
                 # to_display = tone_map(image / np.maximum(1, finalized_sample_counts))
                 # to_display = summed_sample_counts / np.max(summed_sample_counts)
                 # to_display = finalized_sample_counts / np.max(finalized_sample_counts)

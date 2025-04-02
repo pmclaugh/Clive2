@@ -193,8 +193,8 @@ def camera_geometry(camera):
     top_corner = camera.origin + camera.dx * camera.phys_width + camera.dy * camera.phys_height
     other_top_corner = camera.origin + camera.dy * camera.phys_height
     tris = [
-        Triangle(camera.origin, bottom_corner, top_corner, material=2, camera=True),
-        Triangle(camera.origin, top_corner, other_top_corner, material=2, camera=True),
+        Triangle(camera.origin, bottom_corner, top_corner, material=0, camera=True),
+        Triangle(camera.origin, top_corner, other_top_corner, material=0, camera=True),
     ]
     return tris
 
