@@ -568,12 +568,12 @@ void world_ray_to_camera_ray(const device Box *boxes,
 
     if (materials[triangles[world_ray.triangle].material].type > 0)
         return;
-    if (dot(world_ray.direction, camera.direction) > 0.0)
-        return;
 
     Ray test_ray;
     test_ray.origin = world_ray.origin;
     test_ray.direction = normalize(camera.focal_point - world_ray.origin);
+    if (dot(test_ray.direction, camera.direction) > 0.0)
+        return;
     test_ray.inv_direction = 1.0 / test_ray.direction;
     test_ray.triangle = world_ray.triangle;
     test_ray.normal = world_ray.normal;
@@ -600,12 +600,12 @@ void world_ray_to_camera_ray(const device Box *boxes,
     camera_ray.direction = normalize(camera.focal_point - camera_point);
     camera_ray.inv_direction = 1.0 / camera_ray.direction;
     camera_ray.normal = camera.direction;
-    camera_ray.material = triangles[best_i].material;
+    camera_ray.material = 7;
+    camera_ray.color = float3(1.0);
     camera_ray.triangle = best_i;
-    camera_ray.pixel_idx = pixel_idx;
     camera_ray.tot_importance = 1.0;
-    // todo iffy
-    camera_ray.l_importance = camera_ray.c_importance;
+    camera_ray.l_importance = 1.0;
+    camera_ray.c_importance = 1.0;
 }
 
 
@@ -654,6 +654,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             Path camera_path = camera_paths[id];
             Path light_path = light_paths[id];
             float3 dir_l_to_c;
+            light_pixel_idx = -1;
 
             if (s == 0) {
                 // camera ray hits a light source
@@ -663,9 +664,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else if (t == 1) {
                 // projection onto camera plane
                 light_ray = light_path.rays[s - 1];
-                world_ray_to_camera_ray(boxes, triangles, materials, c, light_ray, light_pixel_idx, camera_ray);
+                world_ray_to_camera_ray(boxes, triangles, materials, c, light_ray, light_pixel_idx, camera_path.rays[0]);
                 if (light_pixel_idx == -1) {continue;}
-                camera_path.rays[0] = camera_ray;
+                camera_ray = camera_path.rays[0];
+                dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
             }
             else {
                 // regular join
@@ -759,7 +761,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             }
 
             // this is because t=0 and t=1 are disabled. greatly enhances caustics.
-            p_values[s + t - 1] = 0.0;
+//            p_values[s + t - 1] = 0.0;
             p_values[s + t] = 0.0;
 
             float sum = 0.0;
@@ -861,19 +863,22 @@ kernel void light_image_gather(const device Path *light_paths [[ buffer(0) ]],
                                const device int32_t *path_indices [[ buffer(1) ]],
                                const device int32_t *ray_indices [[ buffer(2) ]],
                                const device int32_t *bins [[ buffer(3) ]],
-                               device float4 *light_image [[ buffer(4) ]],
+                               const device float *weights [[ buffer(4) ]],
+                               device float4 *light_image [[ buffer(5) ]],
                                uint id [[ thread_position_in_grid ]]) {
     int start_idx = bins[id];
     int end_idx = bins[id + 1];
     float3 total_contribution = float3(0.0);
     int sample_count = 0;
+    float weight_sum = 0.0;
     for (int i = start_idx; i < end_idx; i++) {
         int path_idx = path_indices[i];
         int ray_idx = ray_indices[i];
         Path path = light_paths[path_idx];
         Ray ray = path.rays[ray_idx];
-        total_contribution += ray.color / ray.tot_importance;
+        total_contribution += weights[i] * ray.color;
         sample_count++;
+        weight_sum += weights[i];
     }
     light_image[id] = float4(total_contribution / max(1, sample_count), 1.0);
 }

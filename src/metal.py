@@ -246,7 +246,7 @@ if __name__ == '__main__':
 
                     # join
                     join_fn(batch_size, out_camera_paths, out_light_paths, tri_buffer, mat_buffer, box_buffer, camera_arr[0],
-                            weight_aggregators, final_out_samples, out_light_indices, out_light_path_indices, out_light_ray_indices)
+                            weight_aggregators, final_out_samples, out_light_indices, out_light_path_indices, out_light_ray_indices, out_light_weights)
 
                     # retrieve outputs
                     bidirectional_image = np.frombuffer(final_out_samples, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
@@ -261,6 +261,7 @@ if __name__ == '__main__':
                     light_image_indices = np.frombuffer(out_light_indices, dtype=np.int32)
                     light_path_indices = np.frombuffer(out_light_path_indices, dtype=np.int32)
                     light_ray_indices = np.frombuffer(out_light_ray_indices, dtype=np.int32)
+                    light_weights = np.frombuffer(out_light_weights, dtype=np.float32)
 
                     bins = np.bincount(light_image_indices[light_image_indices >= 0], minlength=image.shape[0] * image.shape[1])
                     summed_bins = dev.buffer(np.insert(np.cumsum(bins), 0, 0).astype(np.uint32))
@@ -269,8 +270,9 @@ if __name__ == '__main__':
 
                     sorted_path_indices = dev.buffer(light_path_indices[sorting_indices][missed_count:])
                     sorted_ray_indices = dev.buffer(light_ray_indices[sorting_indices][missed_count:])
+                    sorted_light_weights = dev.buffer(light_weights[sorting_indices][missed_count:])
 
-                    light_image_gather_fn(batch_size, out_light_paths, sorted_path_indices, sorted_ray_indices, summed_bins, out_light_image)
+                    light_image_gather_fn(batch_size, out_light_paths, sorted_path_indices, sorted_ray_indices, summed_bins, sorted_light_weights, out_light_image)
                     light_image = np.frombuffer(out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
                     image = light_image
