@@ -134,7 +134,7 @@ def get_materials():
     materials['color'][3][:3] = WHITE
     materials['color'][4][:3] = WHITE
     materials['color'][5][:3] = BLUE
-    materials['color'][6][:3] = WHITE
+    materials['color'][6][:3] = FULL_WHITE
     materials['color'][7][:3] = WHITE
     materials['emission'] = np.zeros((8, 4), dtype=np.float32)
     materials['emission'][6] = np.ones(4, dtype=np.float32)

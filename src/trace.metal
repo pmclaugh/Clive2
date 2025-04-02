@@ -603,8 +603,8 @@ void world_ray_to_camera_ray(const device Box *boxes,
     camera_ray.material = 7;
     camera_ray.color = float3(1.0);
     camera_ray.triangle = best_i;
-    camera_ray.tot_importance = 1.0;
-    camera_ray.c_importance = 1.0;
+//    camera_ray.tot_importance = 1.0;
+//    camera_ray.c_importance = 1.0;
     camera_ray.l_importance = 1.0;
     camera_ray.hit_light = -1;
     camera_ray.hit_camera = best_i;
@@ -642,6 +642,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
         light_path_indices[id + i * total_pixels] = -1;
         light_ray_indices[id + i * total_pixels] = -1;
         light_weights[id + i * total_pixels] = 0.0;
+        light_shade[id + i * total_pixels] = 0.0;
     }
     float contrib_weight_sum = 0.0;
 
@@ -860,6 +861,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             for (int j = 0; j < 3; j++)
                 aggregator.weights[i][j] = aggregator.weights[i][j] / weight_sum;
 
+    if (contrib_weight_sum == 0.0)
+        contrib_weight_sum = 1.0;
     aggregator.contrib_weight_sum = contrib_weight_sum;
 
     // write outputs

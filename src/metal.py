@@ -268,13 +268,14 @@ if __name__ == '__main__':
                     sorting_indices = np.argsort(light_image_indices)
                     missed_count = np.sum(light_image_indices < 0)
 
-                    sorted_path_indices = dev.buffer(light_path_indices[sorting_indices][missed_count:])
-                    sorted_ray_indices = dev.buffer(light_ray_indices[sorting_indices][missed_count:])
-                    sorted_light_weights = dev.buffer(light_weights[sorting_indices][missed_count:])
-                    sorted_light_shade = dev.buffer(light_shade[sorting_indices][missed_count:])
+                    if missed_count < batch_size * 8:
+                        sorted_path_indices = dev.buffer(light_path_indices[sorting_indices][missed_count:])
+                        sorted_ray_indices = dev.buffer(light_ray_indices[sorting_indices][missed_count:])
+                        sorted_light_weights = dev.buffer(light_weights[sorting_indices][missed_count:])
+                        sorted_light_shade = dev.buffer(light_shade[sorting_indices][missed_count:])
 
-                    light_image_gather_fn(batch_size, out_light_paths, mat_buffer, sorted_path_indices, sorted_ray_indices, summed_bins, sorted_light_weights, sorted_light_shade, out_light_image, sample_weights)
-                    light_image = np.frombuffer(out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
+                        light_image_gather_fn(batch_size, out_light_paths, mat_buffer, sorted_path_indices, sorted_ray_indices, summed_bins, sorted_light_weights, sorted_light_shade, out_light_image, sample_weights)
+                        light_image = np.frombuffer(out_light_image, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 4)[:, :, :3]
 
                     finalized_sample_counts = np.frombuffer(sample_counts, dtype=np.int32).reshape(c.pixel_height, c.pixel_width, 1)
                     finalized_sample_weights = np.frombuffer(sample_weights, dtype=np.float32).reshape(c.pixel_height, c.pixel_width, 1)
