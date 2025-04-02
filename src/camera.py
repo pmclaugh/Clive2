@@ -63,7 +63,7 @@ class Camera:
         return c
 
 
-def tone_map(image, exposure=2.0, white_point=1.0):
+def tone_map(image, exposure=3.0, white_point=1.0):
     print(f"IN min: {np.min(image)}, mean: {np.mean(image)}, max: {np.max(image)}")
     tone_vector = np.array([0.0722, 0.7152, 0.2126])
     tone_sums = np.sum(image * tone_vector, axis=2)
