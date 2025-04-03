@@ -148,7 +148,7 @@ def get_materials():
 
     return materials
 
-def triangles_for_box(box_min, box_max, light_height=0.95):
+def triangles_for_box(box_min, box_max, light_height=0.95, light_scale=0.25):
     span = box_max - box_min
     left_bottom_back = box_min
     right_bottom_back = box_min + span * UNIT_X
@@ -161,7 +161,7 @@ def triangles_for_box(box_min, box_max, light_height=0.95):
     right_top_back = box_max - span * UNIT_Z
 
     # shrink = np.array([.1, .95, .1], dtype=np.float32)
-    shrink = np.array([.25, light_height, .25], dtype=np.float32)
+    shrink = np.array([light_scale, light_height, light_scale], dtype=np.float32)
     # shrink = np.array([.95, .95, .95], dtype=np.float32)
     tris = [
         # back wall
