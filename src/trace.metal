@@ -602,7 +602,7 @@ void world_ray_to_camera_ray(const device Box *boxes,
     camera_ray.material = 7;
     camera_ray.color = float3(1.0);
     camera_ray.triangle = best_i;
-//    camera_ray.tot_importance = 1.0;
+    camera_ray.tot_importance = 1.0;
 //    camera_ray.c_importance = 1.0;
 //    camera_ray.l_importance = 1.0;
     camera_ray.hit_light = -1;
@@ -784,8 +784,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 float3 emission = materials[camera_ray.material].emission;
                 color = prior_color * emission;
             } else if (t == 1) {
-                float3 prior_color = light_path.rays[max(0, s - 2)].color;
-                new_light_f = abs(dot(dir_l_to_c, light_ray.normal)) / PI;
+                int prior_light_ind = max(0, s - 2);
+                float3 prior_color = light_path.rays[prior_light_ind].color;
+                if (s != 1)
+                    new_light_f = abs(dot(dir_l_to_c, light_ray.normal)) / PI;
                 color = prior_color * new_light_f * materials[light_ray.material].color;
                 g = geometry_term(light_ray, camera_ray);
             } else {
@@ -814,7 +816,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 light_path_indices[id + s * total_pixels] = id;
                 light_ray_indices[id + s * total_pixels] = s;
                 light_weights[id + s * total_pixels] = w;
-                light_shade[id + s * total_pixels] = new_camera_f * g / p_s;
+                light_shade[id + s * total_pixels] = g / p_s;
             }
             contrib_weight_sum += w;
         }
@@ -922,7 +924,7 @@ kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggr
 
             for (uint32_t k = sample_bin_offsets[sample_index]; k < sample_bin_offsets[sample_index + 1]; k++) {
                 float weight = weight_aggregators[k].weights[1 - i][1 - j];
-                total_sample += weight_aggregators[k].total_contribution * weight;
+                total_sample += weight * weight_aggregators[k].total_contribution;
                 weight_sum += weight * weight_aggregators[k].contrib_weight_sum;
             }
         }
