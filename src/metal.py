@@ -290,13 +290,9 @@ if __name__ == '__main__':
                 summed_sample_counts += finalized_sample_counts
                 summed_sample_weights += finalized_sample_weights
 
-                if np.any(np.isnan(summed_image)):
-                    print("NaNs in summed image!!!")
-                    break
-
                 # to_display = tone_map(summed_image)
                 # to_display = tone_map(summed_image / (i + 1))
-                to_display = tone_map(summed_image / summed_sample_weights)
+                to_display = tone_map(summed_image / summed_sample_weights, exposure=4.0)
                 # to_display = tone_map(image / np.maximum(1, finalized_sample_counts))
                 # to_display = summed_sample_counts / np.max(summed_sample_counts)
                 # to_display = finalized_sample_counts / np.max(finalized_sample_counts)

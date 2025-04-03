@@ -399,9 +399,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     if (path.from_camera == 0)
         new_ray.l_importance = 1.0 / (2.0 * PI);
     else {
-        // this seems reasonable to me, but unsure. no real effect til t < 2 enabled.
+        // this seems reasonable to me, but unsure.
         new_ray.c_importance = ray.c_importance;
-        ray.c_importance = 1.0;
     }
 
     for (int i = 0; i < 8; i++) {
@@ -605,7 +604,7 @@ void world_ray_to_camera_ray(const device Box *boxes,
     camera_ray.triangle = best_i;
 //    camera_ray.tot_importance = 1.0;
 //    camera_ray.c_importance = 1.0;
-    camera_ray.l_importance = 1.0;
+//    camera_ray.l_importance = 1.0;
     camera_ray.hit_light = -1;
     camera_ray.hit_camera = best_i;
 }
@@ -765,9 +764,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            // since t=0 is disabled
-            p_values[s + t] = 0.0;
-
             float sum = 0.0;
             for (int i = 0; i < s + t + 1; i++)
                 sum += p_values[i];
@@ -818,7 +814,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 light_path_indices[id + s * total_pixels] = id;
                 light_ray_indices[id + s * total_pixels] = s;
                 light_weights[id + s * total_pixels] = w;
-                light_shade[id + s * total_pixels] = g / p_s;
+                light_shade[id + s * total_pixels] = new_camera_f * g / p_s;
             }
             contrib_weight_sum += w;
         }
@@ -861,8 +857,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             for (int j = 0; j < 3; j++)
                 aggregator.weights[i][j] = aggregator.weights[i][j] / weight_sum;
 
-    if (contrib_weight_sum == 0.0)
-        contrib_weight_sum = 1.0;
     aggregator.contrib_weight_sum = contrib_weight_sum;
 
     // write outputs
@@ -960,8 +954,8 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     float x_normalized = (pixel_x + x_offset - 0.5 * c.pixel_width) / (float)c.pixel_width;
     float y_normalized = (pixel_y + y_offset - 0.5 * c.pixel_height) / (float)c.pixel_height;
 
-    float3 x_vector = x_normalized * c.dx * c.phys_width;// * tan(c.h_fov / 2.0);
-    float3 y_vector = y_normalized * c.dy * c.phys_height;// * tan(c.v_fov / 2.0);
+    float3 x_vector = x_normalized * c.dx * c.phys_width;
+    float3 y_vector = y_normalized * c.dy * c.phys_height;
 
     float3 origin = c.center + x_vector + y_vector;
     float3 direction = normalize(c.focal_point - origin);
