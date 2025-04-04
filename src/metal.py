@@ -85,10 +85,10 @@ if __name__ == '__main__':
     elif args.scene == "double-dragon":
         # load the dragon
         load_time = time.time()
-        tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([-3, -4, 0]), material=5, scale=40)
-        tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([3, -4, -2]), material=0, scale=40)
+        tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([-3, -3.5, 0]), material=5, scale=40)
+        tris += load_ply('../resources/dragon_vrip_res2.ply', offset=np.array([3, -3.5, -2]), material=0, scale=40)
         print(f"done loading dragon in {time.time() - load_time}")
-        cam_center = np.array([0, 2.5, 6])
+        cam_center = np.array([-1, 1.5, 6])
         cam_dir = unit(np.array([0, 0, -1]))
     elif args.scene == "happy":
         load_time = time.time()
@@ -292,13 +292,13 @@ if __name__ == '__main__':
 
                 # to_display = tone_map(summed_image)
                 # to_display = tone_map(summed_image / (i + 1))
-                to_display = tone_map(summed_image / summed_sample_weights)
+                to_display = tone_map(summed_image / summed_sample_weights, exposure=4.0)
                 # to_display = tone_map(image / np.maximum(1, finalized_sample_counts))
                 # to_display = summed_sample_counts / np.max(summed_sample_counts)
                 # to_display = finalized_sample_counts / np.max(finalized_sample_counts)
 
                 if args.filter:
-                    to_display = cv2.bilateralFilter(to_display, 9, 50, 50)
+                    to_display = cv2.bilateralFilter(to_display, 5, 50, 50)
 
                 if np.any(np.isnan(to_display)):
                     print("NaNs in to_display!!!")

@@ -786,7 +786,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             } else if (t == 1) {
                 int prior_light_ind = max(0, s - 2);
                 float3 prior_color = light_path.rays[prior_light_ind].color;
-                if (s != 1)
+                if (s > 1)
                     new_light_f = abs(dot(dir_l_to_c, light_ray.normal)) / PI;
                 color = prior_color * new_light_f * materials[light_ray.material].color;
                 g = geometry_term(light_ray, camera_ray);
@@ -1023,6 +1023,7 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     float rand_y = xorshift_random(seed1);
     float2 random_roll = float2(rand_x, rand_y);
     ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
+//    ray.direction = ray.normal;
     ray.inv_direction = 1.0 / ray.direction;
 
     ray.material = light_triangle.material;
