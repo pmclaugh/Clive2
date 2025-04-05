@@ -334,13 +334,13 @@ void diffuse_bounce(const thread float3 wi, const thread float3 n, thread bool f
     float3 x, y;
     orthonormal(n, x, y);
     wo = random_hemisphere_cosine(x, y, n, random_roll);
-    f = dot(n, wo) / PI;
+    f = abs(dot(n, wo)) / PI;
     if (from_camera) {
-        c_p = dot(n, wo) / PI;
-        l_p = dot(n, wi) / PI;
+        c_p = abs(dot(n, wo)) / PI;
+        l_p = abs(dot(n, wi)) / PI;
     } else {
-        c_p = dot(n, wi) / PI;
-        l_p = dot(n, wo) / PI;
+        c_p = abs(dot(n, wi)) / PI;
+        l_p = abs(dot(n, wo)) / PI;
     }
 }
 
@@ -530,7 +530,6 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
 float geometry_term(const thread Ray &a, const thread Ray &b){
     float dist = length(b.origin - a.origin);
-    // Veach's geometry term has cosines in the numerator, but I include those in f, so just 1 here.
     return 1.0 / (dist * dist);
 }
 
@@ -763,6 +762,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     p_values[i + 1] = 0.0;
                 }
             }
+
+            p_values[s + t] = 0.0;
 
             float sum = 0.0;
             for (int i = 0; i < s + t + 1; i++)
