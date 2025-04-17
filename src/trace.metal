@@ -533,6 +533,13 @@ float geometry_term(const thread Ray &a, const thread Ray &b){
     return 1.0 / (dist * dist);
 }
 
+float cosine_geometry_term(const thread Ray &a, const thread Ray &b){
+    float dist = length(b.origin - a.origin);
+    float cos_a = abs(dot(a.direction, a.normal));
+    float cos_b = abs(dot(b.direction, b.normal));
+    return cos_a * cos_b / (dist * dist);
+}
+
 Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const thread int t, const thread int s, const thread int i){
     if (i < s) {return light_path.rays[i];}
     else {return camera_path.rays[t + s - i - 1];}
@@ -688,7 +695,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (dot(camera_ray.normal, -dir_l_to_c) < DELTA) {continue;}
 
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)) {continue;}
-                if (light_ray.triangle == camera_ray.triangle) {continue;}
             }
 
             float p_ratios[32];
@@ -924,9 +930,10 @@ kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggr
             if (sample_index < 0 || sample_index >= camera.pixel_width * camera.pixel_height) {continue;}
 
             for (uint32_t k = sample_bin_offsets[sample_index]; k < sample_bin_offsets[sample_index + 1]; k++) {
-                float weight = weight_aggregators[k].weights[1 - i][1 - j];
-                total_sample += weight * weight_aggregators[k].total_contribution;
-                weight_sum += weight * weight_aggregators[k].contrib_weight_sum;
+                WeightAggregator wa = weight_aggregators[k];
+                float weight = wa.weights[1 - i][1 - j];
+                total_sample += weight * wa.total_contribution;
+                weight_sum += weight * wa.contrib_weight_sum;
             }
         }
     }
@@ -1024,7 +1031,6 @@ kernel void generate_light_rays(const device Triangle *light_triangles [[buffer(
     float rand_y = xorshift_random(seed1);
     float2 random_roll = float2(rand_x, rand_y);
     ray.direction = random_hemisphere_uniform(x, y, ray.normal, random_roll);
-//    ray.direction = ray.normal;
     ray.inv_direction = 1.0 / ray.direction;
 
     ray.material = light_triangle.material;

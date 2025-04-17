@@ -265,10 +265,10 @@ if __name__ == '__main__':
 
                     bins = np.bincount(light_image_indices[light_image_indices >= 0], minlength=image.shape[0] * image.shape[1])
                     summed_bins = dev.buffer(np.insert(np.cumsum(bins), 0, 0).astype(np.uint32))
-                    sorting_indices = np.argsort(light_image_indices)
                     missed_count = np.sum(light_image_indices < 0)
 
                     if missed_count < batch_size * 8:
+                        sorting_indices = np.argsort(light_image_indices)
                         sorted_path_indices = dev.buffer(light_path_indices[sorting_indices][missed_count:])
                         sorted_ray_indices = dev.buffer(light_ray_indices[sorting_indices][missed_count:])
                         sorted_light_weights = dev.buffer(light_weights[sorting_indices][missed_count:])

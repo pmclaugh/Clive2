@@ -5,13 +5,13 @@ import cv2
 
 random_generator = np.random.default_rng()
 
+
+# measure local variance for each pixel
+@njit
+def local_variance(window):
+    return np.var(window)
+
 def get_adaptive_indices(image):
-
-    # measure local variance for each pixel
-    @njit
-    def local_variance(window):
-        return np.var(window)
-
     # convert to grayscale
     brightness = cv2.cvtColor(image.astype(np.float32), cv2.COLOR_BGR2GRAY)
     kernel_size = (5, 5)
