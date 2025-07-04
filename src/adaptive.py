@@ -11,6 +11,7 @@ random_generator = np.random.default_rng()
 def local_variance(window):
     return np.var(window)
 
+
 def get_adaptive_indices(image):
     # convert to grayscale
     brightness = cv2.cvtColor(image.astype(np.float32), cv2.COLOR_BGR2GRAY)
@@ -22,7 +23,11 @@ def get_adaptive_indices(image):
 
     variance_map = variance_map.flatten()
     variance_sum = np.sum(variance_map)
-    adaptive_indices = random_generator.choice(np.arange(variance_map.size), size=variance_map.size, p=variance_map / variance_sum)
+    adaptive_indices = random_generator.choice(
+        np.arange(variance_map.size),
+        size=variance_map.size,
+        p=variance_map / variance_sum,
+    )
 
     bins = np.bincount(adaptive_indices, minlength=image.shape[0] * image.shape[1])
     summed_bins = np.insert(np.cumsum(bins), 0, 0).astype(np.uint32)
