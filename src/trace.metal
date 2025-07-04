@@ -283,7 +283,6 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
     float alpha2 = alpha * alpha;
     float cosTheta = dot(m, n);
     float cosTheta2 = cosTheta * cosTheta;
-//    float tan2 = (1 - cosTheta2) / cosTheta2;
 
     float denom = cosTheta2 * (alpha2 - 1.0) + 1.0;
     return alpha2 / (PI * denom * denom);
