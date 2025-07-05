@@ -27,3 +27,9 @@ CYAN = np.array([0.8, 0.8, 0.3], dtype=np.float64)
 MAX_MEMBERS = 16
 MAX_DEPTH = 32
 SPATIAL_SPLITS = 8
+
+# Scene constants
+DEFAULT_BOX_MIN_CORNER = np.array([-10, -2, -10])
+DEFAULT_BOX_MAX_CORNER = np.array([10, 10, 10])
+DEFAULT_LIGHT_HEIGHT = 0.95
+DEFAULT_LIGHT_SCALE = 0.25

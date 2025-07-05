@@ -13,6 +13,10 @@ from constants import (
     INVALID,
     INF,
     NEG_INF,
+    DEFAULT_BOX_MIN_CORNER,
+    DEFAULT_BOX_MAX_CORNER,
+    DEFAULT_LIGHT_HEIGHT,
+    DEFAULT_LIGHT_SCALE,
 )
 from collections import defaultdict
 from plyfile import PlyData
@@ -172,7 +176,12 @@ def get_materials():
     return materials
 
 
-def triangles_for_box(box_min, box_max, light_height=0.95, light_scale=0.25):
+def triangles_for_box(
+    box_min=DEFAULT_BOX_MIN_CORNER,
+    box_max=DEFAULT_BOX_MAX_CORNER,
+    light_height=DEFAULT_LIGHT_HEIGHT,
+    light_scale=DEFAULT_LIGHT_SCALE,
+):
     span = box_max - box_min
     left_bottom_back = box_min
     right_bottom_back = box_min + span * UNIT_X
