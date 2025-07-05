@@ -1,6 +1,23 @@
 import numpy as np
 import objloader
-from constants import UNIT_X, UNIT_Y, UNIT_Z, RED, BLUE, GREEN, CYAN, WHITE, FULL_WHITE, INVALID, INF, NEG_INF
+from constants import (
+    UNIT_X,
+    UNIT_Y,
+    UNIT_Z,
+    RED,
+    BLUE,
+    GREEN,
+    CYAN,
+    WHITE,
+    FULL_WHITE,
+    INVALID,
+    INF,
+    NEG_INF,
+    DEFAULT_BOX_MIN_CORNER,
+    DEFAULT_BOX_MAX_CORNER,
+    DEFAULT_LIGHT_HEIGHT,
+    DEFAULT_LIGHT_SCALE,
+)
 from collections import defaultdict
 from plyfile import PlyData
 from functools import cached_property
@@ -10,6 +27,7 @@ import time
 
 def unit(v):
     return v / np.linalg.norm(v)
+
 
 class Triangle:
     v0 = np.zeros(3, dtype=np.float64)
@@ -52,15 +70,20 @@ class Triangle:
         e2 = (self.v2 - self.v0)[0:3]
         return np.linalg.norm(np.cross(e1, e2)) / 2
 
+
 def load_obj(obj_path, offset=None, material=None, scale=1.0):
     if offset is None:
         offset = np.zeros(3)
     obj = objloader.Obj.open(obj_path)
     triangles = []
-    for i, ((v0, n0, t0), (v1, n1, t1), (v2, n2, t2)) in enumerate(zip(*[iter(obj.face)] * 3)):
-        triangle = Triangle(np.array(obj.vert[v0 - 1]) * scale + offset,
-                            np.array(obj.vert[v1 - 1]) * scale + offset,
-                            np.array(obj.vert[v2 - 1]) * scale + offset)
+    for i, ((v0, n0, t0), (v1, n1, t1), (v2, n2, t2)) in enumerate(
+        zip(*[iter(obj.face)] * 3)
+    ):
+        triangle = Triangle(
+            np.array(obj.vert[v0 - 1]) * scale + offset,
+            np.array(obj.vert[v1 - 1]) * scale + offset,
+            np.array(obj.vert[v2 - 1]) * scale + offset,
+        )
 
         # normals
         triangle.n0 = np.array(obj.norm[n0 - 1]) if n0 is not None else INVALID
@@ -82,6 +105,7 @@ def load_obj(obj_path, offset=None, material=None, scale=1.0):
         triangles.append(triangle)
     return triangles
 
+
 def load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
     if offset is None:
         offset = np.zeros(3)
@@ -91,10 +115,10 @@ def load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
     triangles = []
     dropped_triangles = 0
     array_time = time.time()
-    vertices = np.array(list(list(vertex) for vertex in ply['vertex'])) * scale + offset
+    vertices = np.array(list(list(vertex) for vertex in ply["vertex"])) * scale + offset
     print(f"vertices array in {time.time() - array_time}")
     face_time = time.time()
-    for face in ply['face']['vertex_indices']:
+    for face in ply["face"]["vertex_indices"]:
         v0 = vertices[face[0]]
         v1 = vertices[face[1]]
         v2 = vertices[face[2]]
@@ -122,33 +146,42 @@ def load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
         else:
             triangles.append(triangle)
     print(f"faces in {time.time() - face_time}")
-    print(f'done loading ply. loaded {len(triangles)} triangles, dropped {dropped_triangles}')
+    print(
+        f"done loading ply. loaded {len(triangles)} triangles, dropped {dropped_triangles}"
+    )
     return triangles
+
 
 def get_materials():
     materials = np.zeros(8, dtype=Material)
-    materials['color'] = np.zeros((8, 4), dtype=np.float32)
-    materials['color'][0][:3] = RED
-    materials['color'][1][:3] = GREEN
-    materials['color'][2][:3] = BLUE
-    materials['color'][3][:3] = WHITE
-    materials['color'][4][:3] = WHITE
-    materials['color'][5][:3] = BLUE
-    materials['color'][6][:3] = WHITE
-    materials['color'][7][:3] = WHITE
-    materials['emission'] = np.zeros((8, 4), dtype=np.float32)
-    materials['emission'][6] = np.ones(4, dtype=np.float32)
-    materials['type'] = 0
+    materials["color"] = np.zeros((8, 4), dtype=np.float32)
+    materials["color"][0][:3] = RED
+    materials["color"][1][:3] = GREEN
+    materials["color"][2][:3] = BLUE
+    materials["color"][3][:3] = WHITE
+    materials["color"][4][:3] = WHITE
+    materials["color"][5][:3] = BLUE
+    materials["color"][6][:3] = FULL_WHITE
+    materials["color"][7][:3] = FULL_WHITE
+    materials["emission"] = np.zeros((8, 4), dtype=np.float32)
+    materials["emission"][6] = np.ones(4, dtype=np.float32)
+    materials["type"] = 0
 
-    materials['ior'] = 1.5
-    materials['alpha'] = 0.0
+    materials["ior"] = 1.5
+    materials["alpha"] = 0.0
 
-    materials[0]['type'] = 1
-    materials[5]['type'] = 1
+    materials[0]["type"] = 1
+    materials[5]["type"] = 1
 
     return materials
 
-def triangles_for_box(box_min, box_max, light_height=0.95):
+
+def triangles_for_box(
+    box_min=DEFAULT_BOX_MIN_CORNER,
+    box_max=DEFAULT_BOX_MAX_CORNER,
+    light_height=DEFAULT_LIGHT_HEIGHT,
+    light_scale=DEFAULT_LIGHT_SCALE,
+):
     span = box_max - box_min
     left_bottom_back = box_min
     right_bottom_back = box_min + span * UNIT_X
@@ -161,7 +194,7 @@ def triangles_for_box(box_min, box_max, light_height=0.95):
     right_top_back = box_max - span * UNIT_Z
 
     # shrink = np.array([.1, .95, .1], dtype=np.float32)
-    shrink = np.array([.25, light_height, .25], dtype=np.float32)
+    shrink = np.array([light_scale, light_height, light_scale], dtype=np.float32)
     # shrink = np.array([.95, .95, .95], dtype=np.float32)
     tris = [
         # back wall
@@ -183,20 +216,36 @@ def triangles_for_box(box_min, box_max, light_height=0.95):
         Triangle(left_top_back, right_top_back, right_top_front, material=4),
         Triangle(left_top_back, right_top_front, left_top_front, material=4),
         # ceiling light # NB this assumes box is centered on the origin, at least wrt x and z
-        Triangle(left_top_back * shrink, right_top_back * shrink, right_top_front * shrink, material=6, emitter=True),
-        Triangle(left_top_back * shrink, right_top_front * shrink, left_top_front * shrink, material=6, emitter=True),
+        Triangle(
+            left_top_back * shrink,
+            right_top_back * shrink,
+            right_top_front * shrink,
+            material=6,
+            emitter=True,
+        ),
+        Triangle(
+            left_top_back * shrink,
+            right_top_front * shrink,
+            left_top_front * shrink,
+            material=6,
+            emitter=True,
+        ),
     ]
     return tris
 
+
 def camera_geometry(camera):
     bottom_corner = camera.origin + camera.dx * camera.phys_width
-    top_corner = camera.origin + camera.dx * camera.phys_width + camera.dy * camera.phys_height
+    top_corner = (
+        camera.origin + camera.dx * camera.phys_width + camera.dy * camera.phys_height
+    )
     other_top_corner = camera.origin + camera.dy * camera.phys_height
     tris = [
-        Triangle(camera.origin, bottom_corner, top_corner, material=2, camera=True),
-        Triangle(camera.origin, top_corner, other_top_corner, material=2, camera=True),
+        Triangle(camera.origin, bottom_corner, top_corner, material=7, camera=True),
+        Triangle(camera.origin, top_corner, other_top_corner, material=7, camera=True),
     ]
     return tris
+
 
 def random_uvs(num):
     u = np.random.rand(num)
@@ -207,36 +256,46 @@ def random_uvs(num):
     w = 1 - u - v
     return u, v, w
 
+
 def fast_generate_light_rays(triangles, num_rays):
-    emitter_indices = np.array([i for i, t in enumerate(triangles) if t['is_light']])
-    emitters = np.array([[t['v0'], t['v1'], t['v2']] for t in triangles if t['is_light']])
-    emitter_surface_area = np.sum([surface_area(t) for t in triangles if t['is_light']])
+    emitter_indices = np.array([i for i, t in enumerate(triangles) if t["is_light"]])
+    emitters = np.array(
+        [[t["v0"], t["v1"], t["v2"]] for t in triangles if t["is_light"]]
+    )
+    emitter_surface_area = np.sum([surface_area(t) for t in triangles if t["is_light"]])
     rays = np.zeros(num_rays, dtype=Ray)
     choices = np.random.randint(0, len(emitters), num_rays)
     rand_us, rand_vs, rand_ws = random_uvs(num_rays)
-    rays['direction'] = unit(np.array([0, -1, 0, 0]))
-    points = emitters[choices][:, 0] * rand_us[:, None] + emitters[choices][:, 1] * rand_vs[:, None] + emitters[choices][:,2] * rand_ws[:,None]
-    rays['origin'] = points + 0.0001 * rays['direction']
-    rays['normal'] = rays['direction']
-    rays['inv_direction'] = 1.0 / rays['direction']
-    rays['c_importance'] = 1.0  # set in kernel
-    rays['l_importance'] = 1.0 / emitter_surface_area
-    rays['tot_importance'] = 1.0 / emitter_surface_area
-    rays['from_camera'] = 0
-    rays['color'] = np.array([1.0, 1.0, 1.0, 1.0])
-    rays['hit_light'] = -1
-    rays['hit_camera'] = -1
-    rays['triangle'] = emitter_indices[choices]
-    rays['material'] = 6
+    rays["direction"] = unit(np.array([0, -1, 0, 0]))
+    points = (
+        emitters[choices][:, 0] * rand_us[:, None]
+        + emitters[choices][:, 1] * rand_vs[:, None]
+        + emitters[choices][:, 2] * rand_ws[:, None]
+    )
+    rays["origin"] = points + 0.0001 * rays["direction"]
+    rays["normal"] = rays["direction"]
+    rays["inv_direction"] = 1.0 / rays["direction"]
+    rays["c_importance"] = 1.0  # set in kernel
+    rays["l_importance"] = 1.0 / emitter_surface_area
+    rays["tot_importance"] = 1.0 / emitter_surface_area
+    rays["from_camera"] = 0
+    rays["color"] = np.array([1.0, 1.0, 1.0, 1.0])
+    rays["hit_light"] = -1
+    rays["hit_camera"] = -1
+    rays["triangle"] = emitter_indices[choices]
+    rays["material"] = 6
     return rays
+
 
 def unit(v):
     return v / np.linalg.norm(v)
 
+
 def surface_area(t):
-    e1 = (t['v1'] - t['v0'])[0:3]
-    e2 = (t['v2'] - t['v0'])[0:3]
+    e1 = (t["v1"] - t["v0"])[0:3]
+    e2 = (t["v2"] - t["v0"])[0:3]
     return np.linalg.norm(np.cross(e1, e2)) / 2
+
 
 def smooth_normals(triangles):
     vertex_triangles = defaultdict(list)
@@ -249,11 +308,11 @@ def smooth_normals(triangles):
     for _, l in vertex_triangles.items():
 
         avg_normal = np.zeros(3)
-        for (j, v) in l:
+        for j, v in l:
             avg_normal += triangles[j].n
         normal_mag = np.linalg.norm(avg_normal)
         if normal_mag == 0:
-            for (j, v) in l:
+            for j, v in l:
                 if v == 0:
                     triangles[j].n0 = triangles[j].n
                 elif v == 1:
@@ -261,13 +320,14 @@ def smooth_normals(triangles):
                 else:
                     triangles[j].n2 = triangles[j].n
         else:
-            for (j, v) in l:
+            for j, v in l:
                 if v == 0:
                     triangles[j].n0 = avg_normal / normal_mag
                 elif v == 1:
                     triangles[j].n1 = avg_normal / normal_mag
                 else:
                     triangles[j].n2 = avg_normal / normal_mag
+
 
 def dummy_smooth_normals(triangles):
     for t in triangles:

@@ -23,8 +23,9 @@ struct Ray {
 };
 
 struct WeightAggregator {
-    float3 weights[3];
+    float weights[3][3];
     float3 total_contribution;
+    float contrib_weight_sum;
 };
 
 struct Path {
@@ -282,7 +283,6 @@ float GGX_D(const thread float3 &m, const thread float3 &n, const thread float a
     float alpha2 = alpha * alpha;
     float cosTheta = dot(m, n);
     float cosTheta2 = cosTheta * cosTheta;
-    float tan2 = (1 - cosTheta2) / cosTheta2;
 
     float denom = cosTheta2 * (alpha2 - 1.0) + 1.0;
     return alpha2 / (PI * denom * denom);
@@ -305,7 +305,7 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    return (D * G * F) / (4.0 * abs(dot(i, n)));
+    return (D * G * F) / (4.0 * abs(dot(i, m)));
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
@@ -333,13 +333,13 @@ void diffuse_bounce(const thread float3 wi, const thread float3 n, thread bool f
     float3 x, y;
     orthonormal(n, x, y);
     wo = random_hemisphere_cosine(x, y, n, random_roll);
-    f = dot(n, wo) / PI;
+    f = abs(dot(n, wo)) / PI;
     if (from_camera) {
-        c_p = dot(n, wo) / PI;
-        l_p = dot(n, wi) / PI;
+        c_p = abs(dot(n, wo)) / PI;
+        l_p = abs(dot(n, wi)) / PI;
     } else {
-        c_p = dot(n, wi) / PI;
-        l_p = dot(n, wo) / PI;
+        c_p = abs(dot(n, wi)) / PI;
+        l_p = abs(dot(n, wo)) / PI;
     }
 }
 
@@ -361,7 +361,7 @@ void reflect_bounce(const thread float3 &wi, const thread float3 &n, const threa
 
 void transmit_bounce(const thread float3 &wi, const thread float3 &n, const thread float3 &m, const thread float ni, const thread float no, const thread float alpha, thread bool from_camera, thread float3 &wo, thread float &f, thread float &c_p, thread float &l_p) {
     wo = GGX_transmit(wi, m, ni, no);
-    f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha) * abs(dot(wo, n));
+    f = GGX_BRDF_transmit(wi, wo, m, n, ni, no, alpha);
 
     float pf = 1.0 - degreve_fresnel(wi, m, ni, no);
     float pm = abs(dot(m, n)) * GGX_D(m, n, alpha);
@@ -398,9 +398,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     if (path.from_camera == 0)
         new_ray.l_importance = 1.0 / (2.0 * PI);
     else {
-        // this seems reasonable to me, but unsure. no real effect til t < 2 enabled.
+        // this seems reasonable to me, but unsure.
         new_ray.c_importance = ray.c_importance;
-        ray.c_importance = 1.0;
     }
 
     for (int i = 0; i < 8; i++) {
@@ -467,7 +466,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
             m = specular_reflection(m, n);
         if (dot(m, n) < 0.0)
             break;
-        new_ray.normal = m;
+        new_ray.normal = n;
 
         float fresnel = degreve_fresnel(wi, m, ni, no);
         if (material.type == 0)
@@ -530,14 +529,14 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
 float geometry_term(const thread Ray &a, const thread Ray &b){
     float dist = length(b.origin - a.origin);
-    // Veach's geometry term has cosines in the numerator, but I include those in f, so just 1 here.
     return 1.0 / (dist * dist);
+}
 
-//    float dist = length(b.origin - a.origin);
-//    float3 dir = normalize(b.origin - a.origin);
-//    float cos_a = abs(dot(a.normal, dir));
-//    float cos_b = abs(dot(b.normal, -dir));
-//    return (cos_a * cos_b) / (dist * dist);
+float cosine_geometry_term(const thread Ray &a, const thread Ray &b){
+    float dist = length(b.origin - a.origin);
+    float cos_a = abs(dot(a.direction, a.normal));
+    float cos_b = abs(dot(b.direction, b.normal));
+    return cos_a * cos_b / (dist * dist);
 }
 
 Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const thread int t, const thread int s, const thread int i){
@@ -545,23 +544,76 @@ Ray get_ray(const thread Path &camera_path, const thread Path &light_path, const
     else {return camera_path.rays[t + s - i - 1];}
 }
 
-float3 pixel_center(const thread Camera &camera, const thread int x, const thread int y){
+float3 pixel_center(const thread Camera camera, const thread int x, const thread int y){
 
     float x_normalized = (x - 0.5 * camera.pixel_width) / (float)camera.pixel_width;
     float y_normalized = (y - 0.5 * camera.pixel_height) / (float)camera.pixel_height;
 
-    float3 x_vector = x_normalized * tan(camera.h_fov / 2.0) * camera.dx;
-    float3 y_vector = y_normalized * tan(camera.v_fov / 2.0) * camera.dy;
+    float3 x_vector = x_normalized * camera.phys_width * camera.dx;
+    float3 y_vector = y_normalized * camera.phys_height * camera.dy;
 
     float3 origin = camera.center + x_vector + y_vector;
 
     return origin;
 }
 
-float gaussian_weight(const thread float3 &p, const thread float3 &q, const thread float sigma){
+float gaussian_weight(const thread float3 p, const thread float3 q, const thread float sigma){
     float dist = length(p - q);
     return exp(-dist * dist / (2.0 * sigma * sigma));
 }
+
+void world_ray_to_camera_ray(const device Box *boxes,
+                            const device Triangle *triangles,
+                            const device Material *materials,
+                            const thread Camera camera,
+                            const thread Ray world_ray,
+                            thread int &pixel_idx,
+                            thread Ray &camera_ray) {
+
+    if (materials[triangles[world_ray.triangle].material].type > 0)
+        return;
+
+    Ray test_ray;
+    test_ray.origin = world_ray.origin;
+    test_ray.direction = normalize(camera.focal_point - world_ray.origin);
+    if (dot(test_ray.direction, camera.direction) > 0.0)
+        return;
+    test_ray.inv_direction = 1.0 / test_ray.direction;
+    test_ray.triangle = world_ray.triangle;
+    test_ray.normal = world_ray.normal;
+
+    int best_i = -1;
+    float best_t = INFINITY;
+    float u, v;
+    traverse_bvh(test_ray, boxes, triangles, best_i, best_t, u, v);
+    if (best_i == -1)
+        return;
+    if (!triangles[best_i].is_camera)
+        return;
+
+    // get pixel coordinates of point of intersection
+    float3 camera_point = test_ray.origin + best_t * test_ray.direction;
+    float x = dot(camera_point - camera.center, camera.dx);
+    float y = dot(camera_point - camera.center, camera.dy);
+    int pixel_x = (int)round((x / camera.phys_width + 0.5) * camera.pixel_width);
+    int pixel_y = (int)round((y / camera.phys_height + 0.5) * camera.pixel_height);
+
+    pixel_idx = pixel_y * camera.pixel_width + pixel_x;
+
+    camera_ray.origin = camera_point;
+    camera_ray.direction = normalize(camera.focal_point - camera_point);
+    camera_ray.inv_direction = 1.0 / camera_ray.direction;
+    camera_ray.normal = camera.direction;
+    camera_ray.material = 7;
+    camera_ray.color = float3(1.0);
+    camera_ray.triangle = best_i;
+    camera_ray.tot_importance = 1.0;
+//    camera_ray.c_importance = 1.0;
+//    camera_ray.l_importance = 1.0;
+    camera_ray.hit_light = -1;
+    camera_ray.hit_camera = best_i;
+}
+
 
 kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Path *light_paths [[ buffer(1) ]],
@@ -571,7 +623,11 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                           const device Camera *camera [[ buffer(5) ]],
                           device WeightAggregator *weight_aggregators [[ buffer(6) ]],
                           device float4 *out [[ buffer(7) ]],
-                          device float4 *light_image [[ buffer(8) ]],
+                          device int *light_pixel_indices [[ buffer(8) ]],
+                          device int *light_path_indices [[ buffer(9) ]],
+                          device int *light_ray_indices [[ buffer(10) ]],
+                          device float *light_weights [[ buffer(11) ]],
+                          device float *light_shade [[ buffer(12) ]],
                           uint id [[ thread_position_in_grid ]]) {
 
     Path camera_path = camera_paths[id];
@@ -580,12 +636,24 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     out[id] = float4(0.0);
     Camera c = camera[0];
 
-    WeightAggregator aggregator = weight_aggregators[id];
+    WeightAggregator aggregator;
     aggregator.total_contribution = float3(0.0);
-    uint32_t pixel_idx = camera_path.rays[0].pixel_idx;
+    int pixel_idx = camera_path.rays[0].pixel_idx;
+    int light_pixel_idx = -1;
+    int total_pixels = c.pixel_width * c.pixel_height;
+    for (int i = 0; i < 8; i++) {
+        light_pixel_indices[id + i * total_pixels] = -1;
+        light_path_indices[id + i * total_pixels] = -1;
+        light_ray_indices[id + i * total_pixels] = -1;
+        light_weights[id + i * total_pixels] = 0.0;
+        light_shade[id + i * total_pixels] = 0.0;
+    }
+    float contrib_weight_sum = 0.0;
 
-    for (int t = 2; t < camera_path.length + 1; t++){
-        for (int s = 0; s < light_path.length + 1; s++){
+    for (int t = 1; t < camera_path.length + 1; t++) {
+        for (int s = 0; s < light_path.length + 1; s++) {
+
+            if (t + s < 2) {continue;}
 
             // reset
             Ray light_ray;
@@ -595,14 +663,20 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             Path camera_path = camera_paths[id];
             Path light_path = light_paths[id];
             float3 dir_l_to_c;
-
-            // there should be cases for t=0 and t=1, but t=1 is hard to do massively parallel,
-            // and t=0 doesn't work with a pinhole camera model.
+            light_pixel_idx = -1;
 
             if (s == 0) {
                 // camera ray hits a light source
                 camera_ray = camera_path.rays[t - 1];
                 if (camera_ray.hit_light < 0) {continue;}
+            }
+            else if (t == 1) {
+                // projection onto camera plane
+                light_ray = light_path.rays[s - 1];
+                world_ray_to_camera_ray(boxes, triangles, materials, c, light_ray, light_pixel_idx, camera_path.rays[0]);
+                if (light_pixel_idx == -1) {continue;}
+                camera_ray = camera_path.rays[0];
+                dir_l_to_c = normalize(camera_ray.origin - light_ray.origin);
             }
             else {
                 // regular join
@@ -620,7 +694,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (dot(camera_ray.normal, -dir_l_to_c) < DELTA) {continue;}
 
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)) {continue;}
-                if (light_ray.triangle == camera_ray.triangle) {continue;}
             }
 
             float p_ratios[32];
@@ -629,6 +702,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             // populate missing values, these will be reset next loop so it's fine
             if (s == 0) {
                 camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;
+            } else if (t == 1) {
+                light_path.rays[s - 1].c_importance = camera_path.rays[0].c_importance;
+                camera_path.rays[t - 1].l_importance = abs(dot(light_ray.normal, dir_l_to_c)) / PI;
             } else {
                 camera_path.rays[t - 1].l_importance = abs(dot(light_ray.normal, dir_l_to_c)) / PI;
                 light_path.rays[s - 1].c_importance = abs(dot(camera_ray.normal, -dir_l_to_c)) / PI;
@@ -692,8 +768,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 }
             }
 
-            // this is because t=0 and t=1 are disabled. greatly enhances caustics.
-            p_values[s + t - 1] = 0.0;
             p_values[s + t] = 0.0;
 
             float sum = 0.0;
@@ -708,15 +782,24 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
             float3 color = float3(1.0);
             float g = 1.0;
+            float new_light_f = 1.0;
+            float new_camera_f = 1.0;
 
             if (s == 0) {
                 float3 prior_color = camera_path.rays[t - 2].color;
                 float3 emission = materials[camera_ray.material].emission;
                 color = prior_color * emission;
+            } else if (t == 1) {
+                int prior_light_ind = max(0, s - 2);
+                float3 prior_color = light_path.rays[prior_light_ind].color;
+                if (s > 1)
+                    new_light_f = abs(dot(dir_l_to_c, light_ray.normal)) / PI;
+                color = prior_color * new_light_f * materials[light_ray.material].color;
+                g = geometry_term(light_ray, camera_ray);
             } else {
                 float3 prior_camera_color = camera_path.rays[t - 2].color;
                 Material camera_material = materials[camera_ray.material];
-                float new_camera_f = abs(dot(-dir_l_to_c, camera_ray.normal)) / PI;
+                new_camera_f = abs(dot(-dir_l_to_c, camera_ray.normal)) / PI;
                 float3 camera_color = prior_camera_color * new_camera_f * camera_material.color;
 
                 float3 light_color;
@@ -726,18 +809,22 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 else {
                     float3 prior_light_color = light_path.rays[s - 2].color;
                     Material light_material = materials[light_ray.material];
-                    float new_light_f = abs(dot(dir_l_to_c, light_ray.normal)) / PI;
+                    new_light_f = abs(dot(dir_l_to_c, light_ray.normal)) / PI;
                     light_color = prior_light_color * new_light_f * light_material.color;
                 }
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
-            aggregator.total_contribution += w * g * color / p_s;
-
-            for (int i = 0; i < 32; i++) {
-                p_values[i] = 0.0;
-                p_ratios[i] = 0.0;
+            if (t != 1)
+                aggregator.total_contribution += w * g * color / p_s;
+            else {
+                light_pixel_indices[id + s * total_pixels] = light_pixel_idx;
+                light_path_indices[id + s * total_pixels] = id;
+                light_ray_indices[id + s * total_pixels] = s;
+                light_weights[id + s * total_pixels] = w;
+                light_shade[id + s * total_pixels] = g / p_s;
             }
+            contrib_weight_sum += w;
         }
     }
 
@@ -752,7 +839,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
         for (int j = 0; j < 3; j++)
             aggregator.weights[i][j] = 0.0;
 
-    // calculate weights
+    // calculate and sum weights
     for (int i = -1; i < 2; i++) {
         for (int j = -1; j < 2; j++) {
             int new_sample_x = (pixel_idx % c.pixel_width) + i;
@@ -766,22 +853,54 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             int new_sample_index = new_sample_y * c.pixel_width + new_sample_x;
             if (new_sample_index < 0 || new_sample_index >= c.pixel_width * c.pixel_height) {continue;}
 
-            float weight = gaussian_weight(pixel_center(c, new_sample_x, new_sample_y), camera_path.rays[0].origin, sigma);
+            float weight = gaussian_weight(pixel_center(c, new_sample_x, new_sample_y), camera_paths[id].rays[0].origin, sigma);
             aggregator.weights[i + 1][j + 1] = weight;
             weight_sum += weight;
         }
     }
 
-    // sum weights
+    // normalize weights
     if (weight_sum != 0.0)
         for (int i = 0; i < 3; i++)
             for (int j = 0; j < 3; j++)
                 aggregator.weights[i][j] = aggregator.weights[i][j] / weight_sum;
 
+    aggregator.contrib_weight_sum = contrib_weight_sum;
+
     // write outputs
     out[id] = float4(aggregator.total_contribution, 1.0);
     weight_aggregators[id] = aggregator;
 }
+
+
+kernel void light_image_gather(const device Path *light_paths [[ buffer(0) ]],
+                               const device Material *materials [[ buffer(1) ]],
+                               const device int32_t *path_indices [[ buffer(2) ]],
+                               const device int32_t *ray_indices [[ buffer(3) ]],
+                               const device int32_t *bins [[ buffer(4) ]],
+                               const device float *weights [[ buffer(5) ]],
+                               const device float *shades [[ buffer(6) ]],
+                               device float4 *light_image [[ buffer(7) ]],
+                               device float *sum_weights [[ buffer(8) ]],
+                               uint id [[ thread_position_in_grid ]]) {
+    int start_idx = bins[id];
+    int end_idx = bins[id + 1];
+    float3 total_contribution = float3(0.0);
+    float weight_sum = 0.0;
+    for (int i = start_idx; i < end_idx; i++) {
+        int path_idx = path_indices[i];
+        int ray_idx = ray_indices[i];
+        Path path = light_paths[path_idx];
+        Ray ray = path.rays[ray_idx];
+        Ray prior_ray = path.rays[max(0, ray_idx - 1)];
+        Material mat = materials[ray.material];
+        total_contribution += weights[i] * shades[i] * prior_ray.color * mat.color;
+        weight_sum += weights[i];
+    }
+    light_image[id] = float4(total_contribution, 1.0);
+    sum_weights[id] += weight_sum;
+}
+
 
 kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggregators [[ buffer(0) ]],
                              const device Camera *camera_buffer [[ buffer(1) ]],
@@ -810,9 +929,10 @@ kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggr
             if (sample_index < 0 || sample_index >= camera.pixel_width * camera.pixel_height) {continue;}
 
             for (uint32_t k = sample_bin_offsets[sample_index]; k < sample_bin_offsets[sample_index + 1]; k++) {
-                float weight = weight_aggregators[k].weights[1 - i][1 - j];
-                total_sample += weight_aggregators[k].total_contribution * weight;
-                weight_sum += weight;
+                WeightAggregator wa = weight_aggregators[k];
+                float weight = wa.weights[1 - i][1 - j];
+                total_sample += weight * wa.total_contribution;
+                weight_sum += weight * wa.contrib_weight_sum;
             }
         }
     }
@@ -843,8 +963,8 @@ kernel void generate_camera_rays(const device Camera *camera [[ buffer(0) ]],
     float x_normalized = (pixel_x + x_offset - 0.5 * c.pixel_width) / (float)c.pixel_width;
     float y_normalized = (pixel_y + y_offset - 0.5 * c.pixel_height) / (float)c.pixel_height;
 
-    float3 x_vector = x_normalized * tan(c.h_fov / 2.0) * c.dx;
-    float3 y_vector = y_normalized * tan(c.v_fov / 2.0) * c.dy;
+    float3 x_vector = x_normalized * c.dx * c.phys_width;
+    float3 y_vector = y_normalized * c.dy * c.phys_height;
 
     float3 origin = c.center + x_vector + y_vector;
     float3 direction = normalize(c.focal_point - origin);

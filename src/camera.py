@@ -5,8 +5,15 @@ from struct_types import Camera as camera_struct
 
 
 class Camera:
-    def __init__(self, center=np.zeros(3), direction=np.array([1, 0, 0]), phys_width=1.0, phys_height=1.0,
-                 pixel_width=1280, pixel_height=720):
+    def __init__(
+        self,
+        center=np.zeros(3),
+        direction=np.array([1, 0, 0]),
+        phys_width=1.0,
+        phys_height=1.0,
+        pixel_width=1280,
+        pixel_height=720,
+    ):
         self.center = center
         self.direction = direction
         self.phys_width = phys_width
@@ -49,17 +56,17 @@ class Camera:
 
     def to_struct(self):
         c = np.zeros(1, dtype=camera_struct)
-        c[0]['center'][:3] = self.center
-        c[0]['focal_point'][:3] = self.focal_point
-        c[0]['direction'][:3] = self.direction
-        c[0]['dx'][:3] = self.dx
-        c[0]['dy'][:3] = self.dy
-        c[0]['pixel_width'] = self.pixel_width
-        c[0]['pixel_height'] = self.pixel_height
-        c[0]['phys_width'] = self.phys_width
-        c[0]['phys_height'] = self.phys_height
-        c[0]['h_fov'] = self.h_fov
-        c[0]['v_fov'] = self.v_fov
+        c[0]["center"][:3] = self.center
+        c[0]["focal_point"][:3] = self.focal_point
+        c[0]["direction"][:3] = self.direction
+        c[0]["dx"][:3] = self.dx
+        c[0]["dy"][:3] = self.dy
+        c[0]["pixel_width"] = self.pixel_width
+        c[0]["pixel_height"] = self.pixel_height
+        c[0]["phys_width"] = self.phys_width
+        c[0]["phys_height"] = self.phys_height
+        c[0]["h_fov"] = self.h_fov
+        c[0]["v_fov"] = self.v_fov
         return c
 
 
@@ -72,7 +79,7 @@ def tone_map(image, exposure=2.0, white_point=1.0):
     Lw = np.exp(per_pixel_lts)
     result = image * exposure / Lw
     # print(f"OUT min: {np.min(result)}, mean: {np.mean(result)}, max: {np.max(result)}")
-    return (255 * result / (result + white_point ** 2)).astype(np.uint8)
+    return (255 * result / (result + white_point**2)).astype(np.uint8)
 
 
 def basic_tone_map(image):
