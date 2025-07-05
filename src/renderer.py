@@ -4,6 +4,7 @@ from struct_types import Path, Ray
 from scene import Scene
 from adaptive import get_adaptive_indices
 from camera import tone_map
+from constants import timed
 
 
 class Renderer:
@@ -78,20 +79,26 @@ class Renderer:
         self.adaptive = adaptive
         self.samples = 0
 
+    @timed
     def assign_indices(self):
-        mc.release(self.indices_buffer)
-        mc.release(self.summed_bins_buffer)
         if self.adaptive and self.samples > 0:
+            mc.release(self.indices_buffer)
+            mc.release(self.summed_bins_buffer)
             bins, summed_bins, indices = get_adaptive_indices(
                 tone_map(self.summed_image / self.summed_sample_weights)
             )
-        else:
+            self.indices_buffer = self.device.buffer(indices)
+            self.summed_bins_buffer = self.device.buffer(summed_bins)
+        elif self.samples == 0:
             indices = np.arange(self.batch_size, dtype=np.uint32)
             summed_bins = np.arange(self.batch_size + 1, dtype=np.uint32)
-        self.indices_buffer = self.device.buffer(indices)
-        self.summed_bins_buffer = self.device.buffer(summed_bins)
+            self.indices_buffer = self.device.buffer(indices)
+            self.summed_bins_buffer = self.device.buffer(summed_bins)
 
+
+    @timed
     def process_light_step(self):
+        # todo it would be dope to do this in metal but idk
         light_image_indices = np.frombuffer(self.out_light_indices, dtype=np.int32)
         light_path_indices = np.frombuffer(self.out_light_path_indices, dtype=np.int32)
         light_ray_indices = np.frombuffer(self.out_light_ray_indices, dtype=np.int32)
@@ -129,10 +136,21 @@ class Renderer:
             sorted_light_shade,
         )
 
-    def run_sample(self):
+    @timed
+    def make_light_rays(self):
+        self.light_ray_fn(
+            self.batch_size,
+            self.scene.light_triangles,
+            self.scene.light_surface_areas,
+            self.scene.light_triangle_indices,
+            self.scene.materials,
+            self.rand_buffer,
+            self.light_ray_buffer,
+            self.scene.light_counts,
+        )
 
-        self.assign_indices()
-
+    @timed
+    def make_camera_rays(self):
         self.camera_ray_fn(
             self.batch_size,
             self.scene.camera,
@@ -141,6 +159,8 @@ class Renderer:
             self.camera_ray_buffer,
         )
 
+    @timed
+    def trace_camera_rays(self):
         self.trace_fn(
             self.batch_size,
             self.camera_ray_buffer,
@@ -153,17 +173,8 @@ class Renderer:
             self.out_camera_debug_image,
         )
 
-        self.light_ray_fn(
-            self.batch_size,
-            self.scene.light_triangles,
-            self.scene.light_surface_areas,
-            self.scene.light_triangle_indices,
-            self.scene.materials,
-            self.rand_buffer,
-            self.light_ray_buffer,
-            self.scene.light_counts,
-        )
-
+    @timed
+    def trace_light_rays(self):
         self.trace_fn(
             self.batch_size,
             self.light_ray_buffer,
@@ -176,6 +187,8 @@ class Renderer:
             self.out_light_debug_image,
         )
 
+    @timed
+    def join_paths(self):
         self.join_fn(
             self.batch_size,
             self.out_camera_paths,
@@ -193,6 +206,8 @@ class Renderer:
             self.out_light_shade,
         )
 
+    @timed
+    def finalize_samples(self):
         self.finalize_fn(
             self.batch_size,
             self.weight_aggregators,
@@ -203,10 +218,8 @@ class Renderer:
             self.sample_weights,
         )
 
-        finalized_image = np.frombuffer(
-            self.finalized_samples, dtype=np.float32
-        ).reshape(self.pixel_height, self.pixel_width, 4)[:, :, :3]
-
+    @timed
+    def gather_light_image(self):
         (
             summed_bins,
             sorted_path_indices,
@@ -228,6 +241,12 @@ class Renderer:
             self.sample_weights,
         )
 
+    @timed
+    def process_images(self):
+        finalized_image = np.frombuffer(
+            self.finalized_samples, dtype=np.float32
+        ).reshape(self.pixel_height, self.pixel_width, 4)[:, :, :3]
+
         light_image = np.frombuffer(self.out_light_image, dtype=np.float32).reshape(
             self.pixel_height, self.pixel_width, 4
         )[:, :, :3]
@@ -244,6 +263,19 @@ class Renderer:
         self.summed_image += np.nan_to_num(image, posinf=0, neginf=0)
         self.summed_sample_counts += finalized_sample_counts
         self.summed_sample_weights += finalized_sample_weights
+
+    def run_sample(self):
+        self.assign_indices()
+        self.make_light_rays()
+        self.make_camera_rays()
+        self.trace_light_rays()
+        self.trace_camera_rays()
+        self.join_paths()
+        self.finalize_samples()
+        self.gather_light_image()
+        self.process_images()
+
+        self.samples += 1
 
     @property
     def current_image(self):

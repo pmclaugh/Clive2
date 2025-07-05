@@ -1,4 +1,5 @@
 import numpy as np
+import time
 
 # camera constants
 H_FOV = 110.0 * np.pi / 180.0
@@ -33,3 +34,14 @@ DEFAULT_BOX_MIN_CORNER = np.array([-10, -2, -10])
 DEFAULT_BOX_MAX_CORNER = np.array([10, 10, 10])
 DEFAULT_LIGHT_HEIGHT = 0.95
 DEFAULT_LIGHT_SCALE = 0.25
+
+
+def timed(func):
+    """Decorator to time a function."""
+    def wrapper(*args, **kwargs):
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+        print(f"Function {func.__name__} took {end_time - start_time:.4f} seconds")
+        return result
+    return wrapper

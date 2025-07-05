@@ -45,7 +45,7 @@ if __name__ == "__main__":
             else:
                 raise
 
-        cv2.imwrite(
-            f'../output/default/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png',
-            to_display,
-        )
+    cv2.imwrite(
+        f'../output/default/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png',
+        to_display,
+    )

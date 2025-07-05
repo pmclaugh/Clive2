@@ -106,14 +106,13 @@ float pcg_random(thread unsigned int &state, thread unsigned int &inc) {
 void ray_box_intersect(const thread Ray &ray, const thread Box &box, thread bool &hit, thread float &t) {
     float3 t0s = (box.min - ray.origin) * ray.inv_direction;
     float3 t1s = (box.max - ray.origin) * ray.inv_direction;
-    float3 tsmaller = min(t0s, t1s);
-    float3 tbigger = max(t0s, t1s);
-    float tmin = max(max(tsmaller.x, tsmaller.y), tsmaller.z);
-    float tmax = min(min(min(tbigger.x, tbigger.y), tbigger.z), t);
-    hit = tmin <= tmax;
-    t = tmin;
+    float3 tmin = min(t0s, t1s);
+    float3 tmax = max(t0s, t1s);
+    float tmin_final = max(max(tmin.x, tmin.y), max(tmin.z, 0.0f));
+    float tmax_final = min(min(tmax.x, tmax.y), min(tmax.z, t));
+    hit = tmin_final <= tmax_final;
+    t = tmin_final;
 }
-
 
 void ray_triangle_intersect(const thread Ray &ray, const thread Triangle &triangle, thread bool &hit, thread float &t_out, thread float& u, thread float& v) {
     float3 edge1 = triangle.v1 - triangle.v0;
@@ -608,8 +607,6 @@ void world_ray_to_camera_ray(const device Box *boxes,
     camera_ray.color = float3(1.0);
     camera_ray.triangle = best_i;
     camera_ray.tot_importance = 1.0;
-//    camera_ray.c_importance = 1.0;
-//    camera_ray.l_importance = 1.0;
     camera_ray.hit_light = -1;
     camera_ray.hit_camera = best_i;
 }
@@ -660,6 +657,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             light_ray.triangle = -1;
             Ray camera_ray;
             camera_ray.triangle = -1;
+            // todo: this refresh is necessary but a big slowdown. simple caching doesn't help.
             Path camera_path = camera_paths[id];
             Path light_path = light_paths[id];
             float3 dir_l_to_c;
@@ -822,6 +820,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 light_path_indices[id + s * total_pixels] = id;
                 light_ray_indices[id + s * total_pixels] = s;
                 light_weights[id + s * total_pixels] = w;
+                // todo: why can't I put f here?
                 light_shade[id + s * total_pixels] = g / p_s;
             }
             contrib_weight_sum += w;
