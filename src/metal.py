@@ -16,18 +16,17 @@ if __name__ == "__main__":
     parser.add_argument("--height", type=int, default=720)
     parser.add_argument("--save-on-quit", action="store_true")
     parser.add_argument("--scene", type=str, default="teapots")
-    parser.add_argument("--unidirectional", action="store_true")
-    parser.add_argument("--adaptive", action="store_true")
     args = parser.parse_args()
 
     device = metalcompute.Device()
 
     scene: Scene = create_scene_from_preset(
-        args.scene, args.width, args.height, metal_device=device
+        args.scene,
+        pixel_width=args.width,
+        pixel_height=args.height,
+        metal_device=device,
     )
-    renderer: Renderer = Renderer(
-        scene, pixel_width=args.width, pixel_height=args.height, metal_device=device
-    )
+    renderer: Renderer = Renderer(scene)
 
     to_display = np.zeros((args.height, args.width, 3), dtype=np.uint8)
 

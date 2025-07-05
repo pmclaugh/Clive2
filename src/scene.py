@@ -98,6 +98,8 @@ def create_scene(
 
     return Scene(
         device=dev,
+        pixel_width=pixel_width,
+        pixel_height=pixel_height,
         camera=camera_buffer,
         triangles=tri_buffer,
         boxes=box_buffer,
@@ -114,6 +116,8 @@ class Scene:
     def __init__(
         self,
         device: metalcompute.Device,
+        pixel_width: int,
+        pixel_height: int,
         camera,
         triangles,
         boxes,
@@ -125,6 +129,8 @@ class Scene:
         camera_triangle_indices,
     ):
         self.device = device
+        self.pixel_width = pixel_width
+        self.pixel_height = pixel_height
         self.camera = camera
         self.triangles = triangles
         self.boxes = boxes

@@ -10,14 +10,11 @@ class Renderer:
     def __init__(
         self,
         scene: Scene,
-        pixel_width=1280,
-        pixel_height=720,
-        metal_device=None,
         kernel_path="trace.metal",
         adaptive=False,
     ):
         # device and kernels
-        dev = metal_device or mc.Device()
+        dev = scene.device
         self.device = dev
         self.scene = scene
 
@@ -31,19 +28,21 @@ class Renderer:
         self.light_image_gather_fn = dev.kernel(kernel).function("light_image_gather")
 
         # numpy image buffers
-        self.summed_image = np.zeros((pixel_height, pixel_width, 3), dtype=np.float32)
+        self.summed_image = np.zeros(
+            (scene.pixel_height, scene.pixel_width, 3), dtype=np.float32
+        )
         self.summed_sample_counts = np.zeros(
-            (pixel_height, pixel_width, 1), dtype=np.int32
+            (scene.pixel_height, scene.pixel_width, 1), dtype=np.int32
         )
         self.summed_sample_weights = np.zeros(
-            (pixel_height, pixel_width, 1), dtype=np.float32
+            (scene.pixel_height, scene.pixel_width, 1), dtype=np.float32
         )
         self.light_image = np.zeros(self.summed_image.shape, dtype=np.float32)
 
         # buffers - camera and light rays
-        self.pixel_width = pixel_width
-        self.pixel_height = pixel_height
-        self.batch_size = pixel_width * pixel_height
+        self.pixel_width = scene.pixel_width
+        self.pixel_height = scene.pixel_height
+        self.batch_size = scene.pixel_width * scene.pixel_height
         self.camera_ray_buffer = dev.buffer(self.batch_size * Ray.itemsize)
         self.light_ray_buffer = dev.buffer(self.batch_size * Ray.itemsize)
         self.indices_buffer = dev.buffer(self.batch_size * 4)
