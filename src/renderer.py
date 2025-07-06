@@ -107,7 +107,9 @@ class Renderer:
             np.insert(np.cumsum(bins), 0, 0).astype(np.uint32)
         )
 
-        return summed_bins
+        offset = np.sum(light_image_indices < 0).astype(np.uint32)
+
+        return summed_bins, offset
 
     @timed
     def make_light_rays(self):
@@ -206,13 +208,16 @@ class Renderer:
                     j
                 )
 
+        bins, offset = self.light_bins()
+
         self.light_image_gather_fn(
             self.batch_size,
             self.out_light_paths,
             self.scene.materials,
             self.out_light_path_indices,
             self.out_light_ray_indices,
-            self.light_bins(),
+            bins,
+            offset,
             self.out_light_weights,
             self.out_light_shade,
             self.out_light_image,

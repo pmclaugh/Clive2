@@ -926,13 +926,14 @@ kernel void light_image_gather(const device Path *light_paths [[ buffer(0) ]],
                                const device int32_t *path_indices [[ buffer(2) ]],
                                const device int32_t *ray_indices [[ buffer(3) ]],
                                const device int32_t *bins [[ buffer(4) ]],
-                               const device float *weights [[ buffer(5) ]],
-                               const device float *shades [[ buffer(6) ]],
-                               device float4 *light_image [[ buffer(7) ]],
-                               device float *sum_weights [[ buffer(8) ]],
+                               const device uint32_t& offset[[ buffer(5) ]],
+                               const device float *weights [[ buffer(6) ]],
+                               const device float *shades [[ buffer(7) ]],
+                               device float4 *light_image [[ buffer(8) ]],
+                               device float *sum_weights [[ buffer(9) ]],
                                uint id [[ thread_position_in_grid ]]) {
-    int start_idx = bins[id];
-    int end_idx = bins[id + 1];
+    int start_idx = bins[id] + offset;
+    int end_idx = bins[id + 1] + offset;
     float3 total_contribution = float3(0.0);
     float weight_sum = 0.0;
     for (int i = start_idx; i < end_idx; i++) {
