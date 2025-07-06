@@ -29,16 +29,11 @@ class Renderer:
         self.light_image_gather_fn = dev.kernel(kernel).function("light_image_gather")
 
         # numpy image buffers
-        self.summed_image = np.zeros(
-            (scene.pixel_height, scene.pixel_width, 3), dtype=np.float32
-        )
-        self.summed_sample_counts = np.zeros(
-            (scene.pixel_height, scene.pixel_width, 1), dtype=np.int32
-        )
-        self.summed_sample_weights = np.zeros(
-            (scene.pixel_height, scene.pixel_width, 1), dtype=np.float32
-        )
-        self.light_image = np.zeros(self.summed_image.shape, dtype=np.float32)
+        resolution = (scene.pixel_height, scene.pixel_width)
+        self.summed_image = np.zeros((*resolution, 3), dtype=np.float32)
+        self.summed_sample_counts = np.zeros((*resolution, 1), dtype=np.int32)
+        self.summed_sample_weights = np.zeros((*resolution, 1), dtype=np.float32)
+        self.light_image = np.zeros((*resolution, 1), dtype=np.float32)
 
         # buffers - camera and light rays
         self.pixel_width = scene.pixel_width
@@ -47,9 +42,7 @@ class Renderer:
         self.camera_ray_buffer = dev.buffer(self.batch_size * Ray.itemsize)
         self.light_ray_buffer = dev.buffer(self.batch_size * Ray.itemsize)
         self.indices_buffer = dev.buffer(self.batch_size * 4)
-        self.rand_buffer = dev.buffer(
-            np.random.randint(0, 2**32, size=(self.batch_size, 2), dtype=np.uint32)
-        )
+        self.rand_buffer = dev.buffer(self.get_random_buffer())
 
         # buffers - trace
         self.out_camera_image = dev.buffer(self.batch_size * 16)
@@ -79,6 +72,9 @@ class Renderer:
         self.adaptive = adaptive
         self.samples = 0
 
+    def get_random_buffer(self):
+        return np.random.randint(0, 2**32, size=(self.batch_size, 2), dtype=np.uint32)
+
     @timed
     def assign_indices(self):
         if self.adaptive and self.samples > 0:
@@ -94,7 +90,6 @@ class Renderer:
             summed_bins = np.arange(self.batch_size + 1, dtype=np.uint32)
             self.indices_buffer = self.device.buffer(indices)
             self.summed_bins_buffer = self.device.buffer(summed_bins)
-
 
     @timed
     def process_light_step(self):
@@ -279,4 +274,9 @@ class Renderer:
 
     @property
     def current_image(self):
-        return tone_map(self.summed_image / self.summed_sample_weights, exposure=4.0)
+        return tone_map(
+            np.nan_to_num(
+                self.summed_image / self.summed_sample_weights, neginf=0, posinf=0
+            ),
+            exposure=4.0,
+        )

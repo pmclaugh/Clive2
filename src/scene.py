@@ -217,3 +217,30 @@ def create_scene_from_preset(
         file_specs=preset.get("file_specs"),
         metal_device=metal_device,
     )
+
+
+def create_scene_from_preset_with_params(
+    preset_name,
+    pixel_width=1280,
+    pixel_height=720,
+    metal_device=None,
+    frame_idx=0,
+    total_frames=1,
+):
+    preset = scene_presets.get(preset_name)
+    if not preset:
+        raise ValueError(f"Preset '{preset_name}' not found.")
+
+    theta = 2 * np.pi * frame_idx / total_frames
+
+    cam_center = np.array([np.sin(theta) * 7.5, 1.5, np.cos(theta) * 7.5])
+    cam_direction = np.array([-np.sin(theta), 0, -np.cos(theta)])
+
+    return create_scene(
+        pixel_width=pixel_width,
+        pixel_height=pixel_height,
+        cam_center=cam_center,
+        cam_direction=cam_direction,
+        file_specs=preset.get("file_specs"),
+        metal_device=metal_device,
+    )

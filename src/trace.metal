@@ -401,7 +401,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         new_ray.c_importance = ray.c_importance;
     }
 
-    for (int i = 0; i < 8; i++) {
+    for (int i = 0; i < 6; i++) {
 
         int best_i = -1;
         float best_t = INFINITY;
@@ -818,10 +818,9 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             else {
                 light_pixel_indices[id + s * total_pixels] = light_pixel_idx;
                 light_path_indices[id + s * total_pixels] = id;
-                light_ray_indices[id + s * total_pixels] = s;
+                light_ray_indices[id + s * total_pixels] = s - 1;
                 light_weights[id + s * total_pixels] = w;
-                // todo: why can't I put f here?
-                light_shade[id + s * total_pixels] = g / p_s;
+                light_shade[id + s * total_pixels] = new_light_f * g / p_s;
             }
             contrib_weight_sum += w;
         }
