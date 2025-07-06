@@ -871,21 +871,27 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 }
 
 
-kernel void light_sort(device int *light_pixel_indices [[ buffer(0) ]],
-                        device int *light_path_indices [[ buffer(1) ]],
-                        device int *light_ray_indices [[ buffer(2) ]],
+kernel void light_sort(device int32_t *light_pixel_indices [[ buffer(0) ]],
+                        device int32_t *light_path_indices [[ buffer(1) ]],
+                        device int32_t *light_ray_indices [[ buffer(2) ]],
                         device float *light_weights [[ buffer(3) ]],
                         device float *light_shade [[ buffer(4) ]],
-                        constant uint& stage [[buffer(5)]],
-                        constant uint& passOfStage [[buffer(6)]],
+                        constant uint32_t& stage [[buffer(5)]],
+                        constant uint32_t& passOfStage [[buffer(6)]],
                         uint id [[thread_position_in_grid]]) {
 
-    uint pairDistance = 1 << (stage - passOfStage);
-    uint blockWidth = 2 * pairDistance;
-    uint leftId = (id / pairDistance) * blockWidth + (id % pairDistance);
+    /* distance between the two elements compared by this thread */
+    uint pairDistance = 1u << (passOfStage - 1);      // 2^(p‑1)
+
+    /* size of the whole bitonic block being merged in this stage (2^stage) */
+    uint blockWidth   = 1u <<  stage;                 // 2^stage
+
+    /* indices of the two elements that this thread will compare */
+    uint leftId  = (id / pairDistance) * pairDistance * 2u + (id % pairDistance);
     uint rightId = leftId + pairDistance;
 
-    bool ascending = ((id / blockWidth) % 2) == 0;
+    /* ascending for the first half of each block, descending for the second */
+    bool ascending = ((id & (blockWidth >> 1)) == 0u);   // test bit (stage‑1)
 
     int left_pixel_idx = light_pixel_indices[leftId];
     int right_pixel_idx = light_pixel_indices[rightId];
@@ -932,11 +938,11 @@ kernel void light_image_gather(const device Path *light_paths [[ buffer(0) ]],
                                device float4 *light_image [[ buffer(8) ]],
                                device float *sum_weights [[ buffer(9) ]],
                                uint id [[ thread_position_in_grid ]]) {
-    int start_idx = bins[id] + offset;
-    int end_idx = bins[id + 1] + offset;
+    int start_idx = bins[id];
+    int end_idx = bins[id + 1];
     float3 total_contribution = float3(0.0);
     float weight_sum = 0.0;
-    for (int i = start_idx; i < end_idx; i++) {
+    for (int i = start_idx + offset; i < end_idx + offset; i++) {
         int path_idx = path_indices[i];
         int ray_idx = ray_indices[i];
         Path path = light_paths[path_idx];

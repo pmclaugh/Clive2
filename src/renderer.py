@@ -8,6 +8,9 @@ from adaptive import get_adaptive_indices
 from camera import tone_map
 from constants import timed
 
+def next_power_of_two(n):
+    """Returns the next power of two greater than or equal to n."""
+    return 1 << (n - 1).bit_length() if n > 0 else 1
 
 class Renderer:
     def __init__(
@@ -54,11 +57,12 @@ class Renderer:
 
         # buffers - join
         self.out_samples = dev.buffer(self.batch_size * 16)
-        self.out_light_indices = dev.buffer(self.batch_size * 8 * 4)
-        self.out_light_path_indices = dev.buffer(self.batch_size * 8 * 4)
-        self.out_light_ray_indices = dev.buffer(self.batch_size * 8 * 4)
-        self.out_light_weights = dev.buffer(self.batch_size * 8 * 4)
-        self.out_light_shade = dev.buffer(self.batch_size * 8 * 4 * 4)
+        sz = next_power_of_two(self.batch_size * 8 * 4)
+        self.out_light_indices = dev.buffer(np.ones(sz // 4, dtype=np.int32) * -1)
+        self.out_light_path_indices = dev.buffer(sz)
+        self.out_light_ray_indices = dev.buffer(sz)
+        self.out_light_weights = dev.buffer(sz)
+        self.out_light_shade = dev.buffer(sz)
 
         # buffers - finalize
         self.weight_aggregators = dev.buffer(self.batch_size * 128)
@@ -195,17 +199,19 @@ class Renderer:
 
     @timed
     def gather_light_image(self):
-        for i in range(1, int(np.log2(self.batch_size)) + 1):
-            for j in reversed(range(1, i + 1)):
+        n = next_power_of_two(self.batch_size * 8)
+        log_n = int(np.log2(n))
+        for stage in range(1, log_n + 1):
+            for passOfStage in range(stage, 0, -1):
                 self.light_sort_fn(
-                    self.batch_size,
+                    n // 2,
                     self.out_light_indices,
                     self.out_light_path_indices,
                     self.out_light_ray_indices,
                     self.out_light_weights,
                     self.out_light_shade,
-                    i,
-                    j
+                    np.uint32(stage),
+                    np.uint32(passOfStage),
                 )
 
         bins, offset = self.light_bins()
@@ -241,7 +247,7 @@ class Renderer:
             self.sample_weights, dtype=np.float32
         ).reshape(self.pixel_height, self.pixel_width, 1)
 
-        image = light_image + finalized_image
+        image = light_image #+ finalized_image
 
         self.summed_image += np.nan_to_num(image, posinf=0, neginf=0)
         self.summed_sample_counts += finalized_sample_counts
@@ -267,6 +273,13 @@ class Renderer:
             np.nan_to_num(
                 self.summed_image / self.summed_sample_weights, neginf=0, posinf=0
             ),
+            exposure=4.0,
+        )
+
+    @property
+    def unweighted_image(self):
+        return tone_map(
+            np.nan_to_num(self.summed_image, neginf=0, posinf=0),
             exposure=4.0,
         )
 
