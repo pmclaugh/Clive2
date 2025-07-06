@@ -957,6 +957,20 @@ kernel void light_image_gather(const device Path *light_paths [[ buffer(0) ]],
 }
 
 
+kernel void reset_light_indices(device int32_t *light_pixel_indices [[ buffer(0) ]],
+                               device int32_t *light_path_indices [[ buffer(1) ]],
+                               device int32_t *light_ray_indices [[ buffer(2) ]],
+                               device float *light_weights [[ buffer(3) ]],
+                               device float *light_shade [[ buffer(4) ]],
+                               uint id [[ thread_position_in_grid ]]) {
+    light_pixel_indices[id] = -1;
+    light_path_indices[id] = 0;
+    light_ray_indices[id] = 0;
+    light_weights[id] = 0.0;
+    light_shade[id] = 0.0;
+}
+
+
 kernel void adaptive_finalize_samples(const device WeightAggregator *weight_aggregators [[ buffer(0) ]],
                              const device Camera *camera_buffer [[ buffer(1) ]],
                              device float4 *out [[ buffer(2) ]],

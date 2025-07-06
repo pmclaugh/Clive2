@@ -33,6 +33,7 @@ class Renderer:
         self.finalize_fn = dev.kernel(kernel).function("adaptive_finalize_samples")
         self.light_sort_fn = dev.kernel(kernel).function("light_sort")
         self.light_image_gather_fn = dev.kernel(kernel).function("light_image_gather")
+        self.light_reset_fn = dev.kernel(kernel).function("reset_light_indices")
 
         # numpy image buffers
         resolution = (scene.pixel_height, scene.pixel_width)
@@ -201,6 +202,7 @@ class Renderer:
     def gather_light_image(self):
         n = next_power_of_two(self.batch_size * 8)
         log_n = int(np.log2(n))
+        # todo: try doing this loop in the kernel
         for stage in range(1, log_n + 1):
             for passOfStage in range(stage, 0, -1):
                 self.light_sort_fn(
@@ -228,6 +230,15 @@ class Renderer:
             self.out_light_shade,
             self.out_light_image,
             self.sample_weights,
+        )
+
+        self.light_reset_fn(
+            n,
+            self.out_light_indices,
+            self.out_light_path_indices,
+            self.out_light_ray_indices,
+            self.out_light_weights,
+            self.out_light_shade,
         )
 
     @timed
