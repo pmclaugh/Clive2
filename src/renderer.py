@@ -259,6 +259,7 @@ class Renderer:
         self.summed_sample_counts += finalized_sample_counts
         self.summed_sample_weights += finalized_sample_weights
 
+    @timed
     def run_sample(self):
         self.assign_indices()
         self.make_light_rays()
@@ -273,7 +274,7 @@ class Renderer:
         self.samples += 1
 
     @property
-    def current_image(self):
+    def image(self):
         return tone_map(
             np.nan_to_num(
                 self.summed_image / self.summed_sample_weights, neginf=0, posinf=0

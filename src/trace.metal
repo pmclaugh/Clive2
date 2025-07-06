@@ -629,6 +629,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
     Path camera_path = camera_paths[id];
     Path light_path = light_paths[id];
+    const Ray cached_camera_zero = camera_path.rays[0];
 
     out[id] = float4(0.0);
     Camera c = camera[0];
@@ -657,9 +658,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             light_ray.triangle = -1;
             Ray camera_ray;
             camera_ray.triangle = -1;
-            // todo: this refresh is necessary but a big slowdown. simple caching doesn't help.
-            Path camera_path = camera_paths[id];
-            Path light_path = light_paths[id];
+            camera_path.rays[0] = cached_camera_zero;
             float3 dir_l_to_c;
             light_pixel_idx = -1;
 
@@ -694,19 +693,20 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)) {continue;}
             }
 
-            float p_ratios[32];
-            float p_values[32];
+            float p_ratios[16];
+            float p_values[16];
 
             // populate missing values, these will be reset next loop so it's fine
-            if (s == 0) {
-                camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;
-            } else if (t == 1) {
-                light_path.rays[s - 1].c_importance = camera_path.rays[0].c_importance;
-                camera_path.rays[t - 1].l_importance = abs(dot(light_ray.normal, dir_l_to_c)) / PI;
-            } else {
-                camera_path.rays[t - 1].l_importance = abs(dot(light_ray.normal, dir_l_to_c)) / PI;
-                light_path.rays[s - 1].c_importance = abs(dot(camera_ray.normal, -dir_l_to_c)) / PI;
-            }
+            // todo: this is technically correct but has no visible effect
+//            if (s == 0) {
+//                camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;
+//            } else if (t == 1) {
+//                light_path.rays[s - 1].c_importance = camera_path.rays[0].c_importance;
+//                camera_path.rays[t - 1].l_importance = abs(dot(light_ray.normal, dir_l_to_c)) / PI;
+//            } else {
+//                camera_path.rays[t - 1].l_importance = abs(dot(light_ray.normal, dir_l_to_c)) / PI;
+//                light_path.rays[s - 1].c_importance = abs(dot(camera_ray.normal, -dir_l_to_c)) / PI;
+//            }
 
             // set up p_ratios like p1/p0, p2/p1, p3/p2, ... out to pk+1/pk, where k = s + t - 1
             for (int i = 0; i < s + t; i++) {

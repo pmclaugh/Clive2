@@ -32,12 +32,10 @@ if __name__ == "__main__":
 
     for i in range(args.samples):
         try:
-            start_sample_time = time.time()
             renderer.run_sample()
-            to_display = renderer.current_image.copy()
+            to_display = renderer.image.copy()
             cv2.imshow("image", to_display)
             cv2.waitKey(1)
-            print(f"Whole sample {i} time: {time.time() - start_sample_time}")
 
         except (KeyboardInterrupt, metalcompute.error):
             if args.save_on_quit:
