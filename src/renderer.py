@@ -269,3 +269,26 @@ class Renderer:
             ),
             exposure=4.0,
         )
+
+    def __del__(self):
+        mc.release(self.camera_ray_buffer)
+        mc.release(self.light_ray_buffer)
+        mc.release(self.indices_buffer)
+        mc.release(self.rand_buffer)
+        mc.release(self.out_camera_image)
+        mc.release(self.out_camera_paths)
+        mc.release(self.out_camera_debug_image)
+        mc.release(self.out_samples)
+        mc.release(self.out_light_indices)
+        mc.release(self.out_light_path_indices)
+        mc.release(self.out_light_ray_indices)
+        mc.release(self.out_light_weights)
+        mc.release(self.out_light_shade)
+        mc.release(self.weight_aggregators)
+        mc.release(self.finalized_samples)
+        mc.release(self.sample_counts)
+        mc.release(self.summed_bins_buffer)
+        mc.release(self.sample_weights)
+        mc.release(self.out_light_image)
+        mc.release(self.out_light_paths)
+        mc.release(self.out_light_debug_image)

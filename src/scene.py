@@ -141,6 +141,17 @@ class Scene:
         self.light_triangle_indices = light_triangle_indices
         self.camera_triangle_indices = camera_triangle_indices
 
+    def __del__(self):
+        metalcompute.release(self.camera)
+        metalcompute.release(self.triangles)
+        metalcompute.release(self.boxes)
+        metalcompute.release(self.materials)
+        metalcompute.release(self.light_triangles)
+        metalcompute.release(self.light_counts)
+        metalcompute.release(self.light_surface_areas)
+        metalcompute.release(self.light_triangle_indices)
+        metalcompute.release(self.camera_triangle_indices)
+
 
 scene_presets = {
     "empty": {
