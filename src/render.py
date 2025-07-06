@@ -30,6 +30,7 @@ if __name__ == "__main__":
 
     to_display = np.zeros((args.height, args.width, 3), dtype=np.uint8)
 
+    start_time = time.time()
     for i in range(args.samples):
         try:
             renderer.run_sample()
@@ -42,6 +43,8 @@ if __name__ == "__main__":
                 pass
             else:
                 raise
+
+    print(f"Rendering took {time.time() - start_time:.2f} seconds")
 
     cv2.imwrite(
         f'../output/default/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png',

@@ -636,7 +636,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
     WeightAggregator aggregator;
     aggregator.total_contribution = float3(0.0);
-    int pixel_idx = camera_path.rays[0].pixel_idx;
+    int pixel_idx = cached_camera_zero.pixel_idx;
     int light_pixel_idx = -1;
     int total_pixels = c.pixel_width * c.pixel_height;
     for (int i = 0; i < 8; i++) {
@@ -697,7 +697,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
             float p_values[16];
 
             // populate missing values, these will be reset next loop so it's fine
-            // todo: this is technically correct but has no visible effect
+            // todo: this is technically correct but has no visible effect. resetting has a big performance impact.
 //            if (s == 0) {
 //                camera_path.rays[t - 1].l_importance = light_path.rays[0].l_importance;
 //            } else if (t == 1) {
@@ -868,6 +868,56 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     // write outputs
     out[id] = float4(aggregator.total_contribution, 1.0);
     weight_aggregators[id] = aggregator;
+}
+
+
+kernel void light_sort(device int *light_pixel_indices [[ buffer(0) ]],
+                        device int *light_path_indices [[ buffer(1) ]],
+                        device int *light_ray_indices [[ buffer(2) ]],
+                        device float *light_weights [[ buffer(3) ]],
+                        device float *light_shade [[ buffer(4) ]],
+                        constant uint& stage [[buffer(5)]],
+                        constant uint& passOfStage [[buffer(6)]],
+                        uint id [[thread_position_in_grid]]) {
+
+    uint pairDistance = 1 << (stage - passOfStage);
+    uint blockWidth = 2 * pairDistance;
+    uint leftId = (id / pairDistance) * blockWidth + (id % pairDistance);
+    uint rightId = leftId + pairDistance;
+
+    bool ascending = ((id / blockWidth) % 2) == 0;
+
+    int left_pixel_idx = light_pixel_indices[leftId];
+    int right_pixel_idx = light_pixel_indices[rightId];
+
+    int left_path_idx = light_path_indices[leftId];
+    int right_path_idx = light_path_indices[rightId];
+
+    int left_ray_idx = light_ray_indices[leftId];
+    int right_ray_idx = light_ray_indices[rightId];
+
+    float left_weight = light_weights[leftId];
+    float right_weight = light_weights[rightId];
+
+    float left_shade = light_shade[leftId];
+    float right_shade = light_shade[rightId];
+
+    if ((ascending && left_pixel_idx > right_pixel_idx) || (!ascending && left_pixel_idx < right_pixel_idx)) {
+        light_pixel_indices[leftId] = right_pixel_idx;
+        light_pixel_indices[rightId] = left_pixel_idx;
+
+        light_path_indices[leftId] = right_path_idx;
+        light_path_indices[rightId] = left_path_idx;
+
+        light_ray_indices[leftId] = right_ray_idx;
+        light_ray_indices[rightId] = left_ray_idx;
+
+        light_weights[leftId] = right_weight;
+        light_weights[rightId] = left_weight;
+
+        light_shade[leftId] = right_shade;
+        light_shade[rightId] = left_shade;
+    }
 }
 
 

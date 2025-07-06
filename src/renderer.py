@@ -1,3 +1,5 @@
+import time
+
 import metalcompute as mc
 import numpy as np
 from struct_types import Path, Ray
@@ -26,6 +28,7 @@ class Renderer:
         self.camera_ray_fn = dev.kernel(kernel).function("generate_camera_rays")
         self.light_ray_fn = dev.kernel(kernel).function("generate_light_rays")
         self.finalize_fn = dev.kernel(kernel).function("adaptive_finalize_samples")
+        self.light_sort_fn = dev.kernel(kernel).function("light_sort")
         self.light_image_gather_fn = dev.kernel(kernel).function("light_image_gather")
 
         # numpy image buffers
@@ -92,44 +95,19 @@ class Renderer:
             self.summed_bins_buffer = self.device.buffer(summed_bins)
 
     @timed
-    def process_light_step(self):
-        # todo it would be dope to do this in metal but idk
+    def light_bins(self):
         light_image_indices = np.frombuffer(self.out_light_indices, dtype=np.int32)
-        light_path_indices = np.frombuffer(self.out_light_path_indices, dtype=np.int32)
-        light_ray_indices = np.frombuffer(self.out_light_ray_indices, dtype=np.int32)
-        light_weights = np.frombuffer(self.out_light_weights, dtype=np.float32)
-        light_shade = np.frombuffer(self.out_light_shade, dtype=np.float32)
 
         bins = np.bincount(
             light_image_indices[light_image_indices >= 0],
             minlength=self.pixel_height * self.pixel_width,
         )
+
         summed_bins = self.device.buffer(
             np.insert(np.cumsum(bins), 0, 0).astype(np.uint32)
         )
-        missed_count = np.sum(light_image_indices < 0)
 
-        sorting_indices = np.argsort(light_image_indices)
-        sorted_path_indices = self.device.buffer(
-            light_path_indices[sorting_indices][missed_count:]
-        )
-        sorted_ray_indices = self.device.buffer(
-            light_ray_indices[sorting_indices][missed_count:]
-        )
-        sorted_light_weights = self.device.buffer(
-            light_weights[sorting_indices][missed_count:]
-        )
-        sorted_light_shade = self.device.buffer(
-            light_shade[sorting_indices][missed_count:]
-        )
-
-        return (
-            summed_bins,
-            sorted_path_indices,
-            sorted_ray_indices,
-            sorted_light_weights,
-            sorted_light_shade,
-        )
+        return summed_bins
 
     @timed
     def make_light_rays(self):
@@ -215,23 +193,28 @@ class Renderer:
 
     @timed
     def gather_light_image(self):
-        (
-            summed_bins,
-            sorted_path_indices,
-            sorted_ray_indices,
-            sorted_light_weights,
-            sorted_light_shade,
-        ) = self.process_light_step()
+        for i in range(1, int(np.log2(self.batch_size)) + 1):
+            for j in reversed(range(1, i + 1)):
+                self.light_sort_fn(
+                    self.batch_size,
+                    self.out_light_indices,
+                    self.out_light_path_indices,
+                    self.out_light_ray_indices,
+                    self.out_light_weights,
+                    self.out_light_shade,
+                    i,
+                    j
+                )
 
         self.light_image_gather_fn(
             self.batch_size,
             self.out_light_paths,
             self.scene.materials,
-            sorted_path_indices,
-            sorted_ray_indices,
-            summed_bins,
-            sorted_light_weights,
-            sorted_light_shade,
+            self.out_light_path_indices,
+            self.out_light_ray_indices,
+            self.light_bins(),
+            self.out_light_weights,
+            self.out_light_shade,
             self.out_light_image,
             self.sample_weights,
         )
