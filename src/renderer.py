@@ -200,9 +200,9 @@ class Renderer:
 
     @timed
     def gather_light_image(self):
+        start_sort_time = time.time()
         n = next_power_of_two(self.batch_size * 8)
         log_n = int(np.log2(n))
-        # todo: try doing this loop in the kernel
         for stage in range(1, log_n + 1):
             for passOfStage in range(stage, 0, -1):
                 self.light_sort_fn(
@@ -215,9 +215,11 @@ class Renderer:
                     np.uint32(stage),
                     np.uint32(passOfStage),
                 )
+        print(f"Light sort time: {time.time() - start_sort_time:.4f} seconds")
 
         bins, offset = self.light_bins()
 
+        start_gather_time = time.time()
         self.light_image_gather_fn(
             self.batch_size,
             self.out_light_paths,
@@ -231,7 +233,9 @@ class Renderer:
             self.out_light_image,
             self.sample_weights,
         )
+        print(f"Light gather time: {time.time() - start_gather_time:.4f} seconds")
 
+        start_reset_time = time.time()
         self.light_reset_fn(
             n,
             self.out_light_indices,
@@ -240,6 +244,7 @@ class Renderer:
             self.out_light_weights,
             self.out_light_shade,
         )
+        print(f"Light reset time: {time.time() - start_reset_time:.4f} seconds")
 
     @timed
     def process_images(self):

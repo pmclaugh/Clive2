@@ -25,7 +25,7 @@ CYAN = np.array([0.8, 0.8, 0.3], dtype=np.float64)
 
 
 # BVH constants
-MAX_MEMBERS = 16
+MAX_MEMBERS = 8
 MAX_DEPTH = 32
 SPATIAL_SPLITS = 8
 

@@ -639,18 +639,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     int pixel_idx = cached_camera_zero.pixel_idx;
     int light_pixel_idx = -1;
     int total_pixels = c.pixel_width * c.pixel_height;
-    for (int i = 0; i < 8; i++) {
-        light_pixel_indices[id + i * total_pixels] = -1;
-        light_path_indices[id + i * total_pixels] = -1;
-        light_ray_indices[id + i * total_pixels] = -1;
-        light_weights[id + i * total_pixels] = 0.0;
-        light_shade[id + i * total_pixels] = 0.0;
-    }
     float contrib_weight_sum = 0.0;
 
     for (int t = 1; t < camera_path.length + 1; t++) {
         for (int s = 0; s < light_path.length + 1; s++) {
-
             if (t + s < 2) {continue;}
 
             // reset
