@@ -203,6 +203,7 @@ class Renderer:
         start_sort_time = time.time()
         n = next_power_of_two(self.batch_size * 8)
         log_n = int(np.log2(n))
+        pairs_per_thread = 4
         for stage in range(1, log_n + 1):
             for passOfStage in range(stage, 0, -1):
                 self.light_sort_fn(
@@ -214,6 +215,8 @@ class Renderer:
                     self.out_light_shade,
                     np.uint32(stage),
                     np.uint32(passOfStage),
+                    np.uint32(n),
+                    np.uint32(pairs_per_thread)
                 )
         print(f"Light sort time: {time.time() - start_sort_time:.4f} seconds")
 

@@ -864,57 +864,66 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
 
 
 kernel void light_sort(device int32_t *light_pixel_indices [[ buffer(0) ]],
-                        device int32_t *light_path_indices [[ buffer(1) ]],
-                        device int32_t *light_ray_indices [[ buffer(2) ]],
-                        device float *light_weights [[ buffer(3) ]],
-                        device float *light_shade [[ buffer(4) ]],
-                        constant uint32_t& stage [[buffer(5)]],
-                        constant uint32_t& passOfStage [[buffer(6)]],
-                        uint id [[thread_position_in_grid]]) {
+                       device int32_t *light_path_indices [[ buffer(1) ]],
+                       device int32_t *light_ray_indices [[ buffer(2) ]],
+                       device float *light_weights [[ buffer(3) ]],
+                       device float *light_shade [[ buffer(4) ]],
+                       constant uint32_t& stage [[ buffer(5) ]],
+                       constant uint32_t& passOfStage [[ buffer(6) ]],
+                       constant uint32_t& n [[ buffer(7) ]],
+                       constant uint32_t& pairs_per_thread [[ buffer(8) ]],
+                       uint id [[ thread_position_in_grid ]]) {
 
-    /* distance between the two elements compared by this thread */
-    uint pairDistance = 1u << (passOfStage - 1);      // 2^(p‑1)
+    // Each thread will process `pairs_per_thread` bitonic comparisons
+    for (uint p = 0; p < pairs_per_thread; ++p) {
+        uint global_pair_id = id * pairs_per_thread + p;
 
-    /* size of the whole bitonic block being merged in this stage (2^stage) */
-    uint blockWidth   = 1u <<  stage;                 // 2^stage
+        uint pairDistance = 1u << (passOfStage - 1);
+        uint blockWidth   = 1u << stage;
 
-    /* indices of the two elements that this thread will compare */
-    uint leftId  = (id / pairDistance) * pairDistance * 2u + (id % pairDistance);
-    uint rightId = leftId + pairDistance;
+        uint leftId  = (global_pair_id / pairDistance) * pairDistance * 2u + (global_pair_id % pairDistance);
+        uint rightId = leftId + pairDistance;
 
-    /* ascending for the first half of each block, descending for the second */
-    bool ascending = ((id & (blockWidth >> 1)) == 0u);   // test bit (stage‑1)
+        // bounds check
+        if (rightId >= n || leftId >= n) continue;
 
-    int left_pixel_idx = light_pixel_indices[leftId];
-    int right_pixel_idx = light_pixel_indices[rightId];
+        bool ascending = ((global_pair_id & (blockWidth >> 1)) == 0u);
 
-    int left_path_idx = light_path_indices[leftId];
-    int right_path_idx = light_path_indices[rightId];
+        int left_pixel_idx = light_pixel_indices[leftId];
+        int right_pixel_idx = light_pixel_indices[rightId];
 
-    int left_ray_idx = light_ray_indices[leftId];
-    int right_ray_idx = light_ray_indices[rightId];
 
-    float left_weight = light_weights[leftId];
-    float right_weight = light_weights[rightId];
+        if ((ascending && left_pixel_idx > right_pixel_idx) ||
+            (!ascending && left_pixel_idx < right_pixel_idx)) {
 
-    float left_shade = light_shade[leftId];
-    float right_shade = light_shade[rightId];
+            int left_path_idx = light_path_indices[leftId];
+            int right_path_idx = light_path_indices[rightId];
 
-    if ((ascending && left_pixel_idx > right_pixel_idx) || (!ascending && left_pixel_idx < right_pixel_idx)) {
-        light_pixel_indices[leftId] = right_pixel_idx;
-        light_pixel_indices[rightId] = left_pixel_idx;
+            int left_ray_idx = light_ray_indices[leftId];
+            int right_ray_idx = light_ray_indices[rightId];
 
-        light_path_indices[leftId] = right_path_idx;
-        light_path_indices[rightId] = left_path_idx;
+            float left_weight = light_weights[leftId];
+            float right_weight = light_weights[rightId];
 
-        light_ray_indices[leftId] = right_ray_idx;
-        light_ray_indices[rightId] = left_ray_idx;
+            float left_shade = light_shade[leftId];
+            float right_shade = light_shade[rightId];
 
-        light_weights[leftId] = right_weight;
-        light_weights[rightId] = left_weight;
+            // Swap all
+            light_pixel_indices[leftId] = right_pixel_idx;
+            light_pixel_indices[rightId] = left_pixel_idx;
 
-        light_shade[leftId] = right_shade;
-        light_shade[rightId] = left_shade;
+            light_path_indices[leftId] = right_path_idx;
+            light_path_indices[rightId] = left_path_idx;
+
+            light_ray_indices[leftId] = right_ray_idx;
+            light_ray_indices[rightId] = left_ray_idx;
+
+            light_weights[leftId] = right_weight;
+            light_weights[rightId] = left_weight;
+
+            light_shade[leftId] = right_shade;
+            light_shade[rightId] = left_shade;
+        }
     }
 }
 
