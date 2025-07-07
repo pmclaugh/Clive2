@@ -258,7 +258,7 @@ class Renderer:
             self.sample_weights, dtype=np.float32
         ).reshape(self.pixel_height, self.pixel_width, 1)
 
-        image = light_image #+ finalized_image
+        image = light_image + finalized_image
 
         self.summed_image += np.nan_to_num(image, posinf=0, neginf=0)
         self.summed_sample_counts += finalized_sample_counts
