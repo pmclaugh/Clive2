@@ -805,8 +805,10 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 color = camera_color * light_color;
                 g = geometry_term(camera_ray, light_ray);
             }
-            if (t != 1)
+            if (t != 1){
                 aggregator.total_contribution += w * g * color / p_s;
+                contrib_weight_sum += w;
+            }
             else {
                 light_pixel_indices[id + s * total_pixels] = light_pixel_idx;
                 light_path_indices[id + s * total_pixels] = id;
@@ -814,7 +816,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 light_weights[id + s * total_pixels] = w;
                 light_shade[id + s * total_pixels] = new_light_f * g / p_s;
             }
-            contrib_weight_sum += w;
         }
     }
 

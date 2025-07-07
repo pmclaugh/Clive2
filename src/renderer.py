@@ -58,12 +58,12 @@ class Renderer:
 
         # buffers - join
         self.out_samples = dev.buffer(self.batch_size * 16)
-        sz = next_power_of_two(self.batch_size * 8 * 4)
-        self.out_light_indices = dev.buffer(np.ones(sz // 4, dtype=np.int32) * -1)
-        self.out_light_path_indices = dev.buffer(sz)
-        self.out_light_ray_indices = dev.buffer(sz)
-        self.out_light_weights = dev.buffer(sz)
-        self.out_light_shade = dev.buffer(sz)
+        sz = next_power_of_two(self.batch_size * 8)
+        self.out_light_indices = dev.buffer(np.ones(sz, dtype=np.int32) * -1)
+        self.out_light_path_indices = dev.buffer(sz * 4)
+        self.out_light_ray_indices = dev.buffer(sz * 4)
+        self.out_light_weights = dev.buffer(sz * 4)
+        self.out_light_shade = dev.buffer(sz * 4)
 
         # buffers - finalize
         self.weight_aggregators = dev.buffer(self.batch_size * 128)
