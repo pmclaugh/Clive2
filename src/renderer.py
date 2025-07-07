@@ -207,7 +207,7 @@ class Renderer:
         for stage in range(1, log_n + 1):
             for passOfStage in range(stage, 0, -1):
                 self.light_sort_fn(
-                    n // 2,
+                    n // 8,
                     self.out_light_indices,
                     self.out_light_path_indices,
                     self.out_light_ray_indices,
