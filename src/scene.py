@@ -1,3 +1,5 @@
+import time
+
 import metalcompute
 import numpy as np
 from camera import Camera
@@ -7,6 +9,7 @@ from load import (
     dummy_smooth_normals,
     triangles_for_box,
     load_ply,
+    fast_load_ply,
     load_obj,
     get_materials,
     camera_geometry,
@@ -75,7 +78,9 @@ def create_scene(
 
             triangles.extend(file_triangles)
 
+    bvh_start_time = time.time()
     bvh = construct_BVH(triangles)
+    print(f"BVH construction took {time.time() - bvh_start_time:.4f} seconds")
     np_boxes, np_triangles = np_flatten_bvh(bvh)
     light_triangles = [t for t in np_triangles if t["is_light"]]
 

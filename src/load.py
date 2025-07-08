@@ -30,45 +30,27 @@ def unit(v):
 
 
 class Triangle:
-    v0 = np.zeros(3, dtype=np.float64)
-    v1 = np.zeros(3, dtype=np.float64)
-    v2 = np.zeros(3, dtype=np.float64)
-    n0 = np.zeros(3, dtype=np.float64)
-    n1 = np.zeros(3, dtype=np.float64)
-    n2 = np.zeros(3, dtype=np.float64)
-    t0 = np.zeros(3, dtype=np.float64)
-    t1 = np.zeros(3, dtype=np.float64)
-    t2 = np.zeros(3, dtype=np.float64)
-    material = 0
-    emitter = False
-    camera = False
-
     def __init__(self, v0, v1, v2, material=0, emitter=False, camera=False):
         self.v0 = v0
         self.v1 = v1
         self.v2 = v2
+        self.n0 = np.zeros(3, dtype=np.float64)
+        self.n1 = np.zeros(3, dtype=np.float64)
+        self.n2 = np.zeros(3, dtype=np.float64)
+        self.t0 = np.zeros(3, dtype=np.float64)
+        self.t1 = np.zeros(3, dtype=np.float64)
+        self.t2 = np.zeros(3, dtype=np.float64)
         self.material = material
         self.emitter = emitter
         self.camera = camera
 
-    @cached_property
-    def min(self):
-        return np.minimum(self.v0, np.minimum(self.v1, self.v2))
-
-    @cached_property
-    def max(self):
-        return np.maximum(self.v0, np.maximum(self.v1, self.v2))
-
-    @cached_property
-    def n(self):
-        a = np.cross(self.v1 - self.v0, self.v2 - self.v0)
-        return a / np.linalg.norm(a)
-
-    @cached_property
-    def surface_area(self):
+        self.min = np.minimum(self.v0, np.minimum(self.v1, self.v2))
+        self.max = np.maximum(self.v0, np.maximum(self.v1, self.v2))
+        self.n = unit(np.cross(self.v1 - self.v0, self.v2 - self.v0))
         e1 = (self.v1 - self.v0)[0:3]
         e2 = (self.v2 - self.v0)[0:3]
-        return np.linalg.norm(np.cross(e1, e2)) / 2
+        self.surface_area = np.linalg.norm(np.cross(e1, e2)) / 2
+
 
 
 def load_obj(obj_path, offset=None, material=None, scale=1.0):
@@ -106,6 +88,42 @@ def load_obj(obj_path, offset=None, material=None, scale=1.0):
     return triangles
 
 
+def fast_load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
+    if offset is None:
+        offset = np.zeros(3)
+    base_load_time = time.time()
+    ply = PlyData.read(ply_path)
+    print(f"PlyData.read in {time.time() - base_load_time}")
+    array_time = time.time()
+    vertices = np.array(ply['vertex'].data).view(np.float32).reshape(-1, 3) * scale + offset
+    print(f"vertices array in {time.time() - array_time}")
+
+    face_time = time.time()
+    faces = np.stack(ply['face']['vertex_indices'])
+    triangles = vertices[faces]
+    print(f"faces in {time.time() - face_time}")
+
+    derived_time = time.time()
+    mins = np.min(triangles, axis=1)
+    maxs = np.max(triangles, axis=1)
+    normals = np.cross(
+        triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]
+    )
+    surface_areas = np.linalg.norm(normals, axis=1) / 2
+    normals = normals / np.linalg.norm(normals, axis=1)[:, None]
+    print(f"derived values in {time.time() - derived_time}")
+
+    return {
+        "vertices": vertices,
+        "triangles": triangles,
+        "mins": mins,
+        "maxs": maxs,
+        "normals": normals,
+        "surface_areas": surface_areas,
+        "material": material if material is not None else 0,
+        "emitter": emitter,
+    }
+
 def load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
     if offset is None:
         offset = np.zeros(3)
@@ -116,6 +134,8 @@ def load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
     dropped_triangles = 0
     array_time = time.time()
     vertices = np.array(list(list(vertex) for vertex in ply["vertex"])) * scale + offset
+
+    # np.array(ply['vertex'].data).view(np.float32).reshape(-1, 3)
     print(f"vertices array in {time.time() - array_time}")
     face_time = time.time()
     for face in ply["face"]["vertex_indices"]:
@@ -145,6 +165,7 @@ def load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
             dropped_triangles += 1
         else:
             triangles.append(triangle)
+    # np.stack(ply['face']['vertex_indices'])
     print(f"faces in {time.time() - face_time}")
     print(
         f"done loading ply. loaded {len(triangles)} triangles, dropped {dropped_triangles}"

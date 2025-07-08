@@ -27,7 +27,7 @@ CYAN = np.array([0.8, 0.8, 0.3], dtype=np.float64)
 # BVH constants
 MAX_MEMBERS = 8
 MAX_DEPTH = 32
-SPATIAL_SPLITS = 8
+SPATIAL_SPLITS = 4
 
 # Scene constants
 DEFAULT_BOX_MIN_CORNER = np.array([-10, -2, -10])

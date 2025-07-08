@@ -1,4 +1,5 @@
 import numpy as np
+from numba import njit
 from constants import *
 from struct_types import Box, Triangle
 
@@ -21,14 +22,10 @@ class TreeBox:
             self.max = box_max
 
 
+@njit
 def surface_area(mins, maxes):
     span = maxes - mins
     return 2 * (span[0] * span[1] + span[1] * span[2] + span[2] * span[0])
-
-
-def volume(b: TreeBox):
-    dims = b.max - b.min
-    return dims[0] * dims[1] * dims[2]
 
 
 def object_split(box: TreeBox):
