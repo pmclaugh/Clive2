@@ -55,7 +55,7 @@ def create_scene(
     if file_specs:
         for file_spec in file_specs:
             if file_spec["file_path"].endswith(".ply"):
-                file_triangles = load_ply(
+                file_triangles = fast_load_ply(
                     ply_path=file_spec["file_path"],
                     material=file_spec.get("material", 0),
                     scale=file_spec.get("scale", 1.0),

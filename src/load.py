@@ -30,7 +30,7 @@ def unit(v):
 
 
 class Triangle:
-    def __init__(self, v0, v1, v2, material=0, emitter=False, camera=False):
+    def __init__(self, v0, v1, v2, _min=None, _max=None, normal=None, surface_area=None, material=0, emitter=False, camera=False):
         self.v0 = v0
         self.v1 = v1
         self.v2 = v2
@@ -44,12 +44,21 @@ class Triangle:
         self.emitter = emitter
         self.camera = camera
 
-        self.min = np.minimum(self.v0, np.minimum(self.v1, self.v2))
-        self.max = np.maximum(self.v0, np.maximum(self.v1, self.v2))
-        self.n = unit(np.cross(self.v1 - self.v0, self.v2 - self.v0))
-        e1 = (self.v1 - self.v0)[0:3]
-        e2 = (self.v2 - self.v0)[0:3]
-        self.surface_area = np.linalg.norm(np.cross(e1, e2)) / 2
+        if _min is None:
+            _min = np.minimum(v0, np.minimum(v1, v2))
+        self.min = _min
+
+        if _max is None:
+            _max = np.maximum(v0, np.maximum(v1, v2))
+        self.max = _max
+
+        if normal is None:
+            normal = unit(np.cross(v1 - v0, v2 - v0))
+        self.n = normal
+
+        if surface_area is None:
+            self.surface_area = np.linalg.norm(np.cross(v1 - v0, v2 - v0)) / 2
+        self.surface_area = surface_area
 
 
 
@@ -113,16 +122,25 @@ def fast_load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False
     normals = normals / np.linalg.norm(normals, axis=1)[:, None]
     print(f"derived values in {time.time() - derived_time}")
 
-    return {
-        "vertices": vertices,
-        "triangles": triangles,
-        "mins": mins,
-        "maxs": maxs,
-        "normals": normals,
-        "surface_areas": surface_areas,
-        "material": material if material is not None else 0,
-        "emitter": emitter,
-    }
+    triangle_build_time = time.time()
+    triangle_objects = []
+    for i in range(len(triangles)):
+        triangle = Triangle(
+            triangles[i][0],
+            triangles[i][1],
+            triangles[i][2],
+            _min=mins[i],
+            _max=maxs[i],
+            normal=normals[i],
+            surface_area=surface_areas[i],
+            material=material if material is not None else 0,
+            emitter=emitter,
+        )
+        triangle_objects.append(triangle)
+    print(f"triangle_objects in {time.time() - triangle_build_time}")
+
+    print(f"done loading ply. loaded {len(triangle_objects)} triangles")
+    return triangle_objects
 
 def load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
     if offset is None:
