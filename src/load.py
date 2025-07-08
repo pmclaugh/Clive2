@@ -20,9 +20,9 @@ from constants import (
 )
 from collections import defaultdict
 from plyfile import PlyData
-from functools import cached_property
 from struct_types import Ray, Material
 import time
+from bvh import FastTreeBox
 
 
 def unit(v):
@@ -30,127 +30,149 @@ def unit(v):
 
 
 class Triangle:
-    v0 = np.zeros(3, dtype=np.float64)
-    v1 = np.zeros(3, dtype=np.float64)
-    v2 = np.zeros(3, dtype=np.float64)
-    n0 = np.zeros(3, dtype=np.float64)
-    n1 = np.zeros(3, dtype=np.float64)
-    n2 = np.zeros(3, dtype=np.float64)
-    t0 = np.zeros(3, dtype=np.float64)
-    t1 = np.zeros(3, dtype=np.float64)
-    t2 = np.zeros(3, dtype=np.float64)
-    material = 0
-    emitter = False
-    camera = False
-
-    def __init__(self, v0, v1, v2, material=0, emitter=False, camera=False):
+    def __init__(
+        self,
+        v0,
+        v1,
+        v2,
+        _min=None,
+        _max=None,
+        normal=None,
+        surface_area=None,
+        material=0,
+        emitter=False,
+        camera=False,
+    ):
         self.v0 = v0
         self.v1 = v1
         self.v2 = v2
+        self.n0 = np.zeros(3, dtype=np.float64)
+        self.n1 = np.zeros(3, dtype=np.float64)
+        self.n2 = np.zeros(3, dtype=np.float64)
+        self.t0 = np.zeros(3, dtype=np.float64)
+        self.t1 = np.zeros(3, dtype=np.float64)
+        self.t2 = np.zeros(3, dtype=np.float64)
         self.material = material
         self.emitter = emitter
         self.camera = camera
 
-    @cached_property
-    def min(self):
-        return np.minimum(self.v0, np.minimum(self.v1, self.v2))
+        if _min is None:
+            _min = np.minimum(v0, np.minimum(v1, v2))
+        self.min = _min
 
-    @cached_property
-    def max(self):
-        return np.maximum(self.v0, np.maximum(self.v1, self.v2))
+        if _max is None:
+            _max = np.maximum(v0, np.maximum(v1, v2))
+        self.max = _max
 
-    @cached_property
-    def n(self):
-        a = np.cross(self.v1 - self.v0, self.v2 - self.v0)
-        return a / np.linalg.norm(a)
+        if normal is None:
+            normal = unit(np.cross(v1 - v0, v2 - v0))
+        self.n = normal
 
-    @cached_property
-    def surface_area(self):
-        e1 = (self.v1 - self.v0)[0:3]
-        e2 = (self.v2 - self.v0)[0:3]
-        return np.linalg.norm(np.cross(e1, e2)) / 2
+        if surface_area is None:
+            self.surface_area = np.linalg.norm(np.cross(v1 - v0, v2 - v0)) / 2
+        self.surface_area = surface_area
 
 
-def load_obj(obj_path, offset=None, material=None, scale=1.0):
+def fast_load_obj(obj_path, offset=None, material=None, emitter=False, scale=1.0):
     if offset is None:
         offset = np.zeros(3)
+
     obj = objloader.Obj.open(obj_path)
-    triangles = []
-    for i, ((v0, n0, t0), (v1, n1, t1), (v2, n2, t2)) in enumerate(
-        zip(*[iter(obj.face)] * 3)
-    ):
-        triangle = Triangle(
-            np.array(obj.vert[v0 - 1]) * scale + offset,
-            np.array(obj.vert[v1 - 1]) * scale + offset,
-            np.array(obj.vert[v2 - 1]) * scale + offset,
-        )
-
-        # normals
-        triangle.n0 = np.array(obj.norm[n0 - 1]) if n0 is not None else INVALID
-        triangle.n1 = np.array(obj.norm[n1 - 1]) if n1 is not None else INVALID
-        triangle.n2 = np.array(obj.norm[n2 - 1]) if n2 is not None else INVALID
-
-        # texture UVs
-        triangle.t0 = np.array(obj.text[t0 - 1]) if t0 is not None else INVALID
-        triangle.t1 = np.array(obj.text[t1 - 1]) if t1 is not None else INVALID
-        triangle.t2 = np.array(obj.text[t2 - 1]) if t2 is not None else INVALID
-
-        # material
-        if material is None:
-            triangle.material = 0
-        else:
-            triangle.material = material
-        triangle.emitter = False
-
-        triangles.append(triangle)
-    return triangles
+    vertices = np.array(obj.vert) * scale + offset
+    faces = np.array(obj.face)[:, 0].astype(np.int32).reshape(-1, 3) - 1
+    return fast_load(vertices, faces, material=material, emitter=emitter)
 
 
-def load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
+def fast_load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
     if offset is None:
         offset = np.zeros(3)
-    base_load_time = time.time()
+
     ply = PlyData.read(ply_path)
-    print(f"PlyData.read in {time.time() - base_load_time}")
-    triangles = []
-    dropped_triangles = 0
-    array_time = time.time()
-    vertices = np.array(list(list(vertex) for vertex in ply["vertex"])) * scale + offset
-    print(f"vertices array in {time.time() - array_time}")
-    face_time = time.time()
-    for face in ply["face"]["vertex_indices"]:
-        v0 = vertices[face[0]]
-        v1 = vertices[face[1]]
-        v2 = vertices[face[2]]
-        triangle = Triangle(v0, v1, v2)
-
-        # normals
-        triangle.n0 = INVALID
-        triangle.n1 = INVALID
-        triangle.n2 = INVALID
-
-        # texture UVs
-        triangle.t0 = INVALID
-        triangle.t1 = INVALID
-        triangle.t2 = INVALID
-
-        # material
-        if material is None:
-            triangle.material = 0
-        else:
-            triangle.material = material
-        triangle.emitter = emitter
-
-        if np.any(np.isnan(triangle.n)):
-            dropped_triangles += 1
-        else:
-            triangles.append(triangle)
-    print(f"faces in {time.time() - face_time}")
-    print(
-        f"done loading ply. loaded {len(triangles)} triangles, dropped {dropped_triangles}"
+    vertices = (
+        np.array(ply["vertex"].data).view(np.float32).reshape(-1, 3) * scale + offset
     )
-    return triangles
+    faces = np.stack(ply["face"]["vertex_indices"])
+    return fast_load(vertices, faces, material=material, emitter=emitter)
 
+
+def fast_load(vertices, faces, emitter=False, material=None):
+    triangles = vertices[faces]
+
+    mins = np.min(triangles, axis=1)
+    maxes = np.max(triangles, axis=1)
+    face_normals = np.cross(
+        triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]
+    )
+
+    smoothed_vertex_normals = smooth_vertex_normals(vertices, faces, face_normals)
+    smoothed_triangle_normals = smoothed_vertex_normals[faces]
+
+    surface_areas = np.linalg.norm(face_normals, axis=1) / 2
+    face_normals = face_normals / np.linalg.norm(face_normals, axis=1)[:, None]
+
+    if material is None:
+        materials = np.zeros(len(triangles), dtype=np.int32)
+    else:
+        materials = np.full(len(triangles), material, dtype=np.int32)
+
+    if emitter:
+        emitters = np.ones(len(triangles), dtype=np.bool_)
+    else:
+        emitters = np.zeros(len(triangles), dtype=np.bool_)
+
+    return FastTreeBox(
+        faces=faces,
+        triangles=triangles,
+        mins=mins,
+        maxes=maxes,
+        face_normals=face_normals,
+        smoothed_normals=smoothed_triangle_normals,
+        surface_areas=surface_areas,
+        material=materials,
+        emitter=emitters,
+        camera=np.zeros(len(triangles), dtype=np.int32),
+    )
+
+def smooth_vertex_normals(vertices: np.ndarray,
+                          faces:    np.ndarray,
+                          face_n:   np.ndarray) -> np.ndarray:
+    """
+    Angle‑weighted normal smoothing.
+
+    Parameters
+    ----------
+    vertices : (N,3) float array
+    faces    : (M,3) int array – vertex indices
+    face_n   : (M,3) float array – unit normals for each face
+
+    Returns
+    -------
+    v_n : (N,3) float array – unit normals per vertex
+    """
+    # --- gather the three vertex positions for every face ------------------
+    v = vertices[faces]                     # (M, 3, 3)  v[:,i] = i‑th corner
+
+    # --- for every corner build the two incident edge vectors --------------
+    e_next = np.roll(v, -1, axis=1) - v     # edge to next corner
+    e_prev = np.roll(v,  1, axis=1) - v     # edge to previous corner
+
+    # --- compute the internal angle at each corner -------------------------
+    #   angle = atan2(|a×b|, a·b)  (stable for near‑collinear edges)
+    cross_len = np.linalg.norm(np.cross(e_next, e_prev), axis=2)   # |a×b|
+    dot       = np.einsum('ijk,ijk->ij', e_next, e_prev)           # a·b
+    angles    = np.arctan2(cross_len, dot)                         # (M,3)
+
+    # --- accumulate angle‑weighted face normals at their three vertices ----
+    w_face_n  = face_n[:, None, :] * angles[..., None]             # (M,3,3)
+
+    v_n = np.zeros_like(vertices, dtype=vertices.dtype)            # (N,3)
+    np.add.at(v_n, faces.ravel(), w_face_n.reshape(-1, 3))
+
+    # --- final normalisation ----------------------------------------------
+    lens = np.linalg.norm(v_n, axis=1, keepdims=True)
+    np.divide(v_n, lens, out=v_n, where=lens > 0)                  # in‑place
+
+    return v_n
 
 def get_materials():
     materials = np.zeros(8, dtype=Material)

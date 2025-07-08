@@ -1,13 +1,15 @@
+import time
+
 import metalcompute
 import numpy as np
 from camera import Camera
-from bvh import construct_BVH, np_flatten_bvh
+from bvh import construct_BVH, np_flatten_bvh, FastTreeBox
 from load import (
     smooth_normals,
     dummy_smooth_normals,
     triangles_for_box,
-    load_ply,
-    load_obj,
+    fast_load_ply,
+    fast_load_obj,
     get_materials,
     camera_geometry,
     surface_area,
@@ -23,7 +25,6 @@ def create_scene(
     pixel_height=720,
     cam_center=ZERO_VECTOR,
     cam_direction=UNIT_Z,
-    build_box=True,
     file_specs=None,
     metal_device=None,
 ):
@@ -40,26 +41,27 @@ def create_scene(
     )
 
     triangles = []
-
     camera_tris = camera_geometry(camera)
     dummy_smooth_normals(camera_tris)
     triangles.extend(camera_tris)
 
-    if build_box:
-        box_triangles = triangles_for_box()
-        dummy_smooth_normals(box_triangles)
-        triangles.extend(box_triangles)
+    box_triangles = triangles_for_box()
+    dummy_smooth_normals(box_triangles)
+    triangles.extend(box_triangles)
+
+    box = FastTreeBox.from_triangle_objects(triangles)
+
     if file_specs:
         for file_spec in file_specs:
             if file_spec["file_path"].endswith(".ply"):
-                file_triangles = load_ply(
+                box = box + fast_load_ply(
                     ply_path=file_spec["file_path"],
                     material=file_spec.get("material", 0),
                     scale=file_spec.get("scale", 1.0),
                     offset=file_spec.get("offset", ZERO_VECTOR),
                 )
             elif file_spec["file_path"].endswith(".obj"):
-                file_triangles = load_obj(
+                box = box + fast_load_obj(
                     obj_path=file_spec["file_path"],
                     material=file_spec.get("material", 0),
                     scale=file_spec.get("scale", 1.0),
@@ -68,14 +70,9 @@ def create_scene(
             else:
                 raise NotImplementedError
 
-            if file_spec.get("smooth", True):
-                smooth_normals(file_triangles)
-            else:
-                dummy_smooth_normals(file_triangles)
-
-            triangles.extend(file_triangles)
-
-    bvh = construct_BVH(triangles)
+    bvh_start_time = time.time()
+    bvh = construct_BVH(box)
+    print(f"BVH construction took {time.time() - bvh_start_time:.4f} seconds")
     np_boxes, np_triangles = np_flatten_bvh(bvh)
     light_triangles = [t for t in np_triangles if t["is_light"]]
 
@@ -140,6 +137,17 @@ class Scene:
         self.light_surface_areas = light_surface_areas
         self.light_triangle_indices = light_triangle_indices
         self.camera_triangle_indices = camera_triangle_indices
+
+    def __del__(self):
+        metalcompute.release(self.camera)
+        metalcompute.release(self.triangles)
+        metalcompute.release(self.boxes)
+        metalcompute.release(self.materials)
+        metalcompute.release(self.light_triangles)
+        metalcompute.release(self.light_counts)
+        metalcompute.release(self.light_surface_areas)
+        metalcompute.release(self.light_triangle_indices)
+        metalcompute.release(self.camera_triangle_indices)
 
 
 scene_presets = {
@@ -214,6 +222,33 @@ def create_scene_from_preset(
         pixel_height=pixel_height,
         cam_center=preset["cam_center"],
         cam_direction=preset["cam_direction"],
+        file_specs=preset.get("file_specs"),
+        metal_device=metal_device,
+    )
+
+
+def create_scene_from_preset_with_params(
+    preset_name,
+    pixel_width=1280,
+    pixel_height=720,
+    metal_device=None,
+    frame_idx=0,
+    total_frames=1,
+):
+    preset = scene_presets.get(preset_name)
+    if not preset:
+        raise ValueError(f"Preset '{preset_name}' not found.")
+
+    theta = 2 * np.pi * frame_idx / total_frames
+
+    cam_center = np.array([np.sin(theta) * 7.5, 1.5, np.cos(theta) * 7.5])
+    cam_direction = np.array([-np.sin(theta), 0, -np.cos(theta)])
+
+    return create_scene(
+        pixel_width=pixel_width,
+        pixel_height=pixel_height,
+        cam_center=cam_center,
+        cam_direction=cam_direction,
         file_specs=preset.get("file_specs"),
         metal_device=metal_device,
     )

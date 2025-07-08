@@ -30,14 +30,14 @@ if __name__ == "__main__":
 
     to_display = np.zeros((args.height, args.width, 3), dtype=np.uint8)
 
+    start_time = time.time()
     for i in range(args.samples):
         try:
-            start_sample_time = time.time()
             renderer.run_sample()
-            to_display = renderer.current_image.copy()
+            print(f"Sample {i}/{args.samples} completed")
+            to_display = renderer.image.copy()
             cv2.imshow("image", to_display)
             cv2.waitKey(1)
-            print(f"Whole sample {i} time: {time.time() - start_sample_time}")
 
         except (KeyboardInterrupt, metalcompute.error):
             if args.save_on_quit:
@@ -45,7 +45,9 @@ if __name__ == "__main__":
             else:
                 raise
 
-        cv2.imwrite(
-            f'../output/default/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png',
-            to_display,
-        )
+    print(f"Rendering took {time.time() - start_time:.2f} seconds")
+
+    cv2.imwrite(
+        f'../output/default/{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.png',
+        to_display,
+    )
