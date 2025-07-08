@@ -6,7 +6,7 @@ from struct_types import Box, Triangle
 
 class FastTreeBox:
     def __init__(
-        self, faces, triangles, mins, maxes, face_normals, surface_areas, material, emitter, camera
+        self, faces, triangles, mins, maxes, face_normals, smoothed_normals, surface_areas, material, emitter, camera
     ):
         self.left = None
         self.right = None
@@ -19,6 +19,7 @@ class FastTreeBox:
         self.min = np.min(self.mins, axis=0) if len(mins) else INF
         self.max = np.max(self.maxes, axis=0) if len(maxes) else NEG_INF
         self.face_normals = face_normals
+        self.smoothed_normals = smoothed_normals
         self.surface_areas = surface_areas
         self.material = material
         self.emitter = emitter
@@ -32,6 +33,7 @@ class FastTreeBox:
             mins=np.empty((0, 3), dtype=np.float32),
             maxes=np.empty((0, 3), dtype=np.float32),
             face_normals=np.empty((0, 3), dtype=np.float32),
+            smoothed_normals=np.empty((0, 3, 3), dtype=np.float32),
             surface_areas=np.empty((0,), dtype=np.float32),
             material=np.empty((0,), dtype=np.int32),
             emitter=np.empty((0,), dtype=np.bool_),
@@ -49,6 +51,7 @@ class FastTreeBox:
         mins = np.min(triangles, axis=1)
         maxes = np.max(triangles, axis=1)
         normals = np.array([t.n for t in triangle_objects], dtype=np.float32)
+        smoothed_normals = np.array([[t.n] * 3 for t in triangle_objects], dtype=np.float32)
         surface_areas = np.array(
             [t.surface_area for t in triangle_objects], dtype=np.float32
         )
@@ -57,7 +60,7 @@ class FastTreeBox:
         camera = np.array([t.camera for t in triangle_objects], dtype=np.bool_)
 
         return cls(
-            faces, triangles, mins, maxes, normals, surface_areas, material, emitter, camera
+            faces, triangles, mins, maxes, normals, smoothed_normals, surface_areas, material, emitter, camera
         )
 
     def __add__(self, other):
@@ -69,6 +72,7 @@ class FastTreeBox:
         new_mins = np.concatenate((self.mins, other.mins))
         new_maxes = np.concatenate((self.maxes, other.maxes))
         new_normals = np.concatenate((self.face_normals, other.face_normals), axis=0)
+        new_smoothed_normals = np.concatenate((self.smoothed_normals, other.smoothed_normals), axis=0)
         new_surface_areas = np.concatenate((self.surface_areas, other.surface_areas))
         new_material = np.concatenate((self.material, other.material))
         new_emitter = np.concatenate((self.emitter, other.emitter))
@@ -80,6 +84,7 @@ class FastTreeBox:
             new_mins,
             new_maxes,
             new_normals,
+            new_smoothed_normals,
             new_surface_areas,
             new_material,
             new_emitter,
@@ -140,6 +145,7 @@ def object_split(box: FastTreeBox):
         mins=box.mins[best_sort[:i]],
         maxes=box.maxes[best_sort[:i]],
         face_normals=box.face_normals[best_sort[:i]],
+        smoothed_normals=box.smoothed_normals[best_sort[:i]],
         surface_areas=box.surface_areas[best_sort[:i]],
         material=box.material[best_sort[:i]],
         emitter=box.emitter[best_sort[:i]],
@@ -152,6 +158,7 @@ def object_split(box: FastTreeBox):
         mins=box.mins[best_sort[i:]],
         maxes=box.maxes[best_sort[i:]],
         face_normals=box.face_normals[best_sort[i:]],
+        smoothed_normals=box.smoothed_normals[best_sort[i:]],
         surface_areas=box.surface_areas[best_sort[i:]],
         material=box.material[best_sort[i:]],
         emitter=box.emitter[best_sort[i:]],
@@ -199,57 +206,12 @@ def count_boxes(root: FastTreeBox):
             box_stack.append(box.left)
     return count
 
-
-
-def smooth_vertex_normals(vertices: np.ndarray,
-                          faces:    np.ndarray,
-                          face_n:   np.ndarray) -> np.ndarray:
-    """
-    Angle‑weighted normal smoothing.
-
-    Parameters
-    ----------
-    vertices : (N,3) float array
-    faces    : (M,3) int array – vertex indices
-    face_n   : (M,3) float array – unit normals for each face
-
-    Returns
-    -------
-    v_n : (N,3) float array – unit normals per vertex
-    """
-    # --- gather the three vertex positions for every face ------------------
-    v = vertices[faces]                     # (M, 3, 3)  v[:,i] = i‑th corner
-
-    # --- for every corner build the two incident edge vectors --------------
-    e_next = np.roll(v, -1, axis=1) - v     # edge to next corner
-    e_prev = np.roll(v,  1, axis=1) - v     # edge to previous corner
-
-    # --- compute the internal angle at each corner -------------------------
-    #   angle = atan2(|a×b|, a·b)  (stable for near‑collinear edges)
-    cross_len = np.linalg.norm(np.cross(e_next, e_prev), axis=2)   # |a×b|
-    dot       = np.einsum('ijk,ijk->ij', e_next, e_prev)           # a·b
-    angles    = np.arctan2(cross_len, dot)                         # (M,3)
-
-    # --- accumulate angle‑weighted face normals at their three vertices ----
-    w_face_n  = face_n[:, None, :] * angles[..., None]             # (M,3,3)
-
-    v_n = np.zeros_like(vertices, dtype=vertices.dtype)            # (N,3)
-    np.add.at(v_n, faces.ravel(), w_face_n.reshape(-1, 3))
-
-    # --- final normalisation ----------------------------------------------
-    lens = np.linalg.norm(v_n, axis=1, keepdims=True)
-    np.divide(v_n, lens, out=v_n, where=lens > 0)                  # in‑place
-
-    return v_n
-
-def np_flatten_bvh(root: FastTreeBox, vertices):
+def np_flatten_bvh(root: FastTreeBox):
     box_count = count_boxes(root)
     box_arr = np.zeros(box_count, dtype=Box)
 
     triangle_count = len(root.triangles)
     triangle_arr = np.zeros(triangle_count, dtype=Triangle)
-
-    smoothed_normals = smooth_vertex_normals(vertices, root.faces, root.face_normals)
 
     box_index = 0
     triangle_index = 0
@@ -280,9 +242,9 @@ def np_flatten_bvh(root: FastTreeBox, vertices):
             triangle_arr[l:r]["v0"][:, :3] = box.triangles[:, 0, :]
             triangle_arr[l:r]["v1"][:, :3] = box.triangles[:, 1, :]
             triangle_arr[l:r]["v2"][:, :3] = box.triangles[:, 2, :]
-            triangle_arr[l:r]["n0"][:, :3] = smoothed_normals[box.faces[:, 0]]
-            triangle_arr[l:r]["n1"][:, :3] = smoothed_normals[box.faces[:, 1]]
-            triangle_arr[l:r]["n2"][:, :3] = smoothed_normals[box.faces[:, 2]]
+            triangle_arr[l:r]["n0"][:, :3] = box.smoothed_normals[:, 0]
+            triangle_arr[l:r]["n1"][:, :3] = box.smoothed_normals[:, 1]
+            triangle_arr[l:r]["n2"][:, :3] = box.smoothed_normals[:, 2]
             triangle_arr[l:r]["normal"][:, :3] = box.face_normals
             triangle_arr[l:r]["material"] = box.material
             triangle_arr[l:r]["is_light"] = box.emitter

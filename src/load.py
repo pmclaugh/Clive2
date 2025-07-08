@@ -103,6 +103,10 @@ def fast_load(vertices, faces, emitter=False, material=None):
     face_normals = np.cross(
         triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]
     )
+
+    smoothed_vertex_normals = smooth_vertex_normals(vertices, faces, face_normals)
+    smoothed_triangle_normals = smoothed_vertex_normals[faces]
+
     surface_areas = np.linalg.norm(face_normals, axis=1) / 2
     face_normals = face_normals / np.linalg.norm(face_normals, axis=1)[:, None]
 
@@ -122,11 +126,53 @@ def fast_load(vertices, faces, emitter=False, material=None):
         mins=mins,
         maxes=maxes,
         face_normals=face_normals,
+        smoothed_normals=smoothed_triangle_normals,
         surface_areas=surface_areas,
         material=materials,
         emitter=emitters,
         camera=np.zeros(len(triangles), dtype=np.int32),
     )
+
+def smooth_vertex_normals(vertices: np.ndarray,
+                          faces:    np.ndarray,
+                          face_n:   np.ndarray) -> np.ndarray:
+    """
+    Angle‑weighted normal smoothing.
+
+    Parameters
+    ----------
+    vertices : (N,3) float array
+    faces    : (M,3) int array – vertex indices
+    face_n   : (M,3) float array – unit normals for each face
+
+    Returns
+    -------
+    v_n : (N,3) float array – unit normals per vertex
+    """
+    # --- gather the three vertex positions for every face ------------------
+    v = vertices[faces]                     # (M, 3, 3)  v[:,i] = i‑th corner
+
+    # --- for every corner build the two incident edge vectors --------------
+    e_next = np.roll(v, -1, axis=1) - v     # edge to next corner
+    e_prev = np.roll(v,  1, axis=1) - v     # edge to previous corner
+
+    # --- compute the internal angle at each corner -------------------------
+    #   angle = atan2(|a×b|, a·b)  (stable for near‑collinear edges)
+    cross_len = np.linalg.norm(np.cross(e_next, e_prev), axis=2)   # |a×b|
+    dot       = np.einsum('ijk,ijk->ij', e_next, e_prev)           # a·b
+    angles    = np.arctan2(cross_len, dot)                         # (M,3)
+
+    # --- accumulate angle‑weighted face normals at their three vertices ----
+    w_face_n  = face_n[:, None, :] * angles[..., None]             # (M,3,3)
+
+    v_n = np.zeros_like(vertices, dtype=vertices.dtype)            # (N,3)
+    np.add.at(v_n, faces.ravel(), w_face_n.reshape(-1, 3))
+
+    # --- final normalisation ----------------------------------------------
+    lens = np.linalg.norm(v_n, axis=1, keepdims=True)
+    np.divide(v_n, lens, out=v_n, where=lens > 0)                  # in‑place
+
+    return v_n
 
 def get_materials():
     materials = np.zeros(8, dtype=Material)
