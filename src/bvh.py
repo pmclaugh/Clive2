@@ -202,7 +202,7 @@ def np_flatten_bvh(root: FastTreeBox):
     triangle_index = 0
     box_queue = [root]
     while box_queue:
-        box = box_queue.pop()
+        box = box_queue.pop(0)
 
         box_arr[box_index]["min"][:3] = box.min
         box_arr[box_index]["max"][:3] = box.max
@@ -223,6 +223,8 @@ def np_flatten_bvh(root: FastTreeBox):
 
             box_arr[box_index]["left"] = l
             box_arr[box_index]["right"] = r
+
+            print(f"{box_index}: {l} -> {r}")
 
             triangle_arr[l:r]["v0"][:, :3] = box.triangles[:, 0, :]
             triangle_arr[l:r]["v1"][:, :3] = box.triangles[:, 1, :]
