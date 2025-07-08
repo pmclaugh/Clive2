@@ -2,11 +2,11 @@ import numpy as np
 import metalcompute as mc
 from random import shuffle
 
-dev   = mc.Device()
+dev = mc.Device()
 input_data = [12, 3, 7, 1, 9, 4, 11, 2]
 shuffle(input_data)
-data  = np.array(input_data, dtype=np.int32)
-buf   = dev.buffer(data)           # copy data to GPU memory
+data = np.array(input_data, dtype=np.int32)
+buf = dev.buffer(data)  # copy data to GPU memory
 
 source = """
 #include <metal_stdlib>
@@ -43,11 +43,11 @@ kernel void bitonic_sort(device int       *data        [[buffer(0)]],
 
 sort_fn = dev.kernel(source).function("bitonic_sort")
 
-n      = data.size
-log_n  = int(np.log2(n))
+n = data.size
+log_n = int(np.log2(n))
 for stage in range(1, log_n + 1):
     for passOfStage in range(stage, 0, -1):
         sort_fn(n // 2, buf, np.uint32(stage), np.uint32(passOfStage))
 
 sorted_data = np.frombuffer(buf, dtype=np.int32)
-print(sorted_data.tolist())   # → [1, 2, 3, 4, 7, 9, 11, 12]
+print(sorted_data.tolist())  # → [1, 2, 3, 4, 7, 9, 11, 12]

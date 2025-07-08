@@ -10,9 +10,11 @@ from constants import timed
 
 MAX_PATH_LENGTH = 8
 
+
 def next_power_of_two(n):
     """Returns the next power of two greater than or equal to n."""
     return 1 << (n - 1).bit_length() if n > 0 else 1
+
 
 class Renderer:
     def __init__(
@@ -218,7 +220,7 @@ class Renderer:
                     np.uint32(stage),
                     np.uint32(passOfStage),
                     np.uint32(n),
-                    np.uint32(pairs_per_thread)
+                    np.uint32(pairs_per_thread),
                 )
         print(f"Light sort time: {time.time() - start_sort_time:.4f} seconds")
 
@@ -269,6 +271,7 @@ class Renderer:
         ).reshape(self.pixel_height, self.pixel_width, 1)
 
         image = light_image + finalized_image
+        # image = debug_image
 
         self.summed_image += np.nan_to_num(image, posinf=0, neginf=0)
         self.summed_sample_counts += finalized_sample_counts

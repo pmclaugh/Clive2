@@ -20,9 +20,9 @@ from constants import (
 )
 from collections import defaultdict
 from plyfile import PlyData
-from functools import cached_property
 from struct_types import Ray, Material
 import time
+from bvh import FastTreeBox
 
 
 def unit(v):
@@ -30,7 +30,19 @@ def unit(v):
 
 
 class Triangle:
-    def __init__(self, v0, v1, v2, _min=None, _max=None, normal=None, surface_area=None, material=0, emitter=False, camera=False):
+    def __init__(
+        self,
+        v0,
+        v1,
+        v2,
+        _min=None,
+        _max=None,
+        normal=None,
+        surface_area=None,
+        material=0,
+        emitter=False,
+        camera=False,
+    ):
         self.v0 = v0
         self.v1 = v1
         self.v2 = v2
@@ -61,134 +73,59 @@ class Triangle:
         self.surface_area = surface_area
 
 
-
-def load_obj(obj_path, offset=None, material=None, scale=1.0):
+def fast_load_obj(obj_path, offset=None, material=None, emitter=False, scale=1.0):
     if offset is None:
         offset = np.zeros(3)
+
     obj = objloader.Obj.open(obj_path)
-    triangles = []
-    for i, ((v0, n0, t0), (v1, n1, t1), (v2, n2, t2)) in enumerate(
-        zip(*[iter(obj.face)] * 3)
-    ):
-        triangle = Triangle(
-            np.array(obj.vert[v0 - 1]) * scale + offset,
-            np.array(obj.vert[v1 - 1]) * scale + offset,
-            np.array(obj.vert[v2 - 1]) * scale + offset,
-        )
-
-        # normals
-        triangle.n0 = np.array(obj.norm[n0 - 1]) if n0 is not None else INVALID
-        triangle.n1 = np.array(obj.norm[n1 - 1]) if n1 is not None else INVALID
-        triangle.n2 = np.array(obj.norm[n2 - 1]) if n2 is not None else INVALID
-
-        # texture UVs
-        triangle.t0 = np.array(obj.text[t0 - 1]) if t0 is not None else INVALID
-        triangle.t1 = np.array(obj.text[t1 - 1]) if t1 is not None else INVALID
-        triangle.t2 = np.array(obj.text[t2 - 1]) if t2 is not None else INVALID
-
-        # material
-        if material is None:
-            triangle.material = 0
-        else:
-            triangle.material = material
-        triangle.emitter = False
-
-        triangles.append(triangle)
-    return triangles
+    vertices = np.array(obj.vert) * scale + offset
+    faces = np.array(obj.face)[:, 0].astype(np.int32).reshape(-1, 3) - 1
+    return fast_load(vertices, faces, material=material, emitter=emitter)
 
 
 def fast_load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
     if offset is None:
         offset = np.zeros(3)
-    base_load_time = time.time()
+
     ply = PlyData.read(ply_path)
-    print(f"PlyData.read in {time.time() - base_load_time}")
-    array_time = time.time()
-    vertices = np.array(ply['vertex'].data).view(np.float32).reshape(-1, 3) * scale + offset
-    print(f"vertices array in {time.time() - array_time}")
+    vertices = (
+        np.array(ply["vertex"].data).view(np.float32).reshape(-1, 3) * scale + offset
+    )
+    faces = np.stack(ply["face"]["vertex_indices"])
+    return fast_load(vertices, faces, material=material, emitter=emitter)
 
-    face_time = time.time()
-    faces = np.stack(ply['face']['vertex_indices'])
+
+def fast_load(vertices, faces, emitter=False, material=None):
     triangles = vertices[faces]
-    print(f"faces in {time.time() - face_time}")
 
-    derived_time = time.time()
     mins = np.min(triangles, axis=1)
-    maxs = np.max(triangles, axis=1)
+    maxes = np.max(triangles, axis=1)
     normals = np.cross(
         triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]
     )
     surface_areas = np.linalg.norm(normals, axis=1) / 2
     normals = normals / np.linalg.norm(normals, axis=1)[:, None]
-    print(f"derived values in {time.time() - derived_time}")
 
-    triangle_build_time = time.time()
-    triangle_objects = []
-    for i in range(len(triangles)):
-        triangle = Triangle(
-            triangles[i][0],
-            triangles[i][1],
-            triangles[i][2],
-            _min=mins[i],
-            _max=maxs[i],
-            normal=normals[i],
-            surface_area=surface_areas[i],
-            material=material if material is not None else 0,
-            emitter=emitter,
-        )
-        triangle_objects.append(triangle)
-    print(f"triangle_objects in {time.time() - triangle_build_time}")
+    if material is None:
+        materials = np.zeros(len(triangles), dtype=np.int32)
+    else:
+        materials = np.full(len(triangles), material, dtype=np.int32)
 
-    print(f"done loading ply. loaded {len(triangle_objects)} triangles")
-    return triangle_objects
+    if emitter:
+        emitters = np.ones(len(triangles), dtype=np.bool_)
+    else:
+        emitters = np.zeros(len(triangles), dtype=np.bool_)
 
-def load_ply(ply_path, offset=None, material=None, scale=1.0, emitter=False):
-    if offset is None:
-        offset = np.zeros(3)
-    base_load_time = time.time()
-    ply = PlyData.read(ply_path)
-    print(f"PlyData.read in {time.time() - base_load_time}")
-    triangles = []
-    dropped_triangles = 0
-    array_time = time.time()
-    vertices = np.array(list(list(vertex) for vertex in ply["vertex"])) * scale + offset
-
-    # np.array(ply['vertex'].data).view(np.float32).reshape(-1, 3)
-    print(f"vertices array in {time.time() - array_time}")
-    face_time = time.time()
-    for face in ply["face"]["vertex_indices"]:
-        v0 = vertices[face[0]]
-        v1 = vertices[face[1]]
-        v2 = vertices[face[2]]
-        triangle = Triangle(v0, v1, v2)
-
-        # normals
-        triangle.n0 = INVALID
-        triangle.n1 = INVALID
-        triangle.n2 = INVALID
-
-        # texture UVs
-        triangle.t0 = INVALID
-        triangle.t1 = INVALID
-        triangle.t2 = INVALID
-
-        # material
-        if material is None:
-            triangle.material = 0
-        else:
-            triangle.material = material
-        triangle.emitter = emitter
-
-        if np.any(np.isnan(triangle.n)):
-            dropped_triangles += 1
-        else:
-            triangles.append(triangle)
-    # np.stack(ply['face']['vertex_indices'])
-    print(f"faces in {time.time() - face_time}")
-    print(
-        f"done loading ply. loaded {len(triangles)} triangles, dropped {dropped_triangles}"
+    return FastTreeBox(
+        triangles=triangles,
+        mins=mins,
+        maxes=maxes,
+        normals=normals,
+        surface_areas=surface_areas,
+        material=materials,
+        emitter=emitters,
+        camera=np.zeros(len(triangles), dtype=np.int32),
     )
-    return triangles
 
 
 def get_materials():

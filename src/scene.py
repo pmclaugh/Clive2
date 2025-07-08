@@ -3,14 +3,13 @@ import time
 import metalcompute
 import numpy as np
 from camera import Camera
-from bvh import construct_BVH, np_flatten_bvh
+from bvh import construct_BVH, np_flatten_bvh, FastTreeBox
 from load import (
     smooth_normals,
     dummy_smooth_normals,
     triangles_for_box,
-    load_ply,
     fast_load_ply,
-    load_obj,
+    fast_load_obj,
     get_materials,
     camera_geometry,
     surface_area,
@@ -26,7 +25,6 @@ def create_scene(
     pixel_height=720,
     cam_center=ZERO_VECTOR,
     cam_direction=UNIT_Z,
-    build_box=True,
     file_specs=None,
     metal_device=None,
 ):
@@ -43,26 +41,27 @@ def create_scene(
     )
 
     triangles = []
-
     camera_tris = camera_geometry(camera)
     dummy_smooth_normals(camera_tris)
     triangles.extend(camera_tris)
 
-    if build_box:
-        box_triangles = triangles_for_box()
-        dummy_smooth_normals(box_triangles)
-        triangles.extend(box_triangles)
+    box_triangles = triangles_for_box()
+    dummy_smooth_normals(box_triangles)
+    triangles.extend(box_triangles)
+
+    box = FastTreeBox.from_triangle_objects(triangles)
+
     if file_specs:
         for file_spec in file_specs:
             if file_spec["file_path"].endswith(".ply"):
-                file_triangles = fast_load_ply(
+                box = box + fast_load_ply(
                     ply_path=file_spec["file_path"],
                     material=file_spec.get("material", 0),
                     scale=file_spec.get("scale", 1.0),
                     offset=file_spec.get("offset", ZERO_VECTOR),
                 )
             elif file_spec["file_path"].endswith(".obj"):
-                file_triangles = load_obj(
+                box = box + fast_load_obj(
                     obj_path=file_spec["file_path"],
                     material=file_spec.get("material", 0),
                     scale=file_spec.get("scale", 1.0),
@@ -71,15 +70,13 @@ def create_scene(
             else:
                 raise NotImplementedError
 
-            if file_spec.get("smooth", True):
-                smooth_normals(file_triangles)
-            else:
-                dummy_smooth_normals(file_triangles)
-
-            triangles.extend(file_triangles)
+            # if file_spec.get("smooth", True):
+            #     smooth_normals(file_triangles)
+            # else:
+            #     dummy_smooth_normals(file_triangles)
 
     bvh_start_time = time.time()
-    bvh = construct_BVH(triangles)
+    bvh = construct_BVH(box)
     print(f"BVH construction took {time.time() - bvh_start_time:.4f} seconds")
     np_boxes, np_triangles = np_flatten_bvh(bvh)
     light_triangles = [t for t in np_triangles if t["is_light"]]

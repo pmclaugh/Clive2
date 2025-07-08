@@ -417,7 +417,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
         float3 n;
         float ni, no;
         float alpha = material.alpha;
-        float3 sampled_normal = sample_normal(triangle, u, v);
+//        float3 sampled_normal = sample_normal(triangle, u, v);
+        float3 sampled_normal = triangle.normal;
         if (dot(-ray.direction, triangle.normal) > 0) {
             n = sampled_normal;
             ni = 1.0;
@@ -514,6 +515,8 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
     }
 
     output_paths[id] = path;
+
+    float_debug[id] = float4(100.0);
 
     for (int i = 0; i < path.length; i++) {
         if (path.rays[i].hit_light >= 0) {
