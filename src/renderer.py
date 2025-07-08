@@ -121,7 +121,7 @@ class Renderer:
 
     @timed
     def make_light_rays(self):
-        self.light_ray_fn(
+        _ = self.light_ray_fn(
             self.batch_size,
             self.scene.light_triangles,
             self.scene.light_surface_areas,
@@ -131,20 +131,22 @@ class Renderer:
             self.light_ray_buffer,
             self.scene.light_counts,
         )
+        del _
 
     @timed
     def make_camera_rays(self):
-        self.camera_ray_fn(
+        _ = self.camera_ray_fn(
             self.batch_size,
             self.scene.camera,
             self.rand_buffer,
             self.indices_buffer,
             self.camera_ray_buffer,
         )
+        del _
 
     @timed
     def trace_camera_rays(self):
-        self.trace_fn(
+        _ = self.trace_fn(
             self.batch_size,
             self.camera_ray_buffer,
             self.scene.boxes,
@@ -155,10 +157,11 @@ class Renderer:
             self.out_camera_paths,
             self.out_camera_debug_image,
         )
+        del _
 
     @timed
     def trace_light_rays(self):
-        self.trace_fn(
+        _ = self.trace_fn(
             self.batch_size,
             self.light_ray_buffer,
             self.scene.boxes,
@@ -169,10 +172,11 @@ class Renderer:
             self.out_light_paths,
             self.out_light_debug_image,
         )
+        del _
 
     @timed
     def join_paths(self):
-        self.join_fn(
+        _ = self.join_fn(
             self.batch_size,
             self.out_camera_paths,
             self.out_light_paths,
@@ -188,10 +192,11 @@ class Renderer:
             self.out_light_weights,
             self.out_light_shade,
         )
+        del _
 
     @timed
     def finalize_samples(self):
-        self.finalize_fn(
+        _ = self.finalize_fn(
             self.batch_size,
             self.weight_aggregators,
             self.scene.camera,
@@ -200,6 +205,7 @@ class Renderer:
             self.summed_bins_buffer,
             self.sample_weights,
         )
+        del _
 
     @timed
     def gather_light_image(self):
@@ -208,7 +214,7 @@ class Renderer:
         pairs_per_thread = 4
         for stage in range(1, log_n + 1):
             for passOfStage in range(stage, 0, -1):
-                self.light_sort_fn(
+                _ = self.light_sort_fn(
                     n // 8,
                     self.out_light_indices,
                     self.out_light_path_indices,
@@ -220,10 +226,11 @@ class Renderer:
                     np.uint32(n),
                     np.uint32(pairs_per_thread),
                 )
+                del _
 
         bins, offset = self.light_bins()
 
-        self.light_image_gather_fn(
+        _ = self.light_image_gather_fn(
             self.batch_size,
             self.out_light_paths,
             self.scene.materials,
@@ -236,6 +243,7 @@ class Renderer:
             self.out_light_image,
             self.sample_weights,
         )
+        del _
 
         mc.release(bins)
 
