@@ -37,7 +37,6 @@ class Renderer:
         self.finalize_fn = dev.kernel(kernel).function("adaptive_finalize_samples")
         self.light_sort_fn = dev.kernel(kernel).function("light_sort")
         self.light_image_gather_fn = dev.kernel(kernel).function("light_image_gather")
-        self.light_reset_fn = dev.kernel(kernel).function("reset_light_indices")
 
         # numpy image buffers
         resolution = (scene.pixel_height, scene.pixel_width)
@@ -62,12 +61,12 @@ class Renderer:
 
         # buffers - join
         self.out_samples = dev.buffer(self.batch_size * 16)
-        sz = next_power_of_two(self.batch_size * MAX_PATH_LENGTH)
-        self.out_light_indices = dev.buffer(np.ones(sz, dtype=np.int32) * -1)
-        self.out_light_path_indices = dev.buffer(sz * 4)
-        self.out_light_ray_indices = dev.buffer(sz * 4)
-        self.out_light_weights = dev.buffer(sz * 4)
-        self.out_light_shade = dev.buffer(sz * 4)
+        sz = next_power_of_two(self.batch_size * MAX_PATH_LENGTH) * 4
+        self.out_light_indices = dev.buffer(sz)
+        self.out_light_path_indices = dev.buffer(sz)
+        self.out_light_ray_indices = dev.buffer(sz)
+        self.out_light_weights = dev.buffer(sz)
+        self.out_light_shade = dev.buffer(sz)
 
         # buffers - finalize
         self.weight_aggregators = dev.buffer(self.batch_size * 128)
@@ -204,7 +203,6 @@ class Renderer:
 
     @timed
     def gather_light_image(self):
-        start_sort_time = time.time()
         n = next_power_of_two(self.batch_size * MAX_PATH_LENGTH)
         log_n = int(np.log2(n))
         pairs_per_thread = 4
@@ -222,11 +220,9 @@ class Renderer:
                     np.uint32(n),
                     np.uint32(pairs_per_thread),
                 )
-        print(f"Light sort time: {time.time() - start_sort_time:.4f} seconds")
 
         bins, offset = self.light_bins()
 
-        start_gather_time = time.time()
         self.light_image_gather_fn(
             self.batch_size,
             self.out_light_paths,
@@ -240,18 +236,8 @@ class Renderer:
             self.out_light_image,
             self.sample_weights,
         )
-        print(f"Light gather time: {time.time() - start_gather_time:.4f} seconds")
 
-        start_reset_time = time.time()
-        self.light_reset_fn(
-            n,
-            self.out_light_indices,
-            self.out_light_path_indices,
-            self.out_light_ray_indices,
-            self.out_light_weights,
-            self.out_light_shade,
-        )
-        print(f"Light reset time: {time.time() - start_reset_time:.4f} seconds")
+        mc.release(bins)
 
     @timed
     def process_images(self):
@@ -271,7 +257,6 @@ class Renderer:
         ).reshape(self.pixel_height, self.pixel_width, 1)
 
         image = light_image + finalized_image
-        # image = debug_image
 
         self.summed_image += np.nan_to_num(image, posinf=0, neginf=0)
         self.summed_sample_counts += finalized_sample_counts
@@ -312,20 +297,33 @@ class Renderer:
         mc.release(self.light_ray_buffer)
         mc.release(self.indices_buffer)
         mc.release(self.rand_buffer)
+
         mc.release(self.out_camera_image)
         mc.release(self.out_camera_paths)
         mc.release(self.out_camera_debug_image)
+
         mc.release(self.out_samples)
         mc.release(self.out_light_indices)
         mc.release(self.out_light_path_indices)
         mc.release(self.out_light_ray_indices)
         mc.release(self.out_light_weights)
         mc.release(self.out_light_shade)
+
         mc.release(self.weight_aggregators)
         mc.release(self.finalized_samples)
         mc.release(self.sample_counts)
         mc.release(self.summed_bins_buffer)
         mc.release(self.sample_weights)
+
         mc.release(self.out_light_image)
         mc.release(self.out_light_paths)
         mc.release(self.out_light_debug_image)
+
+        mc.release(self.camera_ray_fn)
+        mc.release(self.light_ray_fn)
+        mc.release(self.trace_fn)
+        mc.release(self.join_fn)
+        mc.release(self.finalize_fn)
+        mc.release(self.light_sort_fn)
+        mc.release(self.light_image_gather_fn)
+        mc.release(self.light_reset_fn)

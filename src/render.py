@@ -1,10 +1,10 @@
 import metalcompute
 import cv2
-
+import numpy as np
+import time
 from renderer import Renderer
 from datetime import datetime
 import argparse
-from load import *
 from scene import Scene, create_scene_from_preset
 
 
@@ -18,13 +18,10 @@ if __name__ == "__main__":
     parser.add_argument("--scene", type=str, default="teapots")
     args = parser.parse_args()
 
-    device = metalcompute.Device()
-
     scene: Scene = create_scene_from_preset(
         args.scene,
         pixel_width=args.width,
         pixel_height=args.height,
-        metal_device=device,
     )
     renderer: Renderer = Renderer(scene)
 
