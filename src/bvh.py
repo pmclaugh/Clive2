@@ -170,6 +170,23 @@ def object_split(box: FastTreeBox):
     return best_sah, left_box, right_box
 
 
+def spatial_split(box: FastTreeBox):
+    best_sah = np.inf
+    best_split = 0
+    best_sort = None
+
+    box_span = box.max - box.min
+
+    for axis in [0, 1, 2]:
+        mins_sorted = np.argsort(box.mins[:, axis])
+        maxes_sorted = np.argsort(box.maxes[:, axis])
+
+        for s in np.arange(0.1, 1, 0.1):
+            plane = box.min[axis] + s * box_span[axis]
+            min_side_ct = np.searchsorted(box.mins[:, axis], plane, side="right")
+            max_side_ct = len(box.triangles) - np.searchsorted(box.maxes[:, axis], plane, side="left")
+            pass
+
 def construct_BVH(root_box):
     max_depth = 0
     stack = [root_box]
@@ -180,6 +197,8 @@ def construct_BVH(root_box):
             continue
 
         sah, l, r = object_split(box)
+
+        spatial_split(box)
 
         if r is not None:
             box.right = r

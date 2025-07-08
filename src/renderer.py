@@ -37,6 +37,7 @@ class Renderer:
         self.finalize_fn = dev.kernel(kernel).function("adaptive_finalize_samples")
         self.light_sort_fn = dev.kernel(kernel).function("light_sort")
         self.light_image_gather_fn = dev.kernel(kernel).function("light_image_gather")
+        self.light_reset_fn = dev.kernel(kernel).function("reset_light_indices")
 
         # numpy image buffers
         resolution = (scene.pixel_height, scene.pixel_width)
@@ -246,6 +247,16 @@ class Renderer:
         del _
 
         mc.release(bins)
+
+        _ = self.light_reset_fn(
+            n,
+            self.out_light_indices,
+            self.out_light_path_indices,
+            self.out_light_ray_indices,
+            self.out_light_weights,
+            self.out_light_shade,
+        )
+        del _
 
     @timed
     def process_images(self):
