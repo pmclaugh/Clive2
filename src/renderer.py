@@ -8,6 +8,8 @@ from adaptive import get_adaptive_indices
 from camera import tone_map
 from constants import timed
 
+MAX_PATH_LENGTH = 8
+
 def next_power_of_two(n):
     """Returns the next power of two greater than or equal to n."""
     return 1 << (n - 1).bit_length() if n > 0 else 1
@@ -58,7 +60,7 @@ class Renderer:
 
         # buffers - join
         self.out_samples = dev.buffer(self.batch_size * 16)
-        sz = next_power_of_two(self.batch_size * 8)
+        sz = next_power_of_two(self.batch_size * MAX_PATH_LENGTH)
         self.out_light_indices = dev.buffer(np.ones(sz, dtype=np.int32) * -1)
         self.out_light_path_indices = dev.buffer(sz * 4)
         self.out_light_ray_indices = dev.buffer(sz * 4)
@@ -201,7 +203,7 @@ class Renderer:
     @timed
     def gather_light_image(self):
         start_sort_time = time.time()
-        n = next_power_of_two(self.batch_size * 8)
+        n = next_power_of_two(self.batch_size * MAX_PATH_LENGTH)
         log_n = int(np.log2(n))
         pairs_per_thread = 4
         for stage in range(1, log_n + 1):

@@ -34,6 +34,7 @@ if __name__ == "__main__":
     for i in range(args.samples):
         try:
             renderer.run_sample()
+            print(f"Sample {i}/{args.samples} completed")
             to_display = renderer.image.copy()
             cv2.imshow("image", to_display)
             cv2.waitKey(1)
