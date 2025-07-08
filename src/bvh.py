@@ -15,8 +15,8 @@ class FastTreeBox:
         self.triangles = triangles
         self.mins = mins
         self.maxes = maxes
-        self.min = np.min(self.mins) if len(mins) else INF
-        self.max = np.max(self.maxes) if len(maxes) else NEG_INF
+        self.min = np.min(self.mins, axis=0) if len(mins) else INF
+        self.max = np.max(self.maxes, axis=0) if len(maxes) else NEG_INF
         self.normals = normals
         self.surface_areas = surface_areas
         self.material = material
@@ -179,15 +179,15 @@ def construct_BVH(root_box):
 
 
 def count_boxes(root: FastTreeBox):
-    box_queue = [root]
+    box_stack = [root]
     count = 0
-    while box_queue:
-        box = box_queue.pop()
+    while box_stack:
+        box = box_stack.pop()
         count += 1
         if box.right is not None:
-            box_queue.append(box.right)
+            box_stack.append(box.right)
         if box.left is not None:
-            box_queue.append(box.left)
+            box_stack.append(box.left)
     return count
 
 
