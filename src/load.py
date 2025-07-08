@@ -100,11 +100,11 @@ def fast_load(vertices, faces, emitter=False, material=None):
 
     mins = np.min(triangles, axis=1)
     maxes = np.max(triangles, axis=1)
-    normals = np.cross(
+    face_normals = np.cross(
         triangles[:, 1] - triangles[:, 0], triangles[:, 2] - triangles[:, 0]
     )
-    surface_areas = np.linalg.norm(normals, axis=1) / 2
-    normals = normals / np.linalg.norm(normals, axis=1)[:, None]
+    surface_areas = np.linalg.norm(face_normals, axis=1) / 2
+    face_normals = face_normals / np.linalg.norm(face_normals, axis=1)[:, None]
 
     if material is None:
         materials = np.zeros(len(triangles), dtype=np.int32)
@@ -117,16 +117,16 @@ def fast_load(vertices, faces, emitter=False, material=None):
         emitters = np.zeros(len(triangles), dtype=np.bool_)
 
     return FastTreeBox(
+        faces=faces,
         triangles=triangles,
         mins=mins,
         maxes=maxes,
-        normals=normals,
+        face_normals=face_normals,
         surface_areas=surface_areas,
         material=materials,
         emitter=emitters,
         camera=np.zeros(len(triangles), dtype=np.int32),
     )
-
 
 def get_materials():
     materials = np.zeros(8, dtype=Material)

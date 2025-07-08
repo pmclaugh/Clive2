@@ -70,11 +70,6 @@ def create_scene(
             else:
                 raise NotImplementedError
 
-            # if file_spec.get("smooth", True):
-            #     smooth_normals(file_triangles)
-            # else:
-            #     dummy_smooth_normals(file_triangles)
-
     bvh_start_time = time.time()
     bvh = construct_BVH(box)
     print(f"BVH construction took {time.time() - bvh_start_time:.4f} seconds")
