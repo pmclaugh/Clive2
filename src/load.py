@@ -133,9 +133,10 @@ def fast_load(vertices, faces, emitter=False, material=None):
         camera=np.zeros(len(triangles), dtype=np.int32),
     )
 
-def smooth_vertex_normals(vertices: np.ndarray,
-                          faces:    np.ndarray,
-                          face_n:   np.ndarray) -> np.ndarray:
+
+def smooth_vertex_normals(
+    vertices: np.ndarray, faces: np.ndarray, face_n: np.ndarray
+) -> np.ndarray:
     """
     Angle‑weighted normal smoothing.
 
@@ -150,29 +151,30 @@ def smooth_vertex_normals(vertices: np.ndarray,
     v_n : (N,3) float array – unit normals per vertex
     """
     # --- gather the three vertex positions for every face ------------------
-    v = vertices[faces]                     # (M, 3, 3)  v[:,i] = i‑th corner
+    v = vertices[faces]  # (M, 3, 3)  v[:,i] = i‑th corner
 
     # --- for every corner build the two incident edge vectors --------------
-    e_next = np.roll(v, -1, axis=1) - v     # edge to next corner
-    e_prev = np.roll(v,  1, axis=1) - v     # edge to previous corner
+    e_next = np.roll(v, -1, axis=1) - v  # edge to next corner
+    e_prev = np.roll(v, 1, axis=1) - v  # edge to previous corner
 
     # --- compute the internal angle at each corner -------------------------
     #   angle = atan2(|a×b|, a·b)  (stable for near‑collinear edges)
-    cross_len = np.linalg.norm(np.cross(e_next, e_prev), axis=2)   # |a×b|
-    dot       = np.einsum('ijk,ijk->ij', e_next, e_prev)           # a·b
-    angles    = np.arctan2(cross_len, dot)                         # (M,3)
+    cross_len = np.linalg.norm(np.cross(e_next, e_prev), axis=2)  # |a×b|
+    dot = np.einsum("ijk,ijk->ij", e_next, e_prev)  # a·b
+    angles = np.arctan2(cross_len, dot)  # (M,3)
 
     # --- accumulate angle‑weighted face normals at their three vertices ----
-    w_face_n  = face_n[:, None, :] * angles[..., None]             # (M,3,3)
+    w_face_n = face_n[:, None, :] * angles[..., None]  # (M,3,3)
 
-    v_n = np.zeros_like(vertices, dtype=vertices.dtype)            # (N,3)
+    v_n = np.zeros_like(vertices, dtype=vertices.dtype)  # (N,3)
     np.add.at(v_n, faces.ravel(), w_face_n.reshape(-1, 3))
 
     # --- final normalisation ----------------------------------------------
     lens = np.linalg.norm(v_n, axis=1, keepdims=True)
-    np.divide(v_n, lens, out=v_n, where=lens > 0)                  # in‑place
+    np.divide(v_n, lens, out=v_n, where=lens > 0)  # in‑place
 
     return v_n
+
 
 def get_materials():
     materials = np.zeros(8, dtype=Material)
@@ -269,90 +271,7 @@ def camera_geometry(camera):
     return tris
 
 
-def random_uvs(num):
-    u = np.random.rand(num)
-    v = np.random.rand(num)
-    need_flipped = (u + v) > 1
-    u[need_flipped] = 1 - u[need_flipped]
-    v[need_flipped] = 1 - v[need_flipped]
-    w = 1 - u - v
-    return u, v, w
-
-
-def fast_generate_light_rays(triangles, num_rays):
-    emitter_indices = np.array([i for i, t in enumerate(triangles) if t["is_light"]])
-    emitters = np.array(
-        [[t["v0"], t["v1"], t["v2"]] for t in triangles if t["is_light"]]
-    )
-    emitter_surface_area = np.sum([surface_area(t) for t in triangles if t["is_light"]])
-    rays = np.zeros(num_rays, dtype=Ray)
-    choices = np.random.randint(0, len(emitters), num_rays)
-    rand_us, rand_vs, rand_ws = random_uvs(num_rays)
-    rays["direction"] = unit(np.array([0, -1, 0, 0]))
-    points = (
-        emitters[choices][:, 0] * rand_us[:, None]
-        + emitters[choices][:, 1] * rand_vs[:, None]
-        + emitters[choices][:, 2] * rand_ws[:, None]
-    )
-    rays["origin"] = points + 0.0001 * rays["direction"]
-    rays["normal"] = rays["direction"]
-    rays["inv_direction"] = 1.0 / rays["direction"]
-    rays["c_importance"] = 1.0  # set in kernel
-    rays["l_importance"] = 1.0 / emitter_surface_area
-    rays["tot_importance"] = 1.0 / emitter_surface_area
-    rays["from_camera"] = 0
-    rays["color"] = np.array([1.0, 1.0, 1.0, 1.0])
-    rays["hit_light"] = -1
-    rays["hit_camera"] = -1
-    rays["triangle"] = emitter_indices[choices]
-    rays["material"] = 6
-    return rays
-
-
-def unit(v):
-    return v / np.linalg.norm(v)
-
-
 def surface_area(t):
     e1 = (t["v1"] - t["v0"])[0:3]
     e2 = (t["v2"] - t["v0"])[0:3]
     return np.linalg.norm(np.cross(e1, e2)) / 2
-
-
-def smooth_normals(triangles):
-    vertex_triangles = defaultdict(list)
-
-    for i, t in enumerate(triangles):
-        vertex_triangles[t.v0.tobytes()].append((i, 0))
-        vertex_triangles[t.v1.tobytes()].append((i, 1))
-        vertex_triangles[t.v2.tobytes()].append((i, 2))
-
-    for _, l in vertex_triangles.items():
-
-        avg_normal = np.zeros(3)
-        for j, v in l:
-            avg_normal += triangles[j].n
-        normal_mag = np.linalg.norm(avg_normal)
-        if normal_mag == 0:
-            for j, v in l:
-                if v == 0:
-                    triangles[j].n0 = triangles[j].n
-                elif v == 1:
-                    triangles[j].n1 = triangles[j].n
-                else:
-                    triangles[j].n2 = triangles[j].n
-        else:
-            for j, v in l:
-                if v == 0:
-                    triangles[j].n0 = avg_normal / normal_mag
-                elif v == 1:
-                    triangles[j].n1 = avg_normal / normal_mag
-                else:
-                    triangles[j].n2 = avg_normal / normal_mag
-
-
-def dummy_smooth_normals(triangles):
-    for t in triangles:
-        t.n0 = t.n
-        t.n1 = t.n
-        t.n2 = t.n

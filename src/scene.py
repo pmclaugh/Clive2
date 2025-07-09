@@ -206,9 +206,7 @@ scene_presets = {
 }
 
 
-def create_scene_from_preset(
-    preset_name, pixel_width=1280, pixel_height=720
-):
+def create_scene_from_preset(preset_name, pixel_width=1280, pixel_height=720):
     preset = scene_presets.get(preset_name)
     if not preset:
         raise ValueError(f"Preset '{preset_name}' not found.")
