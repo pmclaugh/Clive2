@@ -172,20 +172,91 @@ def object_split(box: FastTreeBox):
 
 def spatial_split(box: FastTreeBox):
     best_sah = np.inf
-    best_split = 0
-    best_sort = None
+    best_split = None
+    best_min_sort = 0
+    best_min_split_idx = 0
+    best_max_sort = 0
+    best_max_split_idx = 0
+    best_split_tris_ct = 0
 
     box_span = box.max - box.min
 
     for axis in [0, 1, 2]:
-        mins_sorted = np.argsort(box.mins[:, axis])
-        maxes_sorted = np.argsort(box.maxes[:, axis])
+        mins_sorted_idxs = np.argsort(box.mins[:, axis])
+        maxes_sorted_idxs = np.argsort(box.maxes[:, axis])
+
+        mins_sorted = box.mins[mins_sorted_idxs]
+        maxes_sorted = box.maxes[maxes_sorted_idxs]
 
         for s in np.arange(0.1, 1, 0.1):
             plane = box.min[axis] + s * box_span[axis]
-            min_side_ct = np.searchsorted(box.mins[:, axis], plane, side="right")
-            max_side_ct = len(box.triangles) - np.searchsorted(box.maxes[:, axis], plane, side="left")
-            pass
+
+            min_side_idx = np.searchsorted(mins_sorted[:, axis], plane, side="left")
+            max_side_idx = np.searchsorted(maxes_sorted[:, axis], plane, side="right")
+
+            min_side_ct = len(box.triangles) - min_side_idx
+            max_side_ct = max_side_idx
+            split_tris_ct = len(box.triangles) - min_side_ct - max_side_ct
+
+            if min_side_ct == 0 or max_side_ct == 0:
+                continue
+
+            max_side_tris = box.triangles[maxes_sorted_idxs[:max_side_idx]]
+            min_side_tris = box.triangles[mins_sorted_idxs[min_side_idx:]]
+
+            max_side_min = np.min(max_side_tris, axis=(0, 2))
+            max_side_max = np.max(max_side_tris, axis=(0, 2))
+            min_side_min = np.min(min_side_tris, axis=(0, 2))
+            min_side_max = np.max(min_side_tris, axis=(0, 2))
+
+            sah = surface_area(min_side_min, min_side_max) * min_side_ct + \
+                surface_area(max_side_min, max_side_max) * max_side_ct
+
+            if sah < best_sah:
+                best_sah = sah
+                best_split = plane
+                best_min_sort = mins_sorted_idxs
+                best_min_split_idx = min_side_idx
+                best_max_sort = maxes_sorted_idxs
+                best_max_split_idx = max_side_idx
+                best_split_tris_ct = split_tris_ct
+
+    if best_split is None:
+        return np.inf, None, None
+
+    # the sets must be disjoint
+    assert not set(best_max_sort[:best_max_split_idx]) & set(best_min_sort[best_min_split_idx:])
+
+    split_tris = set(best_max_sort[best_max_split_idx:]) - set(best_min_sort[best_min_split_idx:])
+
+    left_box = FastTreeBox(
+        triangles=box.triangles[best_max_sort][:best_max_split_idx],
+        faces=box.faces[best_max_sort][:best_max_split_idx],
+        mins=box.mins[best_max_sort][:best_max_split_idx],
+        maxes=box.maxes[best_max_sort][:best_max_split_idx],
+        face_normals=box.face_normals[best_max_sort][:best_max_split_idx],
+        smoothed_normals=box.smoothed_normals[best_max_sort][:best_max_split_idx],
+        surface_areas=box.surface_areas[best_max_sort][:best_max_split_idx],
+        material=box.material[best_max_sort][:best_max_split_idx],
+        emitter=box.emitter[best_max_sort][:best_max_split_idx],
+        camera=box.camera[best_max_sort][:best_max_split_idx],
+    )
+
+    right_box = FastTreeBox(
+        triangles=box.triangles[best_min_sort][best_min_split_idx:],
+        faces=box.faces[best_min_sort][best_min_split_idx:],
+        mins=box.mins[best_min_sort][best_min_split_idx:],
+        maxes=box.maxes[best_min_sort][best_min_split_idx:],
+        face_normals=box.face_normals[best_min_sort][best_min_split_idx:],
+        smoothed_normals=box.smoothed_normals[best_min_sort][best_min_split_idx:],
+        surface_areas=box.surface_areas[best_min_sort][best_min_split_idx:],
+        material=box.material[best_min_sort][best_min_split_idx:],
+        emitter=box.emitter[best_min_sort][best_min_split_idx:],
+        camera=box.camera[best_min_sort][best_min_split_idx:],
+    )
+
+    return best_sah, left_box, right_box
+
 
 def construct_BVH(root_box):
     max_depth = 0
@@ -196,9 +267,10 @@ def construct_BVH(root_box):
         if (len(box.triangles) <= MAX_MEMBERS) or len(stack) > MAX_DEPTH:
             continue
 
-        sah, l, r = object_split(box)
+        obj_sah, obj_l, obj_r = object_split(box)
+        spatial_sah, spatial_l, spatial_r = spatial_split(box)
 
-        spatial_split(box)
+        l, r = (obj_l, obj_r) if obj_sah < spatial_sah else (spatial_l, spatial_r)
 
         if r is not None:
             box.right = r
