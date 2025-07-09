@@ -177,6 +177,17 @@ class Renderer:
 
     @timed
     def join_paths(self):
+        n = next_power_of_two(self.batch_size * MAX_PATH_LENGTH)
+        _ = self.light_reset_fn(
+            n,
+            self.out_light_indices,
+            self.out_light_path_indices,
+            self.out_light_ray_indices,
+            self.out_light_weights,
+            self.out_light_shade,
+        )
+        del _
+
         _ = self.join_fn(
             self.batch_size,
             self.out_camera_paths,
@@ -247,16 +258,6 @@ class Renderer:
         del _
 
         mc.release(bins)
-
-        _ = self.light_reset_fn(
-            n,
-            self.out_light_indices,
-            self.out_light_path_indices,
-            self.out_light_ray_indices,
-            self.out_light_weights,
-            self.out_light_shade,
-        )
-        del _
 
     @timed
     def process_images(self):

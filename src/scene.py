@@ -5,8 +5,6 @@ import numpy as np
 from camera import Camera
 from bvh import construct_BVH, np_flatten_bvh, FastTreeBox
 from load import (
-    smooth_normals,
-    dummy_smooth_normals,
     triangles_for_box,
     fast_load_ply,
     fast_load_obj,
@@ -41,11 +39,9 @@ def create_scene(
 
     triangles = []
     camera_tris = camera_geometry(camera)
-    dummy_smooth_normals(camera_tris)
     triangles.extend(camera_tris)
 
     box_triangles = triangles_for_box()
-    dummy_smooth_normals(box_triangles)
     triangles.extend(box_triangles)
 
     box = FastTreeBox.from_triangle_objects(triangles)

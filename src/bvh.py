@@ -1,6 +1,6 @@
 import numpy as np
 from numba import njit
-from constants import *
+from constants import INF, NEG_INF, MAX_MEMBERS, MAX_DEPTH
 from struct_types import Box, Triangle
 
 
@@ -107,7 +107,6 @@ def surface_areas(mins, maxes):
         + spans[:, 2] * spans[:, 0]
     )
 
-
 def object_split(box: FastTreeBox):
     best_sah = np.inf
     best_split = 0
@@ -168,7 +167,6 @@ def object_split(box: FastTreeBox):
     assert len(left_box.triangles) + len(right_box.triangles) == len(box.triangles)
 
     return best_sah, left_box, right_box
-
 
 def spatial_split(box: FastTreeBox):
     best_sah = np.inf
@@ -268,7 +266,8 @@ def construct_BVH(root_box):
             continue
 
         obj_sah, obj_l, obj_r = object_split(box)
-        spatial_sah, spatial_l, spatial_r = spatial_split(box)
+        # spatial_sah, spatial_l, spatial_r = spatial_split(box)
+        spatial_sah, spatial_l, spatial_r = np.inf, None, None
 
         l, r = (obj_l, obj_r) if obj_sah < spatial_sah else (spatial_l, spatial_r)
 
