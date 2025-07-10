@@ -1,10 +1,7 @@
-import time
-
 import metalcompute as mc
 import numpy as np
 from struct_types import Path, Ray
 from scene import Scene
-from adaptive import get_adaptive_indices
 from camera import tone_map
 from constants import timed
 
@@ -21,7 +18,6 @@ class Renderer:
         self,
         scene: Scene,
         kernel_path="trace.metal",
-        adaptive=False,
     ):
         # device and kernels
         dev = scene.device
@@ -81,27 +77,19 @@ class Renderer:
         self.out_light_paths = dev.buffer(self.batch_size * Path.itemsize)
         self.out_light_debug_image = dev.buffer(self.batch_size * 16)
 
-        self.adaptive = adaptive
         self.samples = 0
+
+        self.assign_indices()
 
     def get_random_buffer(self):
         return np.random.randint(0, 2**32, size=(self.batch_size, 2), dtype=np.uint32)
 
     @timed
     def assign_indices(self):
-        if self.adaptive and self.samples > 0:
-            mc.release(self.indices_buffer)
-            mc.release(self.summed_bins_buffer)
-            bins, summed_bins, indices = get_adaptive_indices(
-                tone_map(self.summed_image / self.summed_sample_weights)
-            )
-            self.indices_buffer = self.device.buffer(indices)
-            self.summed_bins_buffer = self.device.buffer(summed_bins)
-        elif self.samples == 0:
-            indices = np.arange(self.batch_size, dtype=np.uint32)
-            summed_bins = np.arange(self.batch_size + 1, dtype=np.uint32)
-            self.indices_buffer = self.device.buffer(indices)
-            self.summed_bins_buffer = self.device.buffer(summed_bins)
+        indices = np.arange(self.batch_size, dtype=np.uint32)
+        summed_bins = np.arange(self.batch_size + 1, dtype=np.uint32)
+        self.indices_buffer = self.device.buffer(indices)
+        self.summed_bins_buffer = self.device.buffer(summed_bins)
 
     @timed
     def light_bins(self):
@@ -284,7 +272,6 @@ class Renderer:
 
     @timed
     def run_sample(self):
-        self.assign_indices()
         self.make_light_rays()
         self.make_camera_rays()
         self.trace_light_rays()

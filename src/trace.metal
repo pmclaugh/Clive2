@@ -643,10 +643,6 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
     int total_pixels = c.pixel_width * c.pixel_height;
     float contrib_weight_sum = 0.0;
 
-    for (int i = 0; i < 8; i++) {
-        light_pixel_indices[id * 8 + i] = -1;
-    }
-
     for (int t = 1; t < camera_path.length + 1; t++) {
         for (int s = 0; s < light_path.length + 1; s++) {
             if (t + s < 2) {continue;}
@@ -691,8 +687,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (not visibility_test(light_ray, camera_ray, boxes, triangles)) {continue;}
             }
 
-            float p_ratios[16];
-            float p_values[16];
+            float p_ratios[32];
+            float p_values[32];
 
             // populate missing values, these will be reset next loop so it's fine
             // todo: this is technically correct but has no visible effect. resetting has a big performance impact.
