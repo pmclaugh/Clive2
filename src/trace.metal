@@ -309,12 +309,14 @@ float GGX_BRDF_reflect(const thread float3 &i, const thread float3 &o, const thr
 }
 
 float GGX_BRDF_transmit(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float3 &n, const thread float ni, const thread float no, const thread float alpha) {
+    float3 h = specular_transmit_half_direction(i, o, ni, no);
+
     float D = GGX_D(m, n, alpha);
     float G = GGX_G(i, o, m, n, alpha);
     float F = degreve_fresnel(i, m, ni, no);
 
-    float im = dot(i, m);
-    float om = dot(o, m);
+    float im = dot(i, h);
+    float om = dot(o, h);
     float in = dot(i, n);
     float on = dot(o, n);
 
