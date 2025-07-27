@@ -292,8 +292,9 @@ float reflect_jacobian(const thread float3 &m, const thread float3 &o) {
 }
 
 float transmit_jacobian(const thread float3 &i, const thread float3 &o, const thread float3 &m, const thread float ni, const thread float no) {
-    float cosTheta_i = dot(i, m);
-    float cosTheta_o = dot(o, m);
+    float3 h = specular_transmit_half_direction(i, o, ni, no);
+    float cosTheta_i = dot(i, h);
+    float cosTheta_o = dot(o, h);
     float numerator = no * no * abs(cosTheta_o);
     float denominator = (ni * cosTheta_i + no * cosTheta_o) * (ni * cosTheta_i + no * cosTheta_o);
     return numerator / denominator;
@@ -462,7 +463,7 @@ kernel void generate_paths(const device Ray *rays [[ buffer(0) ]],
 
         float3 m = GGX_sample(n, random_roll_a, alpha);
         if (dot(wi, m) < 0.0)
-            m = specular_reflection(m, n);
+            break;
         if (dot(m, n) < 0.0)
             break;
         new_ray.normal = n;
