@@ -25,15 +25,16 @@ class Renderer:
         self.scene = scene
 
         with open(kernel_path, "r") as f:
-            kernel = f.read()
-        self.trace_fn = dev.kernel(kernel).function("generate_paths")
-        self.join_fn = dev.kernel(kernel).function("connect_paths")
-        self.camera_ray_fn = dev.kernel(kernel).function("generate_camera_rays")
-        self.light_ray_fn = dev.kernel(kernel).function("generate_light_rays")
-        self.finalize_fn = dev.kernel(kernel).function("adaptive_finalize_samples")
-        self.light_sort_fn = dev.kernel(kernel).function("light_sort")
-        self.light_image_gather_fn = dev.kernel(kernel).function("light_image_gather")
-        self.light_reset_fn = dev.kernel(kernel).function("reset_light_indices")
+            kernel_text = f.read()
+        self.kernel = dev.kernel(kernel_text)
+        self.trace_fn = self.kernel.function("generate_paths")
+        self.join_fn = self.kernel.function("connect_paths")
+        self.camera_ray_fn = self.kernel.function("generate_camera_rays")
+        self.light_ray_fn = self.kernel.function("generate_light_rays")
+        self.finalize_fn = self.kernel.function("adaptive_finalize_samples")
+        self.light_sort_fn = self.kernel.function("light_sort")
+        self.light_image_gather_fn = self.kernel.function("light_image_gather")
+        self.light_reset_fn = self.kernel.function("reset_light_indices")
 
         # numpy image buffers
         resolution = (scene.pixel_height, scene.pixel_width)
@@ -41,6 +42,7 @@ class Renderer:
         self.summed_sample_counts = np.zeros((*resolution, 1), dtype=np.int32)
         self.summed_sample_weights = np.zeros((*resolution, 1), dtype=np.float32)
         self.light_image = np.zeros((*resolution, 1), dtype=np.float32)
+        self.unidirectional_image_buffer = np.zeros((*resolution, 3), dtype=np.float32)
 
         # buffers - camera and light rays
         self.pixel_width = scene.pixel_width
@@ -270,6 +272,11 @@ class Renderer:
         self.summed_sample_counts += finalized_sample_counts
         self.summed_sample_weights += finalized_sample_weights
 
+        unidirectional = np.frombuffer(self.out_camera_image, dtype=np.float32).reshape(
+            self.pixel_height, self.pixel_width, 4
+        )[:, :, :3]
+        self.unidirectional_image_buffer += np.nan_to_num(unidirectional, posinf=0, neginf=0)
+
     @timed
     def run_sample(self):
         self.make_light_rays()
@@ -296,6 +303,15 @@ class Renderer:
     def unweighted_image(self):
         return tone_map(
             np.nan_to_num(self.summed_image, neginf=0, posinf=0),
+            exposure=4.0,
+        )
+
+    @property
+    def unidirectional_image(self):
+        return tone_map(
+            np.nan_to_num(
+                self.unidirectional_image_buffer / self.summed_sample_counts, neginf=0, posinf=0
+            ),
             exposure=4.0,
         )
 
