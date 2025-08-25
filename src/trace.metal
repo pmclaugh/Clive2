@@ -713,13 +713,13 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     Ray b = get_ray(camera_path, light_path, t, s, 1);
 
                     num = a.l_importance;
-                    denom = a.c_importance * geometry_term(a, b);
+                    denom = a.c_importance * cosine_geometry_term(a, b);
                 }
                 else if (i == s + t - 1) {
                     Ray a = get_ray(camera_path, light_path, t, s, s + t - 1);
                     Ray b = get_ray(camera_path, light_path, t, s, s + t - 2);
 
-                    num = a.l_importance * geometry_term(a, b);
+                    num = a.l_importance * cosine_geometry_term(a, b);
                     denom = a.c_importance;
                 }
                 else {
@@ -728,8 +728,8 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     b = get_ray(camera_path, light_path, t, s, i);
                     c = get_ray(camera_path, light_path, t, s, i + 1);
 
-                    num = b.l_importance * geometry_term(a, b);
-                    denom = b.c_importance * geometry_term(b, c);
+                    num = b.l_importance * cosine_geometry_term(a, b);
+                    denom = b.c_importance * cosine_geometry_term(b, c);
                 }
                 p_ratios[i] = num / denom;
             }
@@ -790,7 +790,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                 if (s > 1)
                     new_light_f = abs(dot(dir_l_to_c, light_ray.normal)) / PI;
                 color = prior_color * new_light_f * materials[light_ray.material].color;
-                g = geometry_term(light_ray, camera_ray);
+                g = cosine_geometry_term(light_ray, camera_ray);
             } else {
                 float3 prior_camera_color = camera_path.rays[t - 2].color;
                 Material camera_material = materials[camera_ray.material];
@@ -808,7 +808,7 @@ kernel void connect_paths(const device Path *camera_paths [[ buffer(0) ]],
                     light_color = prior_light_color * new_light_f * light_material.color;
                 }
                 color = camera_color * light_color;
-                g = geometry_term(camera_ray, light_ray);
+                g = cosine_geometry_term(camera_ray, light_ray);
             }
             if (t != 1){
                 aggregator.total_contribution += w * g * color / p_s;
