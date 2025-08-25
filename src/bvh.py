@@ -161,7 +161,7 @@ def object_split(box: FastTreeBox):
     i = best_split + 1
 
     left_box = FastTreeBox(
-        faces=box.faces[best_sort, :],
+        faces=box.faces[best_sort[:i], :],
         triangles=box.triangles[best_sort[:i]],
         mins=box.mins[best_sort[:i]],
         maxes=box.maxes[best_sort[:i]],
@@ -174,7 +174,7 @@ def object_split(box: FastTreeBox):
     )
 
     right_box = FastTreeBox(
-        faces=box.faces[best_sort, :],
+        faces=box.faces[best_sort[i:], :],
         triangles=box.triangles[best_sort[i:]],
         mins=box.mins[best_sort[i:]],
         maxes=box.maxes[best_sort[i:]],
