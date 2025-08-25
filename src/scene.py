@@ -5,8 +5,6 @@ import numpy as np
 from camera import Camera
 from bvh import construct_BVH, np_flatten_bvh, FastTreeBox
 from load import (
-    smooth_normals,
-    dummy_smooth_normals,
     triangles_for_box,
     fast_load_ply,
     fast_load_obj,
@@ -26,10 +24,9 @@ def create_scene(
     cam_center=ZERO_VECTOR,
     cam_direction=UNIT_Z,
     file_specs=None,
-    metal_device=None,
 ):
 
-    dev = metal_device or metalcompute.Device()
+    dev = metalcompute.Device()
 
     camera = Camera(
         center=cam_center,
@@ -42,11 +39,9 @@ def create_scene(
 
     triangles = []
     camera_tris = camera_geometry(camera)
-    dummy_smooth_normals(camera_tris)
     triangles.extend(camera_tris)
 
     box_triangles = triangles_for_box()
-    dummy_smooth_normals(box_triangles)
     triangles.extend(box_triangles)
 
     box = FastTreeBox.from_triangle_objects(triangles)
@@ -148,6 +143,7 @@ class Scene:
         metalcompute.release(self.light_surface_areas)
         metalcompute.release(self.light_triangle_indices)
         metalcompute.release(self.camera_triangle_indices)
+        metalcompute.release(self.device)
 
 
 scene_presets = {
@@ -210,9 +206,7 @@ scene_presets = {
 }
 
 
-def create_scene_from_preset(
-    preset_name, pixel_width=1280, pixel_height=720, metal_device=None
-):
+def create_scene_from_preset(preset_name, pixel_width=1280, pixel_height=720):
     preset = scene_presets.get(preset_name)
     if not preset:
         raise ValueError(f"Preset '{preset_name}' not found.")
@@ -223,7 +217,6 @@ def create_scene_from_preset(
         cam_center=preset["cam_center"],
         cam_direction=preset["cam_direction"],
         file_specs=preset.get("file_specs"),
-        metal_device=metal_device,
     )
 
 
@@ -231,7 +224,6 @@ def create_scene_from_preset_with_params(
     preset_name,
     pixel_width=1280,
     pixel_height=720,
-    metal_device=None,
     frame_idx=0,
     total_frames=1,
 ):
@@ -250,5 +242,4 @@ def create_scene_from_preset_with_params(
         cam_center=cam_center,
         cam_direction=cam_direction,
         file_specs=preset.get("file_specs"),
-        metal_device=metal_device,
     )

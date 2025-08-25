@@ -2,11 +2,10 @@ import argparse
 import cv2
 import os
 import shutil
-import metalcompute
-
+import numpy as np
+import time
 from renderer import Renderer
-from load import *
-from scene import Scene, create_scene_from_preset, create_scene_from_preset_with_params
+from scene import Scene, create_scene_from_preset_with_params
 
 if __name__ == "__main__":
 
@@ -14,7 +13,6 @@ if __name__ == "__main__":
     parser.add_argument("--samples", type=int, default=15)
     parser.add_argument("--width", type=int, default=1280)
     parser.add_argument("--height", type=int, default=720)
-    parser.add_argument("--save-on-quit", action="store_true")
     parser.add_argument("--scene", type=str, default="teapots")
     parser.add_argument("--movie-name", type=str, default="test-movie")
     parser.add_argument("--movie-frames", type=int, default=120)
@@ -26,16 +24,14 @@ if __name__ == "__main__":
             shutil.rmtree(f"../output/{args.movie_name}")
         os.makedirs(f"../output/{args.movie_name}")
 
-    device = metalcompute.Device()
-
     to_display = np.zeros((args.height, args.width, 3), dtype=np.uint8)
 
     for f in range(args.start_frame, args.movie_frames):
+        frame_start_time = time.time()
         scene: Scene = create_scene_from_preset_with_params(
             args.scene,
             pixel_width=args.width,
             pixel_height=args.height,
-            metal_device=device,
             frame_idx=f,
             total_frames=args.movie_frames,
         )
@@ -46,7 +42,7 @@ if __name__ == "__main__":
             to_display = renderer.image.copy()
             cv2.imshow("image", to_display)
             cv2.waitKey(1)
-            print(f"Whole sample {i} time: {time.time() - start_sample_time}")
+            print(f"Sample {i} time: {time.time() - start_sample_time}")
 
         cv2.imwrite(
             f"../output/{args.movie_name}/frame_{f:04d}.png",
@@ -55,3 +51,5 @@ if __name__ == "__main__":
 
         del renderer
         del scene
+
+        print(f"Frame {f} time: {time.time() - frame_start_time}")

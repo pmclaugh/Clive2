@@ -1,12 +1,22 @@
 import numpy as np
 from numba import njit
-from constants import *
+from constants import INF, NEG_INF, MAX_MEMBERS, MAX_DEPTH
 from struct_types import Box, Triangle
 
 
 class FastTreeBox:
     def __init__(
-        self, faces, triangles, mins, maxes, face_normals, smoothed_normals, surface_areas, material, emitter, camera
+        self,
+        faces,
+        triangles,
+        mins,
+        maxes,
+        face_normals,
+        smoothed_normals,
+        surface_areas,
+        material,
+        emitter,
+        camera,
     ):
         self.left = None
         self.right = None
@@ -45,13 +55,13 @@ class FastTreeBox:
         triangles = np.array(
             [[t.v0, t.v1, t.v2] for t in triangle_objects], dtype=np.float32
         )
-        faces = np.zeros(
-            (len(triangle_objects), 3), dtype=np.uint32
-        )
+        faces = np.zeros((len(triangle_objects), 3), dtype=np.uint32)
         mins = np.min(triangles, axis=1)
         maxes = np.max(triangles, axis=1)
         normals = np.array([t.n for t in triangle_objects], dtype=np.float32)
-        smoothed_normals = np.array([[t.n] * 3 for t in triangle_objects], dtype=np.float32)
+        smoothed_normals = np.array(
+            [[t.n] * 3 for t in triangle_objects], dtype=np.float32
+        )
         surface_areas = np.array(
             [t.surface_area for t in triangle_objects], dtype=np.float32
         )
@@ -60,7 +70,16 @@ class FastTreeBox:
         camera = np.array([t.camera for t in triangle_objects], dtype=np.bool_)
 
         return cls(
-            faces, triangles, mins, maxes, normals, smoothed_normals, surface_areas, material, emitter, camera
+            faces,
+            triangles,
+            mins,
+            maxes,
+            normals,
+            smoothed_normals,
+            surface_areas,
+            material,
+            emitter,
+            camera,
         )
 
     def __add__(self, other):
@@ -72,7 +91,9 @@ class FastTreeBox:
         new_mins = np.concatenate((self.mins, other.mins))
         new_maxes = np.concatenate((self.maxes, other.maxes))
         new_normals = np.concatenate((self.face_normals, other.face_normals), axis=0)
-        new_smoothed_normals = np.concatenate((self.smoothed_normals, other.smoothed_normals), axis=0)
+        new_smoothed_normals = np.concatenate(
+            (self.smoothed_normals, other.smoothed_normals), axis=0
+        )
         new_surface_areas = np.concatenate((self.surface_areas, other.surface_areas))
         new_material = np.concatenate((self.material, other.material))
         new_emitter = np.concatenate((self.emitter, other.emitter))
@@ -140,7 +161,7 @@ def object_split(box: FastTreeBox):
     i = best_split + 1
 
     left_box = FastTreeBox(
-        faces=box.faces[best_sort, :],
+        faces=box.faces[best_sort[:i], :],
         triangles=box.triangles[best_sort[:i]],
         mins=box.mins[best_sort[:i]],
         maxes=box.maxes[best_sort[:i]],
@@ -153,7 +174,7 @@ def object_split(box: FastTreeBox):
     )
 
     right_box = FastTreeBox(
-        faces=box.faces[best_sort, :],
+        faces=box.faces[best_sort[i:], :],
         triangles=box.triangles[best_sort[i:]],
         mins=box.mins[best_sort[i:]],
         maxes=box.maxes[best_sort[i:]],
@@ -170,6 +191,100 @@ def object_split(box: FastTreeBox):
     return best_sah, left_box, right_box
 
 
+def spatial_split(box: FastTreeBox):
+    best_sah = np.inf
+    best_split = None
+    best_min_sort = 0
+    best_min_split_idx = 0
+    best_max_sort = 0
+    best_max_split_idx = 0
+    best_split_tris_ct = 0
+
+    box_span = box.max - box.min
+
+    for axis in [0, 1, 2]:
+        mins_sorted_idxs = np.argsort(box.mins[:, axis])
+        maxes_sorted_idxs = np.argsort(box.maxes[:, axis])
+
+        mins_sorted = box.mins[mins_sorted_idxs]
+        maxes_sorted = box.maxes[maxes_sorted_idxs]
+
+        for s in np.arange(0.1, 1, 0.1):
+            plane = box.min[axis] + s * box_span[axis]
+
+            min_side_idx = np.searchsorted(mins_sorted[:, axis], plane, side="left")
+            max_side_idx = np.searchsorted(maxes_sorted[:, axis], plane, side="right")
+
+            min_side_ct = len(box.triangles) - min_side_idx
+            max_side_ct = max_side_idx
+            split_tris_ct = len(box.triangles) - min_side_ct - max_side_ct
+
+            if min_side_ct == 0 or max_side_ct == 0:
+                continue
+
+            max_side_tris = box.triangles[maxes_sorted_idxs[:max_side_idx]]
+            min_side_tris = box.triangles[mins_sorted_idxs[min_side_idx:]]
+
+            max_side_min = np.min(max_side_tris, axis=(0, 2))
+            max_side_max = np.max(max_side_tris, axis=(0, 2))
+            min_side_min = np.min(min_side_tris, axis=(0, 2))
+            min_side_max = np.max(min_side_tris, axis=(0, 2))
+
+            sah = (
+                surface_area(min_side_min, min_side_max) * min_side_ct
+                + surface_area(max_side_min, max_side_max) * max_side_ct
+            )
+
+            if sah < best_sah:
+                best_sah = sah
+                best_split = plane
+                best_min_sort = mins_sorted_idxs
+                best_min_split_idx = min_side_idx
+                best_max_sort = maxes_sorted_idxs
+                best_max_split_idx = max_side_idx
+                best_split_tris_ct = split_tris_ct
+
+    if best_split is None:
+        return np.inf, None, None
+
+    # the sets must be disjoint
+    assert not set(best_max_sort[:best_max_split_idx]) & set(
+        best_min_sort[best_min_split_idx:]
+    )
+
+    split_tris = set(best_max_sort[best_max_split_idx:]) - set(
+        best_min_sort[best_min_split_idx:]
+    )
+
+    left_box = FastTreeBox(
+        triangles=box.triangles[best_max_sort][:best_max_split_idx],
+        faces=box.faces[best_max_sort][:best_max_split_idx],
+        mins=box.mins[best_max_sort][:best_max_split_idx],
+        maxes=box.maxes[best_max_sort][:best_max_split_idx],
+        face_normals=box.face_normals[best_max_sort][:best_max_split_idx],
+        smoothed_normals=box.smoothed_normals[best_max_sort][:best_max_split_idx],
+        surface_areas=box.surface_areas[best_max_sort][:best_max_split_idx],
+        material=box.material[best_max_sort][:best_max_split_idx],
+        emitter=box.emitter[best_max_sort][:best_max_split_idx],
+        camera=box.camera[best_max_sort][:best_max_split_idx],
+    )
+
+    right_box = FastTreeBox(
+        triangles=box.triangles[best_min_sort][best_min_split_idx:],
+        faces=box.faces[best_min_sort][best_min_split_idx:],
+        mins=box.mins[best_min_sort][best_min_split_idx:],
+        maxes=box.maxes[best_min_sort][best_min_split_idx:],
+        face_normals=box.face_normals[best_min_sort][best_min_split_idx:],
+        smoothed_normals=box.smoothed_normals[best_min_sort][best_min_split_idx:],
+        surface_areas=box.surface_areas[best_min_sort][best_min_split_idx:],
+        material=box.material[best_min_sort][best_min_split_idx:],
+        emitter=box.emitter[best_min_sort][best_min_split_idx:],
+        camera=box.camera[best_min_sort][best_min_split_idx:],
+    )
+
+    return best_sah, left_box, right_box
+
+
 def construct_BVH(root_box):
     max_depth = 0
     stack = [root_box]
@@ -179,7 +294,11 @@ def construct_BVH(root_box):
         if (len(box.triangles) <= MAX_MEMBERS) or len(stack) > MAX_DEPTH:
             continue
 
-        sah, l, r = object_split(box)
+        obj_sah, obj_l, obj_r = object_split(box)
+        # spatial_sah, spatial_l, spatial_r = spatial_split(box)
+        spatial_sah, spatial_l, spatial_r = np.inf, None, None
+
+        l, r = (obj_l, obj_r) if obj_sah < spatial_sah else (spatial_l, spatial_r)
 
         if r is not None:
             box.right = r
@@ -205,6 +324,7 @@ def count_boxes(root: FastTreeBox):
         if box.left is not None:
             box_stack.append(box.left)
     return count
+
 
 def np_flatten_bvh(root: FastTreeBox):
     box_count = count_boxes(root)
